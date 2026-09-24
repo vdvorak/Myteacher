@@ -6,7 +6,7 @@ import type { CreatedStudent, Student, StudentBasics, StudentChange, StudentsApi
 /** Signs the consent the fake records. */
 export const attester = { id: 1, email: 'admin@skola.example' }
 
-const base = { minor: false, consent: null }
+const base = { minor: false, consent: null, classes: [] }
 export const jana: Student = { ...base, id: 10, name: 'Jana Veselá', email: 'jana@skola.example', language: 'cs', state: 'active' }
 export const petr: Student = { ...base, id: 11, name: 'Petr Malý', email: 'petr@skola.example', language: 'en', state: 'invited' }
 export const eva: Student = {
@@ -43,6 +43,7 @@ export function fakeStudentsApi(options: { students?: Student[]; mailError?: str
         id: 100 + students.length,
         ...basics,
         consent: null,
+        classes: [],
         state: awaiting ? 'awaiting_consent' : 'invited',
       }
       students = [...students, student]

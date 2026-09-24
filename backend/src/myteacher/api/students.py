@@ -11,6 +11,8 @@ from myteacher.accounts.consent import StudentState
 from myteacher.accounts.models import Account, GuardianConsent
 from myteacher.api.deps import AppSettings, Db, MailSender, Now, requires
 from myteacher.api.invite import InvitationResult, ensure_invitable, send_invitation
+from myteacher.classes import service as classes
+from myteacher.classes.models import SchoolClass
 from myteacher.mail.templates import Language
 from myteacher.persistence import InstanceSession
 from myteacher.policy import is_teacher
@@ -33,6 +35,11 @@ class ConsentOut(BaseModel):
         return at.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+class ClassRef(BaseModel):
+    id: int
+    name: str
+
+
 class StudentOut(BaseModel):
     id: int
     name: str
@@ -42,10 +49,16 @@ class StudentOut(BaseModel):
     # The latest guardian consent recorded; None when there is none.
     consent: ConsentOut | None
     state: StudentState
+    # The classes the student is in now, by name.
+    classes: list[ClassRef]
 
     @classmethod
     def of(
-        cls, db: InstanceSession, student: Account, recorded: GuardianConsent | None
+        cls,
+        db: InstanceSession,
+        student: Account,
+        recorded: GuardianConsent | None,
+        in_classes: list[SchoolClass],
     ) -> "StudentOut":
         attester = service.get_account(db, recorded.attested_by_id) if recorded else None
         return cls(
@@ -63,11 +76,13 @@ class StudentOut(BaseModel):
             if recorded
             else None,
             state=consent.student_state(student, recorded),
+            classes=[ClassRef(id=klass.id, name=klass.name) for klass in in_classes],
         )
 
 
 def _out(db: InstanceSession, student: Account) -> StudentOut:
-    return StudentOut.of(db, student, consent.latest_consent(db, student))
+    recorded = consent.latest_consent(db, student)
+    return StudentOut.of(db, student, recorded, classes.classes_of(db, student))
 
 
 class NewStudent(BaseModel):
@@ -131,7 +146,11 @@ def _revoke(db: InstanceSession, student: Account, *, now: datetime, actor: Acco
 def list_students(db: Db, _: Teacher) -> list[StudentOut]:
     """Every student on the instance, by name."""
     consents = consent.latest_consents(db)
-    return [StudentOut.of(db, s, consents.get(s.id)) for s in service.list_students(db)]
+    memberships = classes.classes_by_student(db)
+    return [
+        StudentOut.of(db, s, consents.get(s.id), memberships.get(s.id, []))
+        for s in service.list_students(db)
+    ]
 
 
 @router.post("", status_code=201, responses={409: {"description": "Email taken"}})

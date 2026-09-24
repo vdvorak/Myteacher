@@ -75,6 +75,7 @@ export function Shell(props: RouteSectionProps) {
               </A>
               <Show when={account().kind === 'teacher'}>
                 <A href="/students">{t('nav.students')}</A>
+                <A href="/classes">{t('nav.classes')}</A>
               </Show>
               <A href="/settings">{t('nav.settings')}</A>
               <Show when={account().roles.includes('admin')}>

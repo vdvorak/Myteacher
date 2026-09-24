@@ -1,5 +1,5 @@
 import { A, useParams } from '@solidjs/router'
-import { createResource, Show } from 'solid-js'
+import { createResource, For, Show } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
@@ -92,6 +92,20 @@ function StudentDetail() {
                 onSubmit={(basics) => save(current(), basics)}
               />
             </Show>
+            <section class="admin-section" aria-labelledby="student-classes-heading">
+              <h2 id="student-classes-heading">{t('classes.heading')}</h2>
+              <Show when={current().classes.length > 0} fallback={<p>{t('students.noClasses')}</p>}>
+                <ul>
+                  <For each={current().classes}>
+                    {(klass) => (
+                      <li>
+                        <A href={`/classes/${klass.id}`}>{klass.name}</A>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
+            </section>
             <Show when={current().minor}>
               <ConsentSection
                 student={current()}

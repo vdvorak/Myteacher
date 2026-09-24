@@ -70,6 +70,7 @@ def test_the_student_list_and_page_show_state_and_basics(teacher, sender):
         "minor": False,
         "consent": None,
         "state": "invited",
+        "classes": [],
     }
     assert ADMIN_EMAIL not in listed and TEACHER not in listed
 

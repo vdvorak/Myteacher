@@ -19,6 +19,8 @@ export interface Student {
   consent: Consent | null
   /** A minor without consent is never active; they are awaiting consent instead. */
   state: 'invited' | 'active' | 'inactive' | 'awaiting_consent'
+  /** The classes the student is in now, by name. */
+  classes: { id: number; name: string }[]
 }
 
 export interface StudentBasics {
