@@ -18,7 +18,7 @@ export interface Student {
   /** The latest guardian consent recorded; null when there is none. */
   consent: Consent | null
   /** A minor without consent is never active; they are awaiting consent instead. */
-  state: 'invited' | 'active' | 'inactive' | 'awaiting_consent'
+  state: 'invited' | 'active' | 'inactive' | 'awaiting_consent' | 'erased'
   /** The classes the student is in now, by name. */
   classes: { id: number; name: string }[]
 }

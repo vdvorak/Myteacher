@@ -31,7 +31,7 @@ export const adminTeacher: Teacher = {
 export function fakeAdminApi(
   initial: SmtpSettings = unconfigured,
   testError: string | null = null,
-  options: { teachers?: Teacher[]; mailError?: string } = {},
+  options: { teachers?: Teacher[]; mailError?: string; erasureName?: string } = {},
 ) {
   let stored = initial
   let teachers = options.teachers ?? [adminTeacher]
@@ -75,5 +75,10 @@ export function fakeAdminApi(
       return next
     }),
     resendInvitation: vi.fn(async (_id: number) => invitation()),
+    /** Accepts the confirmation `options.erasureName`, 'Jana Veselá' unless given. */
+    eraseStudent: vi.fn(
+      async (_id: number, confirmation: string): Promise<'erased' | 'already_erased' | 'mismatch'> =>
+        confirmation.trim() === (options.erasureName ?? 'Jana Veselá') ? 'erased' : 'mismatch',
+    ),
   } satisfies AdminApi
 }

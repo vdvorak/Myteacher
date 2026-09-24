@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from myteacher import erasure
 from myteacher.persistence import Base, InstanceOwned, UTCDateTime
 
 
@@ -28,3 +29,6 @@ class ClassMembership(InstanceOwned, Base):
     student_id: Mapped[int] = mapped_column(
         ForeignKey("account.id", ondelete="CASCADE"), primary_key=True
     )
+
+
+erasure.register(erasure.Rule(table="class_membership", student_column="student_id"))

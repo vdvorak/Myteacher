@@ -2,6 +2,7 @@ import { Show } from 'solid-js'
 import { useSession } from '../auth/session'
 import { useI18n } from '../i18n/i18n'
 import { useApi } from '../api/context'
+import { ErasureSection } from './ErasureSection'
 import { SmtpSettingsForm } from './SmtpSettingsForm'
 import { TeachersSection } from './TeachersSection'
 import './admin.css'
@@ -15,6 +16,7 @@ export function AdminPage() {
       <h1>{t('admin.heading')}</h1>
       <TeachersSection api={api} />
       <SmtpSettingsForm api={api} defaultRecipient={session.account()?.email ?? ''} />
+      <ErasureSection api={api} />
     </Show>
   )
 }

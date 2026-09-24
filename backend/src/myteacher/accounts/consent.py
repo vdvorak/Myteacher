@@ -14,7 +14,7 @@ from myteacher.accounts import service
 from myteacher.accounts.models import Account, GuardianConsent
 from myteacher.persistence import InstanceSession
 
-StudentState = Literal["invited", "active", "inactive", "awaiting_consent"]
+StudentState = Literal["invited", "active", "inactive", "awaiting_consent", "erased"]
 
 
 class NotAMinor(Exception):
@@ -36,6 +36,8 @@ def latest_consent(db: InstanceSession, student: Account) -> GuardianConsent | N
 
 
 def student_state(student: Account, consent: GuardianConsent | None) -> StudentState:
+    if student.erased_at is not None:
+        return "erased"
     if not student.active and student.is_minor and consent is None:
         return "awaiting_consent"
     return service.account_state(student)  # type: ignore[return-value]

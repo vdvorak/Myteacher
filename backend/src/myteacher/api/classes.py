@@ -57,6 +57,9 @@ def _student(db: InstanceSession, student_id: int) -> Account:
     student = service.get_account(db, student_id)
     if student is None or student.kind != "student":
         raise HTTPException(status_code=404)
+    if student.erased_at is not None:
+        # Erasure took the student out of every class; nothing puts them back.
+        raise HTTPException(status_code=410, detail="student_erased")
     return student
 
 

@@ -178,7 +178,9 @@ def list_teachers(db: InstanceSession) -> list[Account]:
 def list_students(db: InstanceSession) -> list[Account]:
     return list(
         db.scalars(
-            select(Account).where(Account.kind == "student").order_by(Account.name, Account.email)
+            select(Account)
+            .where(Account.kind == "student", Account.erased_at.is_(None))
+            .order_by(Account.name, Account.email)
         )
     )
 

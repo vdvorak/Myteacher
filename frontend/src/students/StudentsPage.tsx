@@ -14,6 +14,7 @@ export const stateNames: Record<Student['state'], MessageKey> = {
   active: 'teachers.state.active',
   inactive: 'teachers.state.inactive',
   awaiting_consent: 'students.state.awaitingConsent',
+  erased: 'students.state.erased',
 }
 
 /** Student pages are for teachers; students do not manage accounts. */

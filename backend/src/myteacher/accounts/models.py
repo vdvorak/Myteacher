@@ -4,6 +4,7 @@ from typing import Literal
 from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from myteacher import erasure
 from myteacher.persistence import Base, InstanceOwned, UTCDateTime
 
 AccountKind = Literal["teacher", "student"]
@@ -31,6 +32,8 @@ class Account(InstanceOwned, Base):
     # "HH:MM" of the teacher's daily digest; None follows the instance default.
     digest_time: Mapped[str | None] = mapped_column(String(5))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # When an admin erased the student; the row stays, with placeholders, for statistics.
+    erased_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
 
 
 class AuthSession(InstanceOwned, Base):
@@ -101,3 +104,26 @@ class GuardianConsent(InstanceOwned, Base):
     attested_by_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
     recorded_at: Mapped[datetime] = mapped_column(UTCDateTime)
     note: Mapped[str | None] = mapped_column(String(1000))
+
+
+# What erasure does to a student's account data. Audit events keep only account ids, so they stay.
+erasure.register(erasure.Rule(table="auth_session", student_column="account_id"))
+erasure.register(erasure.Rule(table="invitation", student_column="account_id"))
+erasure.register(erasure.Rule(table="password_reset", student_column="account_id"))
+erasure.register(erasure.Rule(table="guardian_consent", student_column="student_id"))
+erasure.register(
+    erasure.Rule(
+        table="account",
+        student_column="id",
+        anonymise={
+            "name": lambda student_id: f"Erased student {student_id}",
+            # Unique, and in a domain that can never receive mail.
+            "email": lambda student_id: f"erased-{student_id}@erased.invalid",
+            "password_hash": None,
+            "language": None,
+            "digest_time": None,
+            "is_minor": False,
+            "active": False,
+        },
+    )
+)

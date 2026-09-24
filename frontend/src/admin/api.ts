@@ -73,6 +73,8 @@ export interface AdminApi {
   createTeacher(email: string, language: Locale): Promise<CreatedTeacher>
   changeTeacher(id: number, change: TeacherChange): Promise<Teacher>
   resendInvitation(id: number): Promise<InvitationResult>
+  /** Erases a student; 'mismatch' when the confirmation is not the student's name. */
+  eraseStudent(id: number, confirmation: string): Promise<'erased' | 'already_erased' | 'mismatch'>
 }
 
 async function json<T>(response: Response): Promise<T> {
@@ -96,4 +98,11 @@ export const httpAdminApi: AdminApi = {
   createTeacher: async (email, language) => json(await send('POST', '/api/admin/teachers', { email, language })),
   changeTeacher: async (id, change) => json(await send('PATCH', `/api/admin/teachers/${id}`, change)),
   resendInvitation: async (id) => json(await fetch(`/api/admin/teachers/${id}/invitation`, { method: 'POST' })),
+  eraseStudent: async (id, confirmation) => {
+    const response = await send('POST', `/api/admin/students/${id}/erasure`, { confirmation })
+    if (response.status === 409) return 'mismatch'
+    if (response.status === 410) return 'already_erased'
+    if (!response.ok) throw new ApiError(response.status)
+    return 'erased'
+  },
 }

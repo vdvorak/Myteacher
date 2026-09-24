@@ -95,3 +95,21 @@
 .settings-form h3 {
   margin: 0;
 }
+
+.erasure-dialog {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-incorrect);
+  border-radius: var(--radius);
+}
+
+.erasure-dialog h3,
+.erasure-dialog p {
+  margin: 0;
+}
+
+button.danger:not(:disabled) {
+  border-color: var(--color-incorrect);
+  color: var(--color-incorrect);
+}

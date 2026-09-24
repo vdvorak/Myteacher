@@ -125,10 +125,19 @@ class ConsentIn(BaseModel):
     note: Annotated[str, AfterValidator(str.strip), Field(max_length=1000)] | None = None
 
 
-def _student(db: InstanceSession, student_id: int) -> Account:
+def _any_student(db: InstanceSession, student_id: int) -> Account:
+    """The student, erased or not; erased ones can still be read, with their placeholders."""
     student = service.get_account(db, student_id)
     if student is None or student.kind != "student":
         raise HTTPException(status_code=404)
+    return student
+
+
+def _student(db: InstanceSession, student_id: int) -> Account:
+    """A student who can still be changed, which an erased one cannot."""
+    student = _any_student(db, student_id)
+    if student.erased_at is not None:
+        raise HTTPException(status_code=410, detail="student_erased")
     return student
 
 
@@ -189,7 +198,7 @@ def create_student(
 
 @router.get("/{student_id}")
 def read_student(student_id: int, db: Db, _: Teacher) -> StudentOut:
-    return _out(db, _student(db, student_id))
+    return _out(db, _any_student(db, student_id))
 
 
 @router.patch(

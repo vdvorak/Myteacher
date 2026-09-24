@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_serializer
 
+from myteacher import erasure
 from myteacher.accounts import service
 from myteacher.accounts.models import Account
 from myteacher.api.deps import AppSettings, Box, Db, MailSender, Now, requires
@@ -232,3 +233,41 @@ def change_teacher(
     except service.LastActiveAdmin:
         raise HTTPException(status_code=409, detail="last_active_admin") from None
     return TeacherOut.of(teacher)
+
+
+# Erasure
+
+
+class ErasureConfirmation(BaseModel):
+    # The student's name, typed by the admin, so that erasure never happens by accident.
+    confirmation: str = Field(max_length=200)
+
+
+@router.post(
+    "/students/{student_id}/erasure",
+    status_code=204,
+    responses={
+        409: {"description": "The confirmation is not the student's name"},
+        410: {"description": "Erased already"},
+    },
+)
+def erase_student(
+    student_id: int, body: ErasureConfirmation, db: Db, now: Now, admin: Admin
+) -> None:
+    """Physically remove the student's personal data, leaving placeholders (ADR 0007).
+
+    Deactivation is the normal way to delete; this serves a legal erasure request.
+    """
+    student = service.get_account(db, student_id)
+    if student is None or student.kind != "student":
+        raise HTTPException(status_code=404)
+    if student.erased_at is not None:
+        raise HTTPException(status_code=410, detail="student_erased")
+    if body.confirmation.strip() != (student.name or "").strip():
+        raise HTTPException(status_code=409, detail="confirmation_mismatch")
+    db.flush()
+    erasure.erase(db, student.id)
+    # The rows changed underneath the session; reload the account before marking it.
+    db.expire(student)
+    student.erased_at = now
+    service.record_event(db, "student_erased", at=now, actor=admin, subject=student)
