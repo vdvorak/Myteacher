@@ -53,7 +53,8 @@ export type RenderedAnswer =
   | FreeTextAnswer
   | TranslationAnswer
 
-const renderedTypes: ReadonlySet<string> = new Set<RenderedExercise['type']>([
+/** The component catalog, in the order a teacher is offered it. */
+export const catalogTypes: readonly RenderedExercise['type'][] = [
   'multiple_choice',
   'short_answer',
   'cloze',
@@ -62,7 +63,9 @@ const renderedTypes: ReadonlySet<string> = new Set<RenderedExercise['type']>([
   'token_selection',
   'free_text',
   'translation',
-])
+]
+
+const renderedTypes: ReadonlySet<string> = new Set(catalogTypes)
 
 /** Open types are answered in free text and assessed later against a rubric, never here. */
 export function isOpen(exercise: RenderedExercise): exercise is OpenExercise {

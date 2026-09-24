@@ -207,3 +207,11 @@ def test_custom_answer_size_counts_characters_not_escapes(client):
     response = client.post(f"/api/lessons/{LESSON}/exercises/stress/assessment", json=answer)
 
     assert response.status_code == 200
+
+
+def test_the_component_catalog_is_the_schema_minus_the_unrendered_types():
+    from myteacher.lesson.catalog import COMPONENT_CATALOG
+
+    unrendered = {answer["type"] for answer in UNASSESSED_ANSWERS.values()}
+
+    assert set(COMPONENT_CATALOG) == catalog_types() - unrendered

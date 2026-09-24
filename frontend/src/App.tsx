@@ -11,6 +11,8 @@ import {
 import { AdminPage } from './admin/AdminPage'
 import { ClassesPage } from './classes/ClassesPage'
 import { ClassPage } from './classes/ClassPage'
+import { CoursePage } from './courses/CoursePage'
+import { CoursesPage } from './courses/CoursesPage'
 import { ApiProvider, type Apis } from './api/context'
 import { SessionProvider } from './auth/session'
 import { ForgotPasswordPage } from './auth/ForgotPasswordPage'
@@ -52,6 +54,8 @@ const routes = () => (
       <Route path="/students/:studentId" component={StudentPage} />
       <Route path="/classes" component={ClassesPage} />
       <Route path="/classes/:classId" component={ClassPage} />
+      <Route path="/courses" component={CoursesPage} />
+      <Route path="/courses/:courseId" component={CoursePage} />
       <Route path="/admin" component={AdminPage} />
     </Route>
     <Route path="*" component={() => <Navigate href="/" />} />

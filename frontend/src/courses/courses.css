@@ -1,0 +1,32 @@
+.brief-field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.brief-field label {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.brief-field textarea {
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  resize: vertical;
+}
+
+.brief-types {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.brief-types legend {
+  font-weight: bold;
+}
