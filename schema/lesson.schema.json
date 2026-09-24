@@ -4,6 +4,11 @@
     "AssessmentResult": {
       "additionalProperties": false,
       "properties": {
+        "status": {
+          "const": "assessed",
+          "title": "Status",
+          "type": "string"
+        },
         "exercise_id": {
           "maxLength": 64,
           "pattern": "^[a-z0-9][a-z0-9-]*$",
@@ -33,12 +38,115 @@
         }
       },
       "required": [
+        "status",
         "exercise_id",
         "score",
         "correct",
         "solution"
       ],
       "title": "AssessmentResult",
+      "type": "object"
+    },
+    "AssessmentUnavailable": {
+      "additionalProperties": false,
+      "description": "The answer fits the exercise, but its type has no assessor in this phase.",
+      "properties": {
+        "status": {
+          "const": "unavailable",
+          "title": "Status",
+          "type": "string"
+        },
+        "exercise_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Exercise Id",
+          "type": "string"
+        },
+        "reason": {
+          "const": "no_assessor_in_this_phase",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "exercise_id",
+        "reason"
+      ],
+      "title": "AssessmentUnavailable",
+      "type": "object"
+    },
+    "AttachmentReference": {
+      "additionalProperties": false,
+      "description": "A file stored with the course (attachment storage arrives in slice 3).",
+      "properties": {
+        "attachment_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Attachment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "attachment_id"
+      ],
+      "title": "AttachmentReference",
+      "type": "object"
+    },
+    "BlankCell": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "blank",
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "accepted_answers": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Accepted Answers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "accepted_answers"
+      ],
+      "title": "BlankCell",
+      "type": "object"
+    },
+    "BlankCellPublic": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "blank",
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "title": "BlankCellPublic",
       "type": "object"
     },
     "ChoiceOption": {
@@ -62,6 +170,137 @@
         "text"
       ],
       "title": "ChoiceOption",
+      "type": "object"
+    },
+    "CustomAnswer": {
+      "additionalProperties": false,
+      "description": "Opaque JSON from a custom exercise frame, validated only for size.",
+      "properties": {
+        "type": {
+          "const": "custom",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "required": [
+        "type",
+        "value"
+      ],
+      "title": "CustomAnswer",
+      "type": "object"
+    },
+    "CustomExercise": {
+      "additionalProperties": false,
+      "description": "Assistant-written HTML run in a sandbox with a fixed result contract (ADR 0006).",
+      "properties": {
+        "type": {
+          "const": "custom",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt"
+        },
+        "html": {
+          "maxLength": 200000,
+          "minLength": 1,
+          "title": "Html",
+          "type": "string"
+        },
+        "specification": {
+          "maxLength": 5000,
+          "minLength": 1,
+          "title": "Specification",
+          "type": "string"
+        },
+        "example": {
+          "maxLength": 5000,
+          "minLength": 1,
+          "title": "Example",
+          "type": "string"
+        },
+        "assessment_mode": {
+          "description": "self_assessed_advisory: the frame reports a self-assessment the teacher confirms. teacher_assessed: the teacher assesses the answer.",
+          "enum": [
+            "self_assessed_advisory",
+            "teacher_assessed"
+          ],
+          "title": "Assessment Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "html",
+        "specification",
+        "example",
+        "assessment_mode"
+      ],
+      "title": "CustomExercise",
+      "type": "object"
+    },
+    "CustomExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "custom",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Prompt"
+        },
+        "html": {
+          "title": "Html",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "html"
+      ],
+      "title": "CustomExercisePublic",
       "type": "object"
     },
     "ExplanationBlock": {
@@ -120,6 +359,28 @@
       "title": "FieldError",
       "type": "object"
     },
+    "GivenCell": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "given",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 500,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "GivenCell",
+      "type": "object"
+    },
+    "JsonValue": {},
     "LessonDocument": {
       "additionalProperties": false,
       "description": "A lesson as stored and authored: canonical, unshuffled, with its answer key.",
@@ -154,8 +415,13 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "custom": "#/$defs/CustomExercise",
                 "explanation": "#/$defs/ExplanationBlock",
-                "multiple_choice": "#/$defs/MultipleChoiceExercise"
+                "listening": "#/$defs/ListeningExercise",
+                "multiple_choice": "#/$defs/MultipleChoiceExercise",
+                "numeric": "#/$defs/NumericExercise",
+                "span_highlight": "#/$defs/SpanHighlightExercise",
+                "table_fill": "#/$defs/TableFillExercise"
               },
               "propertyName": "type"
             },
@@ -165,6 +431,21 @@
               },
               {
                 "$ref": "#/$defs/MultipleChoiceExercise"
+              },
+              {
+                "$ref": "#/$defs/SpanHighlightExercise"
+              },
+              {
+                "$ref": "#/$defs/TableFillExercise"
+              },
+              {
+                "$ref": "#/$defs/NumericExercise"
+              },
+              {
+                "$ref": "#/$defs/ListeningExercise"
+              },
+              {
+                "$ref": "#/$defs/CustomExercise"
               }
             ]
           },
@@ -215,8 +496,13 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "custom": "#/$defs/CustomExercisePublic",
                 "explanation": "#/$defs/ExplanationBlock",
-                "multiple_choice": "#/$defs/MultipleChoiceExercisePublic"
+                "listening": "#/$defs/ListeningExercisePublic",
+                "multiple_choice": "#/$defs/MultipleChoiceExercisePublic",
+                "numeric": "#/$defs/NumericExercisePublic",
+                "span_highlight": "#/$defs/SpanHighlightExercisePublic",
+                "table_fill": "#/$defs/TableFillExercisePublic"
               },
               "propertyName": "type"
             },
@@ -226,6 +512,21 @@
               },
               {
                 "$ref": "#/$defs/MultipleChoiceExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/SpanHighlightExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/TableFillExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/NumericExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/ListeningExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/CustomExercisePublic"
               }
             ]
           },
@@ -241,6 +542,151 @@
         "blocks"
       ],
       "title": "LessonPublic",
+      "type": "object"
+    },
+    "ListeningAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "listening",
+          "title": "Type",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 2000,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "ListeningAnswer",
+      "type": "object"
+    },
+    "ListeningExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "listening",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "audio": {
+          "$ref": "#/$defs/AttachmentReference"
+        },
+        "transcript": {
+          "anyOf": [
+            {
+              "maxLength": 5000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transcript"
+        },
+        "accepted_answers": {
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Accepted Answers",
+          "type": "array"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "audio",
+        "accepted_answers"
+      ],
+      "title": "ListeningExercise",
+      "type": "object"
+    },
+    "ListeningExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "listening",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "audio": {
+          "$ref": "#/$defs/AttachmentReference"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "audio",
+        "hint"
+      ],
+      "title": "ListeningExercisePublic",
       "type": "object"
     },
     "MultipleChoiceAnswer": {
@@ -432,13 +878,180 @@
       "title": "MultipleChoiceSolution",
       "type": "object"
     },
+    "NumericAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "numeric",
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "value"
+      ],
+      "title": "NumericAnswer",
+      "type": "object"
+    },
+    "NumericExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "numeric",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "correct_value": {
+          "title": "Correct Value",
+          "type": "number"
+        },
+        "tolerance": {
+          "default": 0,
+          "description": "Largest accepted absolute difference from the value.",
+          "minimum": 0,
+          "title": "Tolerance",
+          "type": "number"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "correct_value"
+      ],
+      "title": "NumericExercise",
+      "type": "object"
+    },
+    "NumericExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "numeric",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Unit"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "unit",
+        "hint"
+      ],
+      "title": "NumericExercisePublic",
+      "type": "object"
+    },
     "SecondRound": {
       "additionalProperties": false,
       "description": "Varied repeats of the failed exercises, in lesson order; empty when nothing failed.",
       "properties": {
         "exercises": {
           "items": {
-            "$ref": "#/$defs/MultipleChoiceExercisePublic"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/MultipleChoiceExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/SpanHighlightExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/TableFillExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/NumericExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/ListeningExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/CustomExercisePublic"
+              }
+            ]
           },
           "title": "Exercises",
           "type": "array"
@@ -474,6 +1087,358 @@
         "seed"
       ],
       "title": "SecondRoundRequest",
+      "type": "object"
+    },
+    "SpanHighlightAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "span_highlight",
+          "title": "Type",
+          "type": "string"
+        },
+        "spans": {
+          "items": {
+            "$ref": "#/$defs/TextSpan"
+          },
+          "maxItems": 100,
+          "title": "Spans",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "spans"
+      ],
+      "title": "SpanHighlightAnswer",
+      "type": "object"
+    },
+    "SpanHighlightExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "span_highlight",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 5000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "correct_spans": {
+          "items": {
+            "$ref": "#/$defs/TextSpan"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Correct Spans",
+          "type": "array"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "text",
+        "correct_spans"
+      ],
+      "title": "SpanHighlightExercise",
+      "type": "object"
+    },
+    "SpanHighlightExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "span_highlight",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 5000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "text",
+        "hint"
+      ],
+      "title": "SpanHighlightExercisePublic",
+      "type": "object"
+    },
+    "TableFillAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "table_fill",
+          "title": "Type",
+          "type": "string"
+        },
+        "cells": {
+          "description": "Answers keyed by blank id.",
+          "maxProperties": 400,
+          "patternProperties": {
+            "^[a-z0-9][a-z0-9-]*$": {
+              "maxLength": 500,
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 64
+          },
+          "title": "Cells",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "cells"
+      ],
+      "title": "TableFillAnswer",
+      "type": "object"
+    },
+    "TableFillExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "table_fill",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "columns": {
+          "items": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Columns",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "blank": "#/$defs/BlankCell",
+                  "given": "#/$defs/GivenCell"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/GivenCell"
+                },
+                {
+                  "$ref": "#/$defs/BlankCell"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Rows",
+          "type": "array"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "columns",
+        "rows"
+      ],
+      "title": "TableFillExercise",
+      "type": "object"
+    },
+    "TableFillExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "table_fill",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "columns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Columns",
+          "type": "array"
+        },
+        "rows": {
+          "items": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "blank": "#/$defs/BlankCellPublic",
+                  "given": "#/$defs/GivenCell"
+                },
+                "propertyName": "kind"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/GivenCell"
+                },
+                {
+                  "$ref": "#/$defs/BlankCellPublic"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Rows",
+          "type": "array"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "columns",
+        "rows",
+        "hint"
+      ],
+      "title": "TableFillExercisePublic",
+      "type": "object"
+    },
+    "TextSpan": {
+      "additionalProperties": false,
+      "description": "Characters `start` (inclusive) to `end` (exclusive) of a text, counted in code points.",
+      "properties": {
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "TextSpan",
       "type": "object"
     },
     "ValidationReport": {

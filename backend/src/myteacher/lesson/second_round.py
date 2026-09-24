@@ -1,6 +1,7 @@
 """The second round: varied repeats of the exercises a student failed in the first pass.
 
-A pure function of (lesson, failed exercise ids, seed). Repeats keep their exercise id
+A pure function of (lesson, failed exercise ids, seed). Types without a renderer or an
+assessor in this phase are not repeated. Repeats keep their exercise id
 and option ids, so they are assessed exactly like the original exercise.
 """
 
@@ -21,15 +22,19 @@ def second_round(
     if unknown:
         raise UnknownExercise(f"not exercises of this lesson: {', '.join(unknown)}")
     failed = set(failed_exercise_ids)
-    return [vary(exercise, seed) for exercise in lesson.exercises() if exercise.id in failed]
+    repeats = (vary(exercise, seed) for exercise in lesson.exercises() if exercise.id in failed)
+    return [repeat for repeat in repeats if repeat is not None]
 
 
-def vary(exercise: Exercise, seed: str) -> Exercise:
+def vary(exercise: Exercise, seed: str) -> Exercise | None:
+    """A varied repeat, or None for a type that has no variation strategy (and is not repeated)."""
     match exercise:
         case MultipleChoiceExercise():
             return exercise.model_copy(
                 update={"options": _different_order(exercise.options, f"{seed}:{exercise.id}")}
             )
+        case _:
+            return None
 
 
 def _different_order[T](items: list[T], seed: str) -> list[T]:

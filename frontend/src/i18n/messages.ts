@@ -25,6 +25,12 @@ const en = {
   'lesson.secondRoundFailed': 'The second round could not be loaded. Try again.',
   'lesson.finished': 'Lesson finished',
   'lesson.firstPassScore': '{correct} of {total} right in the first pass.',
+  'exercise.unsupported': 'not supported yet',
+  'exerciseType.span_highlight': 'Span highlighting',
+  'exerciseType.table_fill': 'Table fill',
+  'exerciseType.numeric': 'Numeric answer',
+  'exerciseType.listening': 'Listening',
+  'exerciseType.custom': 'Custom exercise',
 }
 
 export type MessageKey = keyof typeof en
@@ -53,6 +59,12 @@ const cs: Record<MessageKey, string> = {
   'lesson.secondRoundFailed': 'Druhé kolo se nepodařilo načíst. Zkuste to znovu.',
   'lesson.finished': 'Lekce dokončena',
   'lesson.firstPassScore': 'V prvním průchodu správně {correct} z {total}.',
+  'exercise.unsupported': 'zatím nepodporováno',
+  'exerciseType.span_highlight': 'Označení úseku textu',
+  'exerciseType.table_fill': 'Doplňování tabulky',
+  'exerciseType.numeric': 'Číselná odpověď',
+  'exerciseType.listening': 'Poslech',
+  'exerciseType.custom': 'Vlastní cvičení',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }

@@ -6,6 +6,7 @@ import type {
   LessonPublic,
   MultipleChoiceExercisePublic,
 } from '../generated/lesson'
+import type { ExercisePublic } from './schema'
 
 export type FeedbackMode = LessonPublic['feedback_mode']
 export type Exercise = MultipleChoiceExercisePublic
@@ -37,8 +38,13 @@ export interface LessonProgress {
 /** In immediate mode a wrong first try earns exactly one retry. */
 export const MAX_TRIES = 2
 
+export function isMultipleChoice(block: LessonPublic['blocks'][number] | ExercisePublic): block is Exercise {
+  return block.type === 'multiple_choice'
+}
+
+/** The exercises the player runs; types without a renderer in this phase are left out. */
 export function lessonExercises(lesson: LessonPublic): Exercise[] {
-  return lesson.blocks.filter((block): block is Exercise => block.type === 'multiple_choice')
+  return lesson.blocks.filter(isMultipleChoice)
 }
 
 export function newRound(exercises: Exercise[]): RoundProgress {

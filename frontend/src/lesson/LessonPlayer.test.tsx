@@ -3,7 +3,14 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { LessonPublic } from '../generated/lesson'
 import { LessonPlayer } from './LessonPlayer'
-import { atTheEndLesson, fakeApi, sampleLesson, withI18n } from './testing'
+import {
+  allTypesLesson,
+  atTheEndLesson,
+  fakeApi,
+  sampleLesson,
+  unrenderedExercises,
+  withI18n,
+} from './testing'
 
 beforeEach(() => localStorage.clear())
 
@@ -295,5 +302,43 @@ describe('resuming after a reload', () => {
     expect(within(exercise(/Madrid/)).getByRole('radio', { name: 'son' })).not.toBeChecked()
     await answer(user, /Madrid/, 'es')
     expect(screen.getByRole('button', { name: 'Submit answers' })).toBeEnabled()
+  })
+})
+
+describe('exercise types without a renderer in this phase', () => {
+  const placeholders = () => screen.getAllByRole('note', { name: /not supported yet/ })
+
+  it('shows a placeholder naming the type for every one of them', () => {
+    play(allTypesLesson)
+
+    expect(placeholders()).toHaveLength(unrenderedExercises.length)
+    for (const name of ['Span highlighting', 'Table fill', 'Numeric answer', 'Listening', 'Custom exercise']) {
+      expect(screen.getAllByRole('note', { name: `${name}: not supported yet` })).not.toHaveLength(0)
+    }
+  })
+
+  it('shows the exercise prompt where there is one', () => {
+    play(allTypesLesson)
+
+    const [highlight] = placeholders()
+    expect(highlight).toHaveTextContent('Highlight every form of estar.')
+    expect(screen.getAllByRole('note', { name: 'Custom exercise: not supported yet' })).toHaveLength(2)
+  })
+
+  it('names the type in Czech too', () => {
+    render(
+      withI18n(() => <LessonPlayer lesson={allTypesLesson} seed="1" api={fakeApi()} />, 'cs'),
+    )
+
+    expect(screen.getByRole('note', { name: 'Číselná odpověď: zatím nepodporováno' })).toBeInTheDocument()
+  })
+
+  it('does not hold up finishing the lesson', async () => {
+    const { user } = play(allTypesLesson)
+
+    await answer(user, /Madrid/, 'está')
+    await confirm(user, /Madrid/)
+
+    expect(await screen.findByText('Lesson finished')).toBeInTheDocument()
   })
 })

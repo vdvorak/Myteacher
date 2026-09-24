@@ -8,6 +8,7 @@ import type {
   MultipleChoiceAnswer,
   MultipleChoiceExercisePublic,
 } from '../generated/lesson'
+import type { ExercisePublic } from './schema'
 import type { LessonApi } from './LessonPlayer'
 
 export function withI18n(ui: () => JSX.Element, locale: Locale = 'en') {
@@ -70,6 +71,7 @@ export function fakeApi(lesson: LessonPublic = sampleLesson) {
     ): Promise<AssessmentResult> => {
       const correct = answerKey[exerciseId] === answer.option_id
       return {
+        status: 'assessed',
         exercise_id: exerciseId,
         score: correct ? 1 : 0,
         correct,
@@ -91,4 +93,39 @@ export function fakeApi(lesson: LessonPublic = sampleLesson) {
       .map((exercise) => ({ ...exercise, options: [...exercise.options].reverse() })),
   }))
   return { assess, secondRound } satisfies LessonApi
+}
+
+/** The public shape of every exercise type the schema knows but phase 1 does not render. */
+export const unrenderedExercises: ExercisePublic[] = [
+  {
+    type: 'span_highlight',
+    id: 'highlight',
+    prompt: 'Highlight every form of *estar*.',
+    text: 'Hoy estoy en casa.',
+    hint: null,
+  },
+  {
+    type: 'table_fill',
+    id: 'conjugation',
+    prompt: 'Complete the present tense of *estar*.',
+    columns: ['Persona', 'Forma'],
+    rows: [[{ kind: 'given', text: 'yo' }, { kind: 'blank', id: 'yo' }]],
+    hint: null,
+  },
+  { type: 'numeric', id: 'distance', prompt: 'How far is Sevilla?', unit: 'km', hint: null },
+  {
+    type: 'listening',
+    id: 'dictation',
+    prompt: 'Listen and write down the sentence.',
+    audio: { attachment_id: 'dictado-01' },
+    hint: null,
+  },
+  { type: 'custom', id: 'stress', prompt: 'Tap the stressed syllable.', html: '<p>can·ción</p>' },
+  { type: 'custom', id: 'no-prompt', prompt: null, html: '<p>x</p>' },
+]
+
+export const allTypesLesson: LessonPublic = {
+  ...sampleLesson,
+  id: 'all-exercise-types',
+  blocks: [locationExercise, ...unrenderedExercises],
 }

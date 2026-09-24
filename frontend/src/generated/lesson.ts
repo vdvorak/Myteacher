@@ -1,5 +1,11 @@
 /* Generated from schema/lesson.schema.json by scripts/generate-schema.sh. Do not edit. */
 
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "JsonValue".
+ */
+export type JsonValue = unknown
+
 export interface MyteacherLessonSchema {
   [k: string]: unknown
 }
@@ -8,6 +14,7 @@ export interface MyteacherLessonSchema {
  * via the `definition` "AssessmentResult".
  */
 export interface AssessmentResult {
+  status: 'assessed'
   exercise_id: string
   score: number
   correct: boolean
@@ -26,12 +33,91 @@ export interface MultipleChoiceSolution {
   explanation: string | null
 }
 /**
+ * The answer fits the exercise, but its type has no assessor in this phase.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "AssessmentUnavailable".
+ */
+export interface AssessmentUnavailable {
+  status: 'unavailable'
+  exercise_id: string
+  reason: 'no_assessor_in_this_phase'
+}
+/**
+ * A file stored with the course (attachment storage arrives in slice 3).
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "AttachmentReference".
+ */
+export interface AttachmentReference {
+  attachment_id: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "BlankCell".
+ */
+export interface BlankCell {
+  kind: 'blank'
+  id: string
+  /**
+   * @minItems 1
+   * @maxItems 20
+   */
+  accepted_answers: [string, ...string[]]
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "BlankCellPublic".
+ */
+export interface BlankCellPublic {
+  kind: 'blank'
+  id: string
+}
+/**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "ChoiceOption".
  */
 export interface ChoiceOption {
   id: string
   text: string
+}
+/**
+ * Opaque JSON from a custom exercise frame, validated only for size.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "CustomAnswer".
+ */
+export interface CustomAnswer {
+  type: 'custom'
+  value: JsonValue
+}
+/**
+ * Assistant-written HTML run in a sandbox with a fixed result contract (ADR 0006).
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "CustomExercise".
+ */
+export interface CustomExercise {
+  type: 'custom'
+  id: string
+  prompt?: string | null
+  html: string
+  specification: string
+  example: string
+  /**
+   * self_assessed_advisory: the frame reports a self-assessment the teacher confirms. teacher_assessed: the teacher assesses the answer.
+   */
+  assessment_mode: 'self_assessed_advisory' | 'teacher_assessed'
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "CustomExercisePublic".
+ */
+export interface CustomExercisePublic {
+  type: 'custom'
+  id: string
+  prompt: string | null
+  html: string
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -54,6 +140,14 @@ export interface FieldError {
   type: string
 }
 /**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "GivenCell".
+ */
+export interface GivenCell {
+  kind: 'given'
+  text: string
+}
+/**
  * A lesson as stored and authored: canonical, unshuffled, with its answer key.
  *
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -70,7 +164,26 @@ export interface LessonDocument {
   /**
    * @minItems 1
    */
-  blocks: [ExplanationBlock | MultipleChoiceExercise, ...(ExplanationBlock | MultipleChoiceExercise)[]]
+  blocks: [
+    (
+      | ExplanationBlock
+      | MultipleChoiceExercise
+      | SpanHighlightExercise
+      | TableFillExercise
+      | NumericExercise
+      | ListeningExercise
+      | CustomExercise
+    ),
+    ...(
+      | ExplanationBlock
+      | MultipleChoiceExercise
+      | SpanHighlightExercise
+      | TableFillExercise
+      | NumericExercise
+      | ListeningExercise
+      | CustomExercise
+    )[]
+  ]
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -93,6 +206,97 @@ export interface MultipleChoiceExercise {
   solution_explanation?: string | null
 }
 /**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "SpanHighlightExercise".
+ */
+export interface SpanHighlightExercise {
+  type: 'span_highlight'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  text: string
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  correct_spans: [TextSpan, ...TextSpan[]]
+  hint?: string | null
+}
+/**
+ * Characters `start` (inclusive) to `end` (exclusive) of a text, counted in code points.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TextSpan".
+ */
+export interface TextSpan {
+  start: number
+  end: number
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TableFillExercise".
+ */
+export interface TableFillExercise {
+  type: 'table_fill'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  /**
+   * @minItems 1
+   * @maxItems 8
+   */
+  columns: [string, ...string[]]
+  /**
+   * @minItems 1
+   * @maxItems 50
+   */
+  rows: [(GivenCell | BlankCell)[], ...(GivenCell | BlankCell)[][]]
+  hint?: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "NumericExercise".
+ */
+export interface NumericExercise {
+  type: 'numeric'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  correct_value: number
+  /**
+   * Largest accepted absolute difference from the value.
+   */
+  tolerance?: number
+  unit?: string | null
+  hint?: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ListeningExercise".
+ */
+export interface ListeningExercise {
+  type: 'listening'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  audio: AttachmentReference
+  transcript?: string | null
+  /**
+   * @minItems 1
+   * @maxItems 20
+   */
+  accepted_answers: [string, ...string[]]
+  hint?: string | null
+}
+/**
  * A lesson as the browser receives it: no answer key, no solutions.
  *
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -106,7 +310,15 @@ export interface LessonPublic {
    * immediate: each closed answer is assessed at once, with one retry and a hint after a wrong answer. at_the_end: nothing is assessed until the lesson is submitted.
    */
   feedback_mode: 'immediate' | 'at_the_end'
-  blocks: (ExplanationBlock | MultipleChoiceExercisePublic)[]
+  blocks: (
+    | ExplanationBlock
+    | MultipleChoiceExercisePublic
+    | SpanHighlightExercisePublic
+    | TableFillExercisePublic
+    | NumericExercisePublic
+    | ListeningExercisePublic
+    | CustomExercisePublic
+  )[]
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -124,11 +336,84 @@ export interface MultipleChoiceExercisePublic {
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "SpanHighlightExercisePublic".
+ */
+export interface SpanHighlightExercisePublic {
+  type: 'span_highlight'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  text: string
+  hint: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TableFillExercisePublic".
+ */
+export interface TableFillExercisePublic {
+  type: 'table_fill'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  columns: string[]
+  rows: (GivenCell | BlankCellPublic)[][]
+  hint: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "NumericExercisePublic".
+ */
+export interface NumericExercisePublic {
+  type: 'numeric'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  unit: string | null
+  hint: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ListeningExercisePublic".
+ */
+export interface ListeningExercisePublic {
+  type: 'listening'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  audio: AttachmentReference
+  hint: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ListeningAnswer".
+ */
+export interface ListeningAnswer {
+  type: 'listening'
+  text: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "MultipleChoiceAnswer".
  */
 export interface MultipleChoiceAnswer {
   type: 'multiple_choice'
   option_id: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "NumericAnswer".
+ */
+export interface NumericAnswer {
+  type: 'numeric'
+  value: number
 }
 /**
  * Varied repeats of the failed exercises, in lesson order; empty when nothing failed.
@@ -137,7 +422,14 @@ export interface MultipleChoiceAnswer {
  * via the `definition` "SecondRound".
  */
 export interface SecondRound {
-  exercises: MultipleChoiceExercisePublic[]
+  exercises: (
+    | MultipleChoiceExercisePublic
+    | SpanHighlightExercisePublic
+    | TableFillExercisePublic
+    | NumericExercisePublic
+    | ListeningExercisePublic
+    | CustomExercisePublic
+  )[]
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -146,6 +438,34 @@ export interface SecondRound {
 export interface SecondRoundRequest {
   failed_exercise_ids: string[]
   seed: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "SpanHighlightAnswer".
+ */
+export interface SpanHighlightAnswer {
+  type: 'span_highlight'
+  /**
+   * @maxItems 100
+   */
+  spans: TextSpan[]
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TableFillAnswer".
+ */
+export interface TableFillAnswer {
+  type: 'table_fill'
+  /**
+   * Answers keyed by blank id.
+   */
+  cells: {
+    /**
+     * This interface was referenced by `undefined`'s JSON-Schema definition
+     * via the `patternProperty` "^[a-z0-9][a-z0-9-]*$".
+     */
+    [k: string]: string
+  }
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema

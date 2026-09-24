@@ -1,7 +1,9 @@
 """Deterministic assessment of closed exercise types: a pure function of definition and answer."""
 
 from myteacher.lesson.schema import (
+    AssessmentOutcome,
     AssessmentResult,
+    AssessmentUnavailable,
     Exercise,
     ExerciseAnswer,
     MultipleChoiceAnswer,
@@ -14,16 +16,21 @@ class AnswerMismatch(ValueError):
     """The answer does not fit the exercise it was given for."""
 
 
-def assess(exercise: Exercise, answer: ExerciseAnswer, *, reveal: bool = True) -> AssessmentResult:
+def assess(exercise: Exercise, answer: ExerciseAnswer, *, reveal: bool = True) -> AssessmentOutcome:
     """Score an answer. With `reveal=False` the solution of a wrong answer is withheld,
     so that a student who may still retry does not receive it."""
+    if answer.type != exercise.type:
+        raise AnswerMismatch(f"a {answer.type} answer cannot assess a {exercise.type} exercise")
     match exercise, answer:
         case MultipleChoiceExercise(), MultipleChoiceAnswer():
             result = _assess_multiple_choice(exercise, answer)
-            if not result.correct and not reveal:
-                return result.model_copy(update={"solution": None})
-            return result
-    raise AnswerMismatch(f"a {answer.type} answer cannot assess a {exercise.type} exercise")
+        case _:
+            return AssessmentUnavailable(
+                status="unavailable", exercise_id=exercise.id, reason="no_assessor_in_this_phase"
+            )
+    if not result.correct and not reveal:
+        return result.model_copy(update={"solution": None})
+    return result
 
 
 def _assess_multiple_choice(
@@ -33,6 +40,7 @@ def _assess_multiple_choice(
         raise AnswerMismatch(f"option {answer.option_id!r} is not an option of this exercise")
     correct = answer.option_id == exercise.correct_option_id
     return AssessmentResult(
+        status="assessed",
         exercise_id=exercise.id,
         score=1.0 if correct else 0.0,
         correct=correct,

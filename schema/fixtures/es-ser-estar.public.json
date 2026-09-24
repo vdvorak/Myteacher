@@ -1,0 +1,84 @@
+{
+  "id": "es-ser-estar",
+  "title": "Ser, or estar?",
+  "language": "es",
+  "feedback_mode": "immediate",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "Spanish has two verbs for *to be*.\n\n- **ser** describes what something *is*: identity, origin, profession, lasting traits. *Soy de Praga.*\n- **estar** describes how or where something *is right now*: location, mood, temporary states. *Estoy cansado.*\n\nA quick test: if the answer to \"where?\" or \"how is it at the moment?\" fits, reach for **estar**."
+    },
+    {
+      "type": "multiple_choice",
+      "id": "location",
+      "prompt": "Madrid ___ en el centro de España.",
+      "options": [
+        {
+          "id": "es",
+          "text": "es"
+        },
+        {
+          "id": "esta",
+          "text": "está"
+        },
+        {
+          "id": "son",
+          "text": "son"
+        },
+        {
+          "id": "estan",
+          "text": "están"
+        }
+      ],
+      "hint": "Ask yourself: is the sentence saying *where* Madrid is?"
+    },
+    {
+      "type": "multiple_choice",
+      "id": "origin",
+      "prompt": "Nosotros ___ de Brno.",
+      "options": [
+        {
+          "id": "somos",
+          "text": "somos"
+        },
+        {
+          "id": "estamos",
+          "text": "estamos"
+        },
+        {
+          "id": "son",
+          "text": "son"
+        },
+        {
+          "id": "estan",
+          "text": "están"
+        }
+      ],
+      "hint": "Where someone comes from does not change from day to day. And check the person: *nosotros*."
+    },
+    {
+      "type": "multiple_choice",
+      "id": "mood",
+      "prompt": "Hoy María ___ muy contenta.",
+      "options": [
+        {
+          "id": "es",
+          "text": "es"
+        },
+        {
+          "id": "esta",
+          "text": "está"
+        },
+        {
+          "id": "ser",
+          "text": "ser"
+        },
+        {
+          "id": "estar",
+          "text": "estar"
+        }
+      ],
+      "hint": "*Hoy*: is this how María is today, or who she is?"
+    }
+  ]
+}

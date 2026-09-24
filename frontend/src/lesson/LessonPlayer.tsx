@@ -8,11 +8,13 @@ import type {
 import { useI18n } from '../i18n/i18n'
 import { Markdown } from './Markdown'
 import { layoutOf, MultipleChoice, type Verdict } from './MultipleChoice'
+import { UnsupportedExercise, type UnrenderedExercise } from './UnsupportedExercise'
 import {
   clearProgress,
   exerciseProgress,
   exerciseStatus,
   failedExercises,
+  isMultipleChoice,
   lessonExercises,
   lessonFinished,
   loadProgress,
@@ -127,7 +129,10 @@ export function LessonPlayer(props: LessonPlayerProps) {
   function startSecondRound() {
     void track('second-round', async () => {
       const repeats = await props.api.secondRound(failedExercises(progress().first), props.seed)
-      setProgress((current) => ({ ...current, second: newRound(repeats.exercises) }))
+      setProgress((current) => ({
+        ...current,
+        second: newRound(repeats.exercises.filter(isMultipleChoice)),
+      }))
     })
   }
 
@@ -204,6 +209,9 @@ export function LessonPlayer(props: LessonPlayerProps) {
             </Match>
             <Match when={block.type === 'multiple_choice' && block}>
               {(exercise) => renderExercise('first', exercise())}
+            </Match>
+            <Match when={block.type !== 'explanation' && block.type !== 'multiple_choice' && block}>
+              {(exercise) => <UnsupportedExercise exercise={exercise() as UnrenderedExercise} />}
             </Match>
           </Switch>
         )}

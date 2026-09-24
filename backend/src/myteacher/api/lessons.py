@@ -5,7 +5,7 @@ from pydantic import BaseModel, ValidationError
 from myteacher.lesson.assessment import AnswerMismatch, assess
 from myteacher.lesson.fixtures import fixture_lessons
 from myteacher.lesson.schema import (
-    AssessmentResult,
+    AssessmentOutcome,
     ExerciseAnswer,
     LessonDocument,
     LessonPublic,
@@ -63,11 +63,11 @@ def get_lesson(lesson_id: str) -> LessonPublic:
 
 
 @router.post(
-    "/lessons/{lesson_id}/exercises/{exercise_id}/assessment", response_model=AssessmentResult
+    "/lessons/{lesson_id}/exercises/{exercise_id}/assessment", response_model=AssessmentOutcome
 )
 def assess_answer(
     lesson_id: str, exercise_id: str, answer: ExerciseAnswer, reveal: bool = True
-) -> AssessmentResult:
+) -> AssessmentOutcome:
     """Assess one answer. `reveal=false` marks a try the student may retry: a wrong answer
     then comes back without its solution. Stateless for now; attempts (slice 4) will decide
     server-side how many tries remain."""

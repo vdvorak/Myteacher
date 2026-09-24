@@ -19,4 +19,4 @@ The app and its API are served from one origin on port 8000; the SQLite database
 
 - Backend (`backend/`, uv): `uv run uvicorn myteacher.app:create_app --factory --reload`, `uv run pytest`, `uv run ruff check`.
 - Frontend (`frontend/`, pnpm): `pnpm dev` (proxies `/api` to port 8000), `pnpm test`, `pnpm typecheck`.
-- Lesson schema: the Pydantic models in `backend/src/myteacher/lesson/schema.py` are the source of truth. After changing them, run `scripts/generate-schema.sh` and commit `schema/` and `frontend/src/generated/`; CI fails when they are stale.
+- Lesson schema: the Pydantic models in `backend/src/myteacher/lesson/schema.py` are the source of truth. After changing them, run `scripts/generate-schema.sh` and commit `schema/` (the JSON Schema and the public form of the fixture lessons, which the renderer tests load) and `frontend/src/generated/`; CI fails when they are stale.

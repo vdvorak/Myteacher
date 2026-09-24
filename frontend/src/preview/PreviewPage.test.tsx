@@ -6,6 +6,7 @@ import { sampleLesson, withI18n } from '../lesson/testing'
 import { PreviewPage } from './PreviewPage'
 
 const assessment: AssessmentResult = {
+  status: 'assessed',
   exercise_id: 'location',
   score: 0,
   correct: false,

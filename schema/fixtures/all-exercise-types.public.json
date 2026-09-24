@@ -1,0 +1,99 @@
+{
+  "id": "all-exercise-types",
+  "title": "Every exercise type",
+  "language": "es",
+  "feedback_mode": "immediate",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "A developer fixture holding one exercise of every type in the catalog. Types without a renderer in this phase show a placeholder."
+    },
+    {
+      "type": "multiple_choice",
+      "id": "choice",
+      "prompt": "¿Dónde ___ la estación?",
+      "options": [
+        {
+          "id": "es",
+          "text": "es"
+        },
+        {
+          "id": "esta",
+          "text": "está"
+        }
+      ],
+      "hint": "Location."
+    },
+    {
+      "type": "span_highlight",
+      "id": "highlight",
+      "prompt": "Highlight every form of *estar*.",
+      "text": "Hoy estoy en casa, pero mañana estaremos en Sevilla.",
+      "hint": null
+    },
+    {
+      "type": "table_fill",
+      "id": "conjugation",
+      "prompt": "Complete the present tense of *estar*.",
+      "columns": [
+        "Persona",
+        "Forma"
+      ],
+      "rows": [
+        [
+          {
+            "kind": "given",
+            "text": "yo"
+          },
+          {
+            "kind": "blank",
+            "id": "yo"
+          }
+        ],
+        [
+          {
+            "kind": "given",
+            "text": "tú"
+          },
+          {
+            "kind": "blank",
+            "id": "tu"
+          }
+        ],
+        [
+          {
+            "kind": "given",
+            "text": "nosotros"
+          },
+          {
+            "kind": "blank",
+            "id": "nosotros"
+          }
+        ]
+      ],
+      "hint": null
+    },
+    {
+      "type": "numeric",
+      "id": "distance",
+      "prompt": "Madrid y Sevilla están a unos ___ km en tren. Estima.",
+      "unit": "km",
+      "hint": null
+    },
+    {
+      "type": "listening",
+      "id": "dictation",
+      "prompt": "Listen and write down the sentence.",
+      "audio": {
+        "attachment_id": "dictado-01"
+      },
+      "hint": null
+    },
+    {
+      "type": "custom",
+      "id": "stress",
+      "prompt": "Tap the stressed syllable.",
+      "html": "<!doctype html><html><body><p>can·ción</p></body></html>"
+    }
+  ]
+}

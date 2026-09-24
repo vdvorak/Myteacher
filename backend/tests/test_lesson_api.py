@@ -120,6 +120,7 @@ def test_correct_answer_scores_one_and_returns_the_solution(client, spanish_less
 
     assert response.status_code == 200
     assert response.json() == {
+        "status": "assessed",
         "exercise_id": exercise["id"],
         "score": 1.0,
         "correct": True,

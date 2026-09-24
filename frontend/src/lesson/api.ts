@@ -5,6 +5,7 @@ import type {
   SecondRound,
   SecondRoundRequest,
 } from '../generated/lesson'
+import type { AssessmentOutcome } from './schema'
 import type { LessonApi } from './LessonPlayer'
 
 export class ApiError extends Error {
@@ -38,8 +39,15 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 export function lessonApi(lessonId: string): LessonApi {
   const lesson = `/api/lessons/${encodeURIComponent(lessonId)}`
   return {
-    assess: (exerciseId, answer: MultipleChoiceAnswer, { reveal }): Promise<AssessmentResult> =>
-      post(`${lesson}/exercises/${encodeURIComponent(exerciseId)}/assessment?reveal=${reveal}`, answer),
+    assess: async (exerciseId, answer: MultipleChoiceAnswer, { reveal }): Promise<AssessmentResult> => {
+      const outcome = await post<AssessmentOutcome>(
+        `${lesson}/exercises/${encodeURIComponent(exerciseId)}/assessment?reveal=${reveal}`,
+        answer,
+      )
+      // The player only runs types that have an assessor, so this is a contract breach.
+      if (outcome.status !== 'assessed') throw new Error(`no assessor for exercise ${exerciseId}`)
+      return outcome
+    },
     secondRound: (failedExerciseIds, seed): Promise<SecondRound> =>
       post(`${lesson}/second-round`, {
         failed_exercise_ids: failedExerciseIds,

@@ -74,3 +74,12 @@
   margin: 0;
   color: var(--color-incorrect);
 }
+
+.exercise-unsupported {
+  border-style: dashed;
+  color: var(--color-text-muted);
+}
+
+.exercise-unsupported-title {
+  margin: 0;
+}

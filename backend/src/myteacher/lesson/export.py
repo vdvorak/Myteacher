@@ -13,18 +13,30 @@ from pydantic.json_schema import models_json_schema
 from myteacher.api.lessons import ValidationReport
 from myteacher.lesson.schema import (
     AssessmentResult,
+    AssessmentUnavailable,
+    CustomAnswer,
     LessonDocument,
     LessonPublic,
+    ListeningAnswer,
     MultipleChoiceAnswer,
+    NumericAnswer,
     SecondRound,
     SecondRoundRequest,
+    SpanHighlightAnswer,
+    TableFillAnswer,
 )
 
 MODELS = [
     (LessonDocument, "validation"),
     (LessonPublic, "serialization"),
     (MultipleChoiceAnswer, "validation"),
+    (SpanHighlightAnswer, "validation"),
+    (TableFillAnswer, "validation"),
+    (NumericAnswer, "validation"),
+    (ListeningAnswer, "validation"),
+    (CustomAnswer, "validation"),
     (AssessmentResult, "serialization"),
+    (AssessmentUnavailable, "serialization"),
     (SecondRoundRequest, "validation"),
     (SecondRound, "serialization"),
     (ValidationReport, "serialization"),
