@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime
 
 from myteacher.persistence import make_engine
@@ -21,3 +22,24 @@ def sign_in(client, email=ADMIN_EMAIL, password=ADMIN_PASSWORD):
 
 def create_engine_for(settings: Settings):
     return make_engine(settings.database_url)
+
+
+SMTP = {
+    "host": "smtp.skola.example",
+    "port": 587,
+    "security": "starttls",
+    "username": "myteacher",
+    "password": "smtp secret",
+    "sender": "myteacher@skola.example",
+}
+
+
+def configure_smtp(client) -> None:
+    assert client.put("/api/admin/smtp", json=SMTP).status_code == 200
+
+
+def link_token(text: str) -> str:
+    """The token of the invitation or reset link in an email body."""
+    match = re.search(r"https?://\S+#([A-Za-z0-9_-]+)", text)
+    assert match, text
+    return match.group(1)

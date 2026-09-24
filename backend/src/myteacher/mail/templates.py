@@ -11,6 +11,22 @@ from myteacher.mail import Message
 Language = Literal["cs", "en"]
 
 TEMPLATES: dict[str, dict[Language, tuple[str, str]]] = {
+    "teacher_invitation": {
+        "cs": (
+            "Myteacher: pozvánka pro učitele",
+            "Dobrý den,\n\n"
+            "byl vám založen učitelský účet v Myteacher. Heslo si nastavíte na tomto odkazu:\n\n"
+            "{link}\n\n"
+            "Odkaz platí {days} dní a lze ho použít jen jednou.\n",
+        ),
+        "en": (
+            "Myteacher: your teacher invitation",
+            "Hello,\n\n"
+            "a teacher account has been created for you in Myteacher. Set your password here:\n\n"
+            "{link}\n\n"
+            "The link works for {days} days and only once.\n",
+        ),
+    },
     "test_email": {
         "cs": (
             "Myteacher: zkušební e-mail",

@@ -33,6 +33,7 @@ docker run -it --rm -v myteacher-data:/data myteacher myteacher create-admin --e
 |---|---|---|
 | `MYTEACHER_ADMIN_EMAIL`, `MYTEACHER_ADMIN_PASSWORD` | unset | The first admin, created on start if the instance has none. |
 | `MYTEACHER_SESSION_HOURS` | `168` | How long a sign-in lasts. |
+| `MYTEACHER_PUBLIC_URL` | the request's address | The address people open the app at, used in invitation links. Set it behind a reverse proxy. |
 | `MYTEACHER_SECURE_COOKIES` | `true` | Set to `false` only when serving plain HTTP on a host other than localhost. |
 
 ## Development

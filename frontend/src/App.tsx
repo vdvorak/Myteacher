@@ -11,6 +11,7 @@ import {
 import { AdminPage } from './admin/AdminPage'
 import { ApiProvider, type Apis } from './api/context'
 import { SessionProvider } from './auth/session'
+import { InvitationPage } from './auth/InvitationPage'
 import { SignInPage } from './auth/SignInPage'
 import { PreviewPage } from './preview/PreviewPage'
 import { HomePage } from './shell/HomePage'
@@ -35,6 +36,7 @@ function PreviewRoute() {
 const routes = () => (
   <>
     <Route path="/sign-in" component={SignInPage} />
+    <Route path="/invitation" component={InvitationPage} />
     <Route path="/preview/:lessonId" component={PreviewRoute} />
     <Route path="/" component={Shell}>
       <Route path="/" component={HomePage} />

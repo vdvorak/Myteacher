@@ -1,16 +1,18 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter
-from pydantic import AfterValidator, BaseModel, Field, field_serializer
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_serializer
 
-from myteacher.accounts import service
+from myteacher.accounts import invitations, service
 from myteacher.accounts.models import Account
-from myteacher.api.deps import Db, MailSender, Now, requires
-from myteacher.mail import MailError, Security, SmtpConfig
+from myteacher.api.deps import AppSettings, Db, MailSender, Now, requires
+from myteacher.mail import MailError, Security, Sender, SmtpConfig
 from myteacher.mail.store import deliver, save_settings, stored_settings
 from myteacher.mail.templates import Language, render
+from myteacher.persistence import InstanceSession
 from myteacher.policy import is_admin
+from myteacher.settings import Settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 Admin = Annotated[Account, requires(is_admin)]
@@ -123,3 +125,135 @@ def send_test_email(body: TestEmail, db: Db, sender: MailSender, _: Admin) -> Te
     except MailError as error:
         return TestEmailResult(delivered=False, error=str(error))
     return TestEmailResult(delivered=True, error=None)
+
+
+# Teachers
+
+
+class TeacherOut(BaseModel):
+    id: int
+    email: str
+    language: Language | None
+    is_admin: bool
+    state: Literal["invited", "active", "inactive"]
+
+    @classmethod
+    def of(cls, teacher: Account) -> "TeacherOut":
+        return cls(
+            id=teacher.id,
+            email=teacher.email,
+            language=teacher.language,  # type: ignore[arg-type]
+            is_admin=teacher.is_admin,
+            state=service.account_state(teacher),  # type: ignore[arg-type]
+        )
+
+
+class NewTeacher(BaseModel):
+    email: Email
+    language: Language
+
+
+class InvitationResult(BaseModel):
+    invitation_sent: bool
+    error: str | None
+
+
+class CreatedTeacher(TeacherOut, InvitationResult):
+    pass
+
+
+class TeacherChange(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    active: bool | None = None
+    is_admin: bool | None = None
+
+
+def _base_url(request: Request, settings: Settings) -> str:
+    return settings.public_url or str(request.base_url)
+
+
+def _teacher(db: Db, teacher_id: int) -> Account:
+    teacher = service.get_account(db, teacher_id)
+    if teacher is None or teacher.kind != "teacher":
+        raise HTTPException(status_code=404)
+    return teacher
+
+
+def _invite(
+    db: InstanceSession,
+    sender: Sender,
+    teacher: Account,
+    request: Request,
+    settings: Settings,
+    now: datetime,
+    admin: Account,
+) -> InvitationResult:
+    error = invitations.send(
+        db,
+        sender,
+        teacher,
+        base_url=_base_url(request, settings),
+        lifetime=settings.invitation_lifetime,
+        now=now,
+        actor=admin,
+    )
+    return InvitationResult(invitation_sent=error is None, error=error)
+
+
+@router.get("/teachers")
+def list_teachers(db: Db, _: Admin) -> list[TeacherOut]:
+    return [TeacherOut.of(teacher) for teacher in service.list_teachers(db)]
+
+
+@router.post("/teachers", status_code=201, responses={409: {"description": "Email taken"}})
+def create_teacher(
+    body: NewTeacher,
+    request: Request,
+    db: Db,
+    sender: MailSender,
+    settings: AppSettings,
+    now: Now,
+    admin: Admin,
+) -> CreatedTeacher:
+    """Create a teacher account and email the invitation to set a password."""
+    try:
+        teacher = service.create_invited_account(
+            db, email=body.email, kind="teacher", language=body.language, now=now, actor=admin
+        )
+    except service.EmailTaken:
+        raise HTTPException(status_code=409, detail="email_taken") from None
+    result = _invite(db, sender, teacher, request, settings, now, admin)
+    return CreatedTeacher(**TeacherOut.of(teacher).model_dump(), **result.model_dump())
+
+
+@router.post("/teachers/{teacher_id}/invitation", responses={409: {"description": "Accepted"}})
+def resend_invitation(
+    teacher_id: int,
+    request: Request,
+    db: Db,
+    sender: MailSender,
+    settings: AppSettings,
+    now: Now,
+    admin: Admin,
+) -> InvitationResult:
+    """Send a new invitation; the previous link stops working."""
+    teacher = _teacher(db, teacher_id)
+    if teacher.password_hash is not None:
+        raise HTTPException(status_code=409, detail="already_accepted")
+    return _invite(db, sender, teacher, request, settings, now, admin)
+
+
+@router.patch("/teachers/{teacher_id}", responses={409: {"description": "Last active admin"}})
+def change_teacher(
+    teacher_id: int, change: TeacherChange, db: Db, now: Now, admin: Admin
+) -> TeacherOut:
+    """Deactivate or reactivate a teacher, or grant or revoke the admin role."""
+    teacher = _teacher(db, teacher_id)
+    try:
+        service.change_teacher(
+            db, teacher, actor=admin, now=now, active=change.active, is_admin=change.is_admin
+        )
+    except service.LastActiveAdmin:
+        raise HTTPException(status_code=409, detail="last_active_admin") from None
+    return TeacherOut.of(teacher)

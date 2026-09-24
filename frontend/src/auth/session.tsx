@@ -1,7 +1,7 @@
 import { createContext, createSignal, onMount, useContext, type ParentProps } from 'solid-js'
 import { useApi } from '../api/context'
 import { browserLocale, useI18n } from '../i18n/i18n'
-import type { Account, SignInResult } from './api'
+import type { AcceptResult, Account, SignInResult } from './api'
 
 interface Session {
   /** The signed-in account, null when anonymous, undefined while it is being found out. */
@@ -10,6 +10,8 @@ interface Session {
   loadFailed(): boolean
   signIn(email: string, password: string): Promise<SignInResult>
   signOut(): Promise<void>
+  /** Set the first password through an invitation, which also signs in. */
+  acceptInvitation(token: string, password: string): Promise<AcceptResult>
   /** Replace the signed-in account after it changed, for example its language. */
   updateAccount(account: Account): void
 }
@@ -37,6 +39,14 @@ export function SessionProvider(props: ParentProps) {
     loadFailed,
     async signIn(email, password) {
       const result = await api.signIn(email, password)
+      if (typeof result !== 'string') {
+        setLoadFailed(false)
+        setAccount(result)
+      }
+      return result
+    },
+    async acceptInvitation(token, password) {
+      const result = await api.acceptInvitation(token, password)
       if (typeof result !== 'string') {
         setLoadFailed(false)
         setAccount(result)

@@ -12,6 +12,9 @@ class Settings(BaseModel):
     admin_email: str | None = None
     admin_password: str | None = None
     session_lifetime: timedelta = timedelta(days=7)
+    invitation_lifetime: timedelta = timedelta(days=7)
+    # The address people open the app at, for links in emails; the request's own when unset.
+    public_url: str | None = None
     # Off only for plain-HTTP development and tests; browsers treat localhost as secure anyway.
     secure_cookies: bool = True
 
@@ -24,5 +27,6 @@ class Settings(BaseModel):
             admin_email=os.environ.get("MYTEACHER_ADMIN_EMAIL") or None,
             admin_password=os.environ.get("MYTEACHER_ADMIN_PASSWORD") or None,
             session_lifetime=timedelta(hours=float(os.environ.get("MYTEACHER_SESSION_HOURS", 168))),
+            public_url=os.environ.get("MYTEACHER_PUBLIC_URL") or None,
             secure_cookies=os.environ.get("MYTEACHER_SECURE_COOKIES", "true").lower() != "false",
         )

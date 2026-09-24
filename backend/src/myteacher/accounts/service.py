@@ -101,7 +101,7 @@ def authenticate(db: InstanceSession, email: str, password: str) -> Account | No
     return account
 
 
-def _token_hash(token: str) -> str:
+def token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -112,7 +112,7 @@ def open_auth_session(
     token = secrets.token_urlsafe(32)
     db.add(
         AuthSession(
-            token_hash=_token_hash(token),
+            token_hash=token_hash(token),
             account_id=account.id,
             created_at=now,
             expires_at=now + lifetime,
@@ -123,7 +123,7 @@ def open_auth_session(
 
 def resolve_auth_session(db: InstanceSession, token: str, *, now: datetime) -> Account | None:
     session = db.scalars(
-        select(AuthSession).where(AuthSession.token_hash == _token_hash(token))
+        select(AuthSession).where(AuthSession.token_hash == token_hash(token))
     ).first()
     if session is None:
         return None
@@ -135,4 +135,82 @@ def resolve_auth_session(db: InstanceSession, token: str, *, now: datetime) -> A
 
 
 def close_auth_session(db: InstanceSession, token: str) -> None:
-    db.execute(delete(AuthSession).where(AuthSession.token_hash == _token_hash(token)))
+    db.execute(delete(AuthSession).where(AuthSession.token_hash == token_hash(token)))
+
+
+class LastActiveAdmin(Exception):
+    """The change would leave the instance without an active admin."""
+
+
+class EmailTaken(Exception):
+    pass
+
+
+def account_state(account: Account) -> str:
+    if not account.active:
+        return "inactive"
+    return "invited" if account.password_hash is None else "active"
+
+
+def list_teachers(db: InstanceSession) -> list[Account]:
+    return list(
+        db.scalars(select(Account).where(Account.kind == "teacher").order_by(Account.email))
+    )
+
+
+def create_invited_account(
+    db: InstanceSession,
+    *,
+    email: str,
+    kind: AccountKind,
+    language: str,
+    now: datetime,
+    actor: Account,
+) -> Account:
+    if find_account_by_email(db, email) is not None:
+        raise EmailTaken()
+    account = create_account(db, email=email, kind=kind, now=now)
+    account.language = language
+    record_event(db, "account_created", at=now, actor=actor, subject=account)
+    return account
+
+
+def change_teacher(
+    db: InstanceSession,
+    teacher: Account,
+    *,
+    actor: Account,
+    now: datetime,
+    active: bool | None = None,
+    is_admin: bool | None = None,
+) -> None:
+    """Deactivate, reactivate, grant or revoke admin; the instance always keeps an active admin."""
+    active = teacher.active if active is None else active
+    is_admin = teacher.is_admin if is_admin is None else is_admin
+    stays_active_admin = active and is_admin
+    if teacher.active and teacher.is_admin and not stays_active_admin:
+        others = db.scalars(
+            # An admin who has not accepted their invitation cannot sign in, so does not count.
+            select(Account.id).where(
+                Account.is_admin,
+                Account.active,
+                Account.password_hash.is_not(None),
+                Account.id != teacher.id,
+            )
+        ).first()
+        if others is None:
+            raise LastActiveAdmin()
+    if is_admin != teacher.is_admin:
+        teacher.is_admin = is_admin
+        kind = "admin_granted" if is_admin else "admin_revoked"
+        record_event(db, kind, at=now, actor=actor, subject=teacher)
+    if active != teacher.active:
+        teacher.active = active
+        if not active:
+            close_all_auth_sessions(db, teacher)
+        kind = "account_activated" if active else "account_deactivated"
+        record_event(db, kind, at=now, actor=actor, subject=teacher)
+
+
+def close_all_auth_sessions(db: InstanceSession, account: Account) -> None:
+    db.execute(delete(AuthSession).where(AuthSession.account_id == account.id))

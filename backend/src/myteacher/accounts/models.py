@@ -51,3 +51,20 @@ class AuditEvent(InstanceOwned, Base):
     subject_id: Mapped[int | None] = mapped_column(ForeignKey("account.id"))
     kind: Mapped[str] = mapped_column(String(50))
     at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class Invitation(InstanceOwned, Base):
+    """A single-use, expiring link that lets an account set its first password.
+
+    Only the hash of the token is stored. Issuing a new invitation revokes the open ones.
+    """
+
+    __tablename__ = "invitation"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id", ondelete="CASCADE"))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    used_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
