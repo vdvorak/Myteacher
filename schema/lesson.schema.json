@@ -1,6 +1,59 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
+    "AnswerKey": {
+      "additionalProperties": false,
+      "description": "The canonical solution of every exercise in lesson order, for a printed answer key.",
+      "properties": {
+        "lesson_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Lesson Id",
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/AnswerKeyEntry"
+          },
+          "title": "Entries",
+          "type": "array"
+        }
+      },
+      "required": [
+        "lesson_id",
+        "entries"
+      ],
+      "title": "AnswerKey",
+      "type": "object"
+    },
+    "AnswerKeyEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "exercise_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Exercise Id",
+          "type": "string"
+        },
+        "solution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MultipleChoiceSolution"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Null for a type without an assessor in this phase."
+        }
+      },
+      "required": [
+        "exercise_id",
+        "solution"
+      ],
+      "title": "AnswerKeyEntry",
+      "type": "object"
+    },
     "AssessmentResult": {
       "additionalProperties": false,
       "properties": {

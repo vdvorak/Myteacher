@@ -463,6 +463,21 @@ AssessmentOutcome = Annotated[
 ]
 
 
+class AnswerKeyEntry(_Model):
+    exercise_id: Identifier
+    solution: Annotated[
+        ExerciseSolution | None,
+        Field(description="Null for a type without an assessor in this phase."),
+    ]
+
+
+class AnswerKey(_Model):
+    """The canonical solution of every exercise in lesson order, for a printed answer key."""
+
+    lesson_id: Identifier
+    entries: list[AnswerKeyEntry]
+
+
 class SecondRoundRequest(_Model):
     failed_exercise_ids: list[Identifier]
     seed: Annotated[str, StringConstraints(min_length=1, max_length=200)]

@@ -31,6 +31,11 @@ const en = {
   'exerciseType.numeric': 'Numeric answer',
   'exerciseType.listening': 'Listening',
   'exerciseType.custom': 'Custom exercise',
+  'print.print': 'Print',
+  'print.includeAnswerKey': 'Include answer key',
+  'print.answerKeyFailed': 'The answer key could not be loaded.',
+  'answerKey.heading': 'Answer key',
+  'answerKey.unavailable': 'No answer key for this exercise type yet.',
 }
 
 export type MessageKey = keyof typeof en
@@ -65,6 +70,11 @@ const cs: Record<MessageKey, string> = {
   'exerciseType.numeric': 'Číselná odpověď',
   'exerciseType.listening': 'Poslech',
   'exerciseType.custom': 'Vlastní cvičení',
+  'print.print': 'Tisk',
+  'print.includeAnswerKey': 'Přiložit klíč řešení',
+  'print.answerKeyFailed': 'Klíč řešení se nepodařilo načíst.',
+  'answerKey.heading': 'Klíč řešení',
+  'answerKey.unavailable': 'Pro tento typ cvičení zatím klíč řešení není.',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }

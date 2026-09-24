@@ -73,3 +73,18 @@
 
   color-scheme: dark;
 }
+
+/* Paper is light whatever the screen theme: printing uses the light colours. */
+@media print {
+  :root,
+  :root[data-theme='dark'],
+  :root:not([data-theme='light']) {
+    --color-background: #ffffff;
+    --color-surface: #ffffff;
+    --color-text: #000000;
+    --color-text-muted: #444444;
+    --color-border: #bbbbbb;
+
+    color-scheme: light;
+  }
+}

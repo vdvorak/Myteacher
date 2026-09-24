@@ -1,11 +1,15 @@
 """Deterministic assessment of closed exercise types: a pure function of definition and answer."""
 
 from myteacher.lesson.schema import (
+    AnswerKey,
+    AnswerKeyEntry,
     AssessmentOutcome,
     AssessmentResult,
     AssessmentUnavailable,
     Exercise,
     ExerciseAnswer,
+    ExerciseSolution,
+    LessonDocument,
     MultipleChoiceAnswer,
     MultipleChoiceExercise,
     MultipleChoiceSolution,
@@ -44,9 +48,28 @@ def _assess_multiple_choice(
         exercise_id=exercise.id,
         score=1.0 if correct else 0.0,
         correct=correct,
-        solution=MultipleChoiceSolution(
-            type="multiple_choice",
-            option_id=exercise.correct_option_id,
-            explanation=exercise.solution_explanation,
-        ),
+        solution=solution_of(exercise),
+    )
+
+
+def solution_of(exercise: Exercise) -> ExerciseSolution | None:
+    """The canonical solution, or None for a type without an assessor in this phase."""
+    match exercise:
+        case MultipleChoiceExercise():
+            return MultipleChoiceSolution(
+                type="multiple_choice",
+                option_id=exercise.correct_option_id,
+                explanation=exercise.solution_explanation,
+            )
+        case _:
+            return None
+
+
+def answer_key(lesson: LessonDocument) -> AnswerKey:
+    return AnswerKey(
+        lesson_id=lesson.id,
+        entries=[
+            AnswerKeyEntry(exercise_id=exercise.id, solution=solution_of(exercise))
+            for exercise in lesson.exercises()
+        ],
     )

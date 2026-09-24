@@ -2,9 +2,10 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
-from myteacher.lesson.assessment import AnswerMismatch, assess
+from myteacher.lesson.assessment import AnswerMismatch, answer_key, assess
 from myteacher.lesson.fixtures import fixture_lessons
 from myteacher.lesson.schema import (
+    AnswerKey,
     AssessmentOutcome,
     ExerciseAnswer,
     LessonDocument,
@@ -87,3 +88,10 @@ def get_second_round(lesson_id: str, request: SecondRoundRequest) -> SecondRound
     except UnknownExercise as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     return SecondRound(exercises=[exercise_to_public(exercise) for exercise in repeats])
+
+
+@router.get("/lessons/{lesson_id}/answer-key", response_model=AnswerKey)
+def get_answer_key(lesson_id: str) -> AnswerKey:
+    """Canonical solutions for a printed answer key, fetched only when a print asks for one.
+    Never part of the lesson payload; restricted to teachers once accounts exist (slice 2)."""
+    return answer_key(_lesson(lesson_id))

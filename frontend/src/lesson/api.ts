@@ -1,4 +1,5 @@
 import type {
+  AnswerKey,
   AssessmentResult,
   LessonPublic,
   MultipleChoiceAnswer,
@@ -24,6 +25,10 @@ async function json<T>(response: Response): Promise<T> {
 
 export async function fetchLesson(lessonId: string): Promise<LessonPublic> {
   return json(await fetch(`/api/lessons/${encodeURIComponent(lessonId)}`))
+}
+
+export async function fetchAnswerKey(lessonId: string): Promise<AnswerKey> {
+  return json(await fetch(`/api/lessons/${encodeURIComponent(lessonId)}/answer-key`))
 }
 
 async function post<T>(url: string, body: unknown): Promise<T> {

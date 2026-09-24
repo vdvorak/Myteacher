@@ -10,6 +10,36 @@ export interface MyteacherLessonSchema {
   [k: string]: unknown
 }
 /**
+ * The canonical solution of every exercise in lesson order, for a printed answer key.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "AnswerKey".
+ */
+export interface AnswerKey {
+  lesson_id: string
+  entries: AnswerKeyEntry[]
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "AnswerKeyEntry".
+ */
+export interface AnswerKeyEntry {
+  exercise_id: string
+  /**
+   * Null for a type without an assessor in this phase.
+   */
+  solution: MultipleChoiceSolution | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "MultipleChoiceSolution".
+ */
+export interface MultipleChoiceSolution {
+  type: 'multiple_choice'
+  option_id: string
+  explanation: string | null
+}
+/**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "AssessmentResult".
  */
@@ -22,15 +52,6 @@ export interface AssessmentResult {
    * Withheld (null) for a wrong answer the student may still retry.
    */
   solution: MultipleChoiceSolution | null
-}
-/**
- * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
- * via the `definition` "MultipleChoiceSolution".
- */
-export interface MultipleChoiceSolution {
-  type: 'multiple_choice'
-  option_id: string
-  explanation: string | null
 }
 /**
  * The answer fits the exercise, but its type has no assessor in this phase.
