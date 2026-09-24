@@ -22,6 +22,8 @@ class AuditEventOut(BaseModel):
     kind: str
     actor_id: int | None
     subject_id: int | None
+    course_id: int | None
+    detail: str | None
     at: datetime
 
     @field_serializer("at")
@@ -33,7 +35,14 @@ class AuditEventOut(BaseModel):
 def list_audit_events(db: Db, _: Admin) -> list[AuditEventOut]:
     """The instance's account events, newest first."""
     return [
-        AuditEventOut(kind=e.kind, actor_id=e.actor_id, subject_id=e.subject_id, at=e.at)
+        AuditEventOut(
+            kind=e.kind,
+            actor_id=e.actor_id,
+            subject_id=e.subject_id,
+            course_id=e.course_id,
+            detail=e.detail,
+            at=e.at,
+        )
         for e in service.audit_events(db)
     ]
 

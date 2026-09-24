@@ -5,9 +5,10 @@ import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
 import { TeachersOnly } from '../students/StudentsPage'
 import type { CourseBasics } from './api'
+import { accessNames } from './AccessDialog'
 import { CourseBasicsForm } from './CourseBasicsForm'
 
-/** The teacher's own courses, and the form to create one. */
+/** The teacher's own courses and those shared with them, and the form to create one. */
 export function CoursesPage() {
   return (
     <TeachersOnly>
@@ -48,6 +49,7 @@ function CoursesList() {
                   <tr>
                     <th scope="col">{t('courses.name')}</th>
                     <th scope="col">{t('courses.subject')}</th>
+                    <th scope="col">{t('access.yours')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -58,6 +60,7 @@ function CoursesList() {
                           <A href={`/courses/${course.id}`}>{course.name}</A>
                         </td>
                         <td>{course.subject}</td>
+                        <td>{t(accessNames[course.access])}</td>
                       </tr>
                     )}
                   </For>

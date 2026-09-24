@@ -48,7 +48,9 @@ class AuthSession(InstanceOwned, Base):
 
 
 class AuditEvent(InstanceOwned, Base):
-    """An append-only record of an account event: who did what to whom, and when."""
+    """An append-only record of an account event: who did what to whom, and when.
+
+    Course access events also name the course and the right."""
 
     __tablename__ = "audit_event"
 
@@ -58,6 +60,10 @@ class AuditEvent(InstanceOwned, Base):
     subject_id: Mapped[int | None] = mapped_column(ForeignKey("account.id"))
     kind: Mapped[str] = mapped_column(String(50))
     at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # The course an access event is about. No foreign key: the log outlives what it names.
+    course_id: Mapped[int | None]
+    # A short qualifier of the event, such as the right granted.
+    detail: Mapped[str | None] = mapped_column(String(50))
 
 
 class Invitation(InstanceOwned, Base):

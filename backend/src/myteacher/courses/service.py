@@ -2,11 +2,11 @@
 
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from myteacher.accounts.models import Account
 from myteacher.courses.brief import CourseBrief
-from myteacher.courses.models import Course, CourseBriefRow
+from myteacher.courses.models import Course, CourseAccess, CourseBriefRow
 from myteacher.persistence import InstanceSession
 
 
@@ -14,8 +14,16 @@ class TypePreferredAndForbidden(Exception):
     pass
 
 
-def owned_courses(db: InstanceSession, owner: Account) -> list[Course]:
-    return list(db.scalars(select(Course).where(Course.owner_id == owner.id).order_by(Course.name)))
+def visible_courses(db: InstanceSession, teacher: Account) -> list[Course]:
+    """The courses the teacher owns or is on the access list of, by name."""
+    shared = select(CourseAccess.course_id).where(CourseAccess.teacher_id == teacher.id)
+    return list(
+        db.scalars(
+            select(Course)
+            .where(or_(Course.owner_id == teacher.id, Course.id.in_(shared)))
+            .order_by(Course.name)
+        )
+    )
 
 
 def get_course(db: InstanceSession, course_id: int) -> Course | None:

@@ -166,6 +166,8 @@ def test_the_audit_log_keeps_who_erased_whom_and_when_without_personal_data(
             "kind": "student_erased",
             "actor_id": full_student["admin_id"],
             "subject_id": full_student["id"],
+            "course_id": None,
+            "detail": None,
             "at": "2026-09-24T08:00:00Z",
         }
     ]

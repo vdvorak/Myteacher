@@ -2,12 +2,15 @@ import { createSignal, Show } from 'solid-js'
 import { useI18n } from '../i18n/i18n'
 import type { CourseBasics } from './api'
 import { LanguageSelect } from './languages'
+import './courses.css'
 
 /** Name, subject and the two languages of a course, for creating or changing it. */
 export function CourseBasicsForm(props: {
   initial?: CourseBasics
   submitLabel: string
   onSubmit: (basics: CourseBasics) => Promise<void>
+  /** Shown but not changeable, for a teacher who may only view the course. */
+  readOnly?: boolean
 }) {
   const { t } = useI18n()
   const [name, setName] = createSignal(props.initial?.name ?? '')
@@ -35,29 +38,33 @@ export function CourseBasicsForm(props: {
 
   return (
     <form class="settings-form" onSubmit={submit}>
-      <label>
-        {t('courses.name')}
-        <input required maxLength={200} value={name()} onInput={(e) => setName(e.currentTarget.value)} />
-      </label>
-      <label>
-        {t('courses.subject')}
-        <input required maxLength={200} value={subject()} onInput={(e) => setSubject(e.currentTarget.value)} />
-      </label>
-      <LanguageSelect
-        label={t('courses.taughtLanguage')}
-        noneLabel={t('courses.noTaughtLanguage')}
-        value={taught()}
-        onChange={setTaught}
-      />
-      <LanguageSelect label={t('courses.instructionLanguage')} value={instruction()} onChange={setInstruction} />
+      <fieldset class="read-only-group" disabled={props.readOnly}>
+        <label>
+          {t('courses.name')}
+          <input required maxLength={200} value={name()} onInput={(e) => setName(e.currentTarget.value)} />
+        </label>
+        <label>
+          {t('courses.subject')}
+          <input required maxLength={200} value={subject()} onInput={(e) => setSubject(e.currentTarget.value)} />
+        </label>
+        <LanguageSelect
+          label={t('courses.taughtLanguage')}
+          noneLabel={t('courses.noTaughtLanguage')}
+          value={taught()}
+          onChange={setTaught}
+        />
+        <LanguageSelect label={t('courses.instructionLanguage')} value={instruction()} onChange={setInstruction} />
+      </fieldset>
       <Show when={props.initial === undefined}>
         <p class="settings-note">{t('courses.languagesNote')}</p>
       </Show>
-      <div class="settings-actions">
-        <button type="submit" disabled={busy()}>
-          {props.submitLabel}
-        </button>
-      </div>
+      <Show when={!props.readOnly}>
+        <div class="settings-actions">
+          <button type="submit" disabled={busy()}>
+            {props.submitLabel}
+          </button>
+        </div>
+      </Show>
     </form>
   )
 }

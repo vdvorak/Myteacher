@@ -3,7 +3,9 @@ import { ApiError } from '../lesson/api'
 import type { JobFailure } from '../jobs/api'
 import { fakeJobsApi, type FakeJobs } from '../jobs/testing'
 import {
+  AccessConflict,
   InterviewConflict,
+  type AccessEntry,
   TypeConflict,
   type CatalogType,
   type Course,
@@ -37,8 +39,13 @@ export const spanish: Course = {
   owner_id: 2,
   created_at: '2026-09-24T08:00:00Z',
   brief: { ...emptyBrief, level: 'A2', preferred_exercise_types: ['cloze'] },
+  access: 'owner',
   can_edit: true,
+  can_manage_access: true,
 }
+
+/** The emails the fake knows as teachers, besides those on an access list. */
+export const knownTeachers = ['svoboda@skola.example', 'kralova@skola.example', 'novak@skola.example']
 
 /** What the fake assistant does at each interview step, in order. */
 export type ScriptedStep =
@@ -54,6 +61,7 @@ export function fakeCoursesApi(
     courses?: Course[]
     topics?: Record<number, Topic[]>
     interviews?: Record<number, Interview>
+    access?: Record<number, AccessEntry[]>
     /** The assistant's answers to interview steps, in order. */
     script?: ScriptedStep[]
     jobs?: FakeJobs
@@ -109,6 +117,25 @@ export function fakeCoursesApi(
     interviews[id].job = job
     return { interview: structuredClone(interviews[id]), job }
   }
+  const access: Record<number, AccessEntry[]> = { ...options.access }
+  const accessOf = (id: number) => {
+    find(id)
+    return access[id] ?? []
+  }
+  const storeAccess = (id: number, list: AccessEntry[]) => {
+    access[id] = [...list].sort((a, b) => a.email.localeCompare(b.email))
+    return access[id].map((entry) => ({ ...entry }))
+  }
+  const listed = (id: number, teacherId: number) => {
+    const entry = accessOf(id).find((e) => e.teacher_id === teacherId)
+    if (!entry) throw new ApiError(404)
+    return entry
+  }
+  const teacherId = (email: string) => {
+    const known = [...knownTeachers, ...Object.values(access).flat().map((e) => e.email)]
+    if (!known.includes(email)) throw new AccessConflict('not_a_teacher')
+    return 10 + known.indexOf(email)
+  }
   const topics: Record<number, Topic[]> = { ...options.topics }
   let nextTopicId = 1000
   const topicsOf = (id: number) => {
@@ -139,12 +166,13 @@ export function fakeCoursesApi(
     list: vi.fn(async () =>
       [...courses]
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map(({ id, name, subject, taught_language, instruction_language }) => ({
+        .map(({ id, name, subject, taught_language, instruction_language, access }) => ({
           id,
           name,
           subject,
           taught_language,
           instruction_language,
+          access,
         })),
     ),
     get: vi.fn(async (id: number) => find(id)),
@@ -157,7 +185,9 @@ export function fakeCoursesApi(
         owner_id: 2,
         created_at: '2026-09-24T08:00:00Z',
         brief: emptyBrief,
+        access: 'owner',
         can_edit: true,
+        can_manage_access: true,
       }),
     ),
     change: vi.fn(async (id, change) => store({ ...find(id), ...change })),
@@ -197,6 +227,40 @@ export function fakeCoursesApi(
       const current = activeInterview(id)
       current.state = 'ended'
       return structuredClone(current)
+    }),
+    access: vi.fn(async (id: number) => storeAccess(id, accessOf(id))),
+    grantAccess: vi.fn(async (id: number, email: string, right) => {
+      const trimmed = email.trim().toLowerCase()
+      const existing = accessOf(id).find((e) => e.email === trimmed)
+      const entry = { teacher_id: existing?.teacher_id ?? teacherId(trimmed), email: trimmed, right }
+      return storeAccess(id, [...accessOf(id).filter((e) => e.email !== trimmed), entry])
+    }),
+    changeAccess: vi.fn(async (id: number, teacherId: number, right) => {
+      listed(id, teacherId)
+      return storeAccess(
+        id,
+        accessOf(id).map((e) => (e.teacher_id === teacherId ? { ...e, right } : e)),
+      )
+    }),
+    removeAccess: vi.fn(async (id: number, teacherId: number) => {
+      listed(id, teacherId)
+      return storeAccess(id, accessOf(id).filter((e) => e.teacher_id !== teacherId))
+    }),
+    transferOwnership: vi.fn(async (id: number, email: string, previousOwnerKeeps) => {
+      const course = find(id)
+      const newOwner = teacherId(email.trim().toLowerCase())
+      storeAccess(id, accessOf(id).filter((e) => e.teacher_id !== newOwner))
+      if (previousOwnerKeeps === null) {
+        courses = courses.filter((c) => c.id !== id)
+      } else {
+        store({
+          ...course,
+          owner_id: newOwner,
+          access: previousOwnerKeeps,
+          can_edit: previousOwnerKeeps === 'edit',
+          can_manage_access: false,
+        })
+      }
     }),
     addTopic: vi.fn(async (id: number, name: string) =>
       storeTopics(id, [...topicsOf(id), { id: nextTopicId++, name: name.trim(), position: 0, diagnostic_wanted: false }]),

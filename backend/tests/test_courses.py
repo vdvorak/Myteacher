@@ -71,7 +71,9 @@ def test_a_teacher_creates_a_course_with_an_empty_brief(teacher, clock):
         "owner_id": me["id"],
         "created_at": "2026-09-24T08:00:00Z",
         "brief": DEFAULT_BRIEF,
+        "access": "owner",
         "can_edit": True,
+        "can_manage_access": True,
     }
     assert teacher.get(f"/api/courses/{body['id']}").json() == body
 
@@ -87,6 +89,7 @@ def test_the_course_list_holds_the_teachers_courses_by_name(teacher):
             "subject": "Mathematics",
             "taught_language": None,
             "instruction_language": "cs",
+            "access": "owner",
         },
         {
             "id": b["id"],
@@ -94,6 +97,7 @@ def test_the_course_list_holds_the_teachers_courses_by_name(teacher):
             "subject": "Spanish",
             "taught_language": "es",
             "instruction_language": "cs",
+            "access": "owner",
         },
     ]
 

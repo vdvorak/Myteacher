@@ -44,6 +44,8 @@ def record_event(
     at: datetime,
     actor: Account | None,
     subject: Account | None,
+    course_id: int | None = None,
+    detail: str | None = None,
 ) -> None:
     db.add(
         AuditEvent(
@@ -51,6 +53,8 @@ def record_event(
             at=at,
             actor_id=actor.id if actor else None,
             subject_id=subject.id if subject else None,
+            course_id=course_id,
+            detail=detail,
         )
     )
 

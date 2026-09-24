@@ -29,7 +29,13 @@ export const catalogTypeNames: Record<CatalogType, MessageKey> = {
 type Save = (change: Partial<CourseBrief>) => Promise<CourseBrief>
 
 /** The course brief, every field read and saved on its own so no edit waits for another. */
-export function BriefEditor(props: { initial: CourseBrief; save: Save; onSaved: (brief: CourseBrief) => void }) {
+export function BriefEditor(props: {
+  initial: CourseBrief
+  save: Save
+  onSaved: (brief: CourseBrief) => void
+  /** Shown but not changeable, for a teacher who may only view the course. */
+  readOnly?: boolean
+}) {
   const { t } = useI18n()
   // What the controls show: the saved brief with the changes still on their way applied.
   const [brief, setBrief] = createSignal(props.initial)
@@ -96,38 +102,48 @@ export function BriefEditor(props: { initial: CourseBrief; save: Save; onSaved: 
     <section class="settings-form brief" aria-labelledby="brief-heading">
       <h2 id="brief-heading">{t('brief.heading')}</h2>
       <p class="settings-note">{t('brief.intro')}</p>
-      <For each={textFields}>
-        {(field) => <TextField label={t(field.label)} hint={t(field.hint)} initial={props.initial[field.key]} save={(value) => save({ [field.key]: value })} />}
-      </For>
-      {typeGroup('preferred_exercise_types', 'forbidden_exercise_types', 'brief.preferred')}
-      {typeGroup('forbidden_exercise_types', 'preferred_exercise_types', 'brief.forbidden')}
-      <h3>{t('brief.defaults')}</h3>
-      <label>
-        {t('brief.feedbackMode')}
-        <select
-          value={brief().feedback_mode}
-          onChange={(e) => void save({ feedback_mode: e.currentTarget.value as CourseBrief['feedback_mode'] })}
-        >
-          <option value="immediate">{t('brief.feedbackImmediate')}</option>
-          <option value="at_the_end">{t('brief.feedbackAtTheEnd')}</option>
-        </select>
-      </label>
-      <label class="settings-check">
-        <input
-          type="checkbox"
-          checked={brief().retry_with_hint}
-          onChange={(e) => void save({ retry_with_hint: e.currentTarget.checked })}
-        />
-        {t('brief.retryWithHint')}
-      </label>
-      <label class="settings-check">
-        <input
-          type="checkbox"
-          checked={brief().second_round}
-          onChange={(e) => void save({ second_round: e.currentTarget.checked })}
-        />
-        {t('brief.secondRound')}
-      </label>
+      <fieldset class="read-only-group" disabled={props.readOnly}>
+        <For each={textFields}>
+          {(field) => (
+            <TextField
+              label={t(field.label)}
+              hint={t(field.hint)}
+              initial={props.initial[field.key]}
+              readOnly={props.readOnly}
+              save={(value) => save({ [field.key]: value })}
+            />
+          )}
+        </For>
+        {typeGroup('preferred_exercise_types', 'forbidden_exercise_types', 'brief.preferred')}
+        {typeGroup('forbidden_exercise_types', 'preferred_exercise_types', 'brief.forbidden')}
+        <h3>{t('brief.defaults')}</h3>
+        <label>
+          {t('brief.feedbackMode')}
+          <select
+            value={brief().feedback_mode}
+            onChange={(e) => void save({ feedback_mode: e.currentTarget.value as CourseBrief['feedback_mode'] })}
+          >
+            <option value="immediate">{t('brief.feedbackImmediate')}</option>
+            <option value="at_the_end">{t('brief.feedbackAtTheEnd')}</option>
+          </select>
+        </label>
+        <label class="settings-check">
+          <input
+            type="checkbox"
+            checked={brief().retry_with_hint}
+            onChange={(e) => void save({ retry_with_hint: e.currentTarget.checked })}
+          />
+          {t('brief.retryWithHint')}
+        </label>
+        <label class="settings-check">
+          <input
+            type="checkbox"
+            checked={brief().second_round}
+            onChange={(e) => void save({ second_round: e.currentTarget.checked })}
+          />
+          {t('brief.secondRound')}
+        </label>
+      </fieldset>
       <Show when={problem()}>
         {(current) => <p role="alert">{t(current() === 'conflict' ? 'brief.typeConflict' : 'courses.saveFailed')}</p>}
       </Show>
@@ -136,7 +152,13 @@ export function BriefEditor(props: { initial: CourseBrief; save: Save; onSaved: 
 }
 
 /** One text field of the brief with its own draft and save button. */
-function TextField(props: { label: string; hint: string; initial: string | null; save: (value: string | null) => Promise<boolean> }) {
+function TextField(props: {
+  label: string
+  hint: string
+  initial: string | null
+  readOnly?: boolean
+  save: (value: string | null) => Promise<boolean>
+}) {
   const { t } = useI18n()
   const [draft, setDraft] = createSignal(props.initial ?? '')
   const [saved, setSaved] = createSignal(false)
@@ -166,14 +188,16 @@ function TextField(props: { label: string; hint: string; initial: string | null;
           }}
         />
       </label>
-      <div class="settings-actions">
-        <button type="submit" disabled={busy()} aria-label={t('brief.saveField', { field: props.label })}>
-          {t('brief.save')}
-        </button>
-        <Show when={saved()}>
-          <span role="status">{t('brief.fieldSaved', { field: props.label })}</span>
-        </Show>
-      </div>
+      <Show when={!props.readOnly}>
+        <div class="settings-actions">
+          <button type="submit" disabled={busy()} aria-label={t('brief.saveField', { field: props.label })}>
+            {t('brief.save')}
+          </button>
+          <Show when={saved()}>
+            <span role="status">{t('brief.fieldSaved', { field: props.label })}</span>
+          </Show>
+        </div>
+      </Show>
     </form>
   )
 }

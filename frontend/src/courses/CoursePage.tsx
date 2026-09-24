@@ -1,10 +1,11 @@
-import { A, useParams } from '@solidjs/router'
+import { A, useNavigate, useParams } from '@solidjs/router'
 import { createResource, createSignal, Show } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
 import { TeachersOnly } from '../students/StudentsPage'
-import type { Course, CourseBasics } from './api'
+import { AccessDialog } from './AccessDialog'
+import type { Course, CourseBasics, CourseRight } from './api'
 import { BriefEditor } from './BriefEditor'
 import { CourseBasicsForm } from './CourseBasicsForm'
 import { InterviewPanel } from './InterviewPanel'
@@ -23,10 +24,12 @@ function CourseDetail() {
   const { t } = useI18n()
   const api = useApi().courses
   const params = useParams<{ courseId: string }>()
+  const navigate = useNavigate()
   const [course, { mutate }] = createResource(() => Number(params.courseId), (id) => api.get(id))
   const [outcome, setOutcome] = createSignal<'saved' | 'failed' | null>(null)
   // Bumped when the brief changed elsewhere (the interview), so its editor starts afresh.
   const [briefRevision, setBriefRevision] = createSignal(0)
+  const [sharing, setSharing] = createSignal(false)
   const loaded = () => (course.error ? undefined : course())
 
   const save = (current: Course) => async (basics: CourseBasics) => {
@@ -48,6 +51,20 @@ function CourseDetail() {
     }
   }
 
+  async function transferred(id: number, kept: CourseRight | null) {
+    setSharing(false)
+    // With no right left, the course is gone for this teacher.
+    if (kept !== null) {
+      try {
+        mutate(await api.get(id))
+        return
+      } catch {
+        // Fall through to the list.
+      }
+    }
+    navigate('/courses')
+  }
+
   return (
     <section class="admin-section">
       <A href="/courses">{t('courses.all')}</A>
@@ -59,7 +76,38 @@ function CourseDetail() {
         {(id) => (
           <>
             <h1>{loaded()?.name}</h1>
-            <CourseBasicsForm initial={loaded()} submitLabel={t('courses.save')} onSubmit={save(loaded()!)} />
+            <Show when={!loaded()!.can_edit}>
+              <p class="settings-note">{t('courses.readOnly')}</p>
+            </Show>
+            <Show when={loaded()!.can_manage_access}>
+              <Show
+                when={sharing()}
+                fallback={
+                  <div class="settings-actions">
+                    <button type="button" onClick={() => setSharing(true)}>
+                      {t('access.share')}
+                    </button>
+                  </div>
+                }
+              >
+                <AccessDialog
+                  courseId={id}
+                  onClose={() => setSharing(false)}
+                  onTransferred={(kept) => void transferred(id, kept)}
+                />
+              </Show>
+            </Show>
+            {/* Keyed by the right too, so a form becomes read-only or editable as the right changes. */}
+            <Show when={String(loaded()!.can_edit)} keyed>
+              {(_editable) => (
+                <CourseBasicsForm
+                  initial={loaded()}
+                  readOnly={!loaded()!.can_edit}
+                  submitLabel={t('courses.save')}
+                  onSubmit={save(loaded()!)}
+                />
+              )}
+            </Show>
             <Show when={outcome()}>
               {(current) =>
                 current() === 'saved' ? (
@@ -72,10 +120,11 @@ function CourseDetail() {
             <Show when={loaded()!.can_edit}>
               <InterviewPanel courseId={id} onBriefChanged={() => briefChanged(id)} />
             </Show>
-            <Show when={String(briefRevision())} keyed>
+            <Show when={`${briefRevision()}-${loaded()!.can_edit}`} keyed>
               {(_revision) => (
                 <BriefEditor
                   initial={loaded()!.brief}
+                  readOnly={!loaded()!.can_edit}
                   save={(change) => api.changeBrief(id, change)}
                   onSaved={(brief) => mutate((current) => current && { ...current, brief })}
                 />

@@ -1,10 +1,13 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import JSON, ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from myteacher.persistence import Base, InstanceOwned, UTCDateTime
+
+# What a teacher on a course's access list may do, each right including the ones before it.
+CourseRight = Literal["view", "fork", "edit"]
 
 
 class Course(InstanceOwned, Base):
@@ -24,6 +27,23 @@ class Course(InstanceOwned, Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
     brief: Mapped["CourseBriefRow"] = relationship(lazy="joined")
+    # The teachers the owner shared the course with; the owner is never on it.
+    access: Mapped[list["CourseAccess"]] = relationship(
+        lazy="selectin", cascade="all, delete-orphan"
+    )
+
+
+class CourseAccess(InstanceOwned, Base):
+    """One teacher's right to a course, granted by its owner (ADR 0008)."""
+
+    __tablename__ = "course_access"
+
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("course.id", ondelete="CASCADE"), primary_key=True
+    )
+    teacher_id: Mapped[int] = mapped_column(ForeignKey("account.id"), primary_key=True, index=True)
+    right: Mapped[str] = mapped_column(String(10))
+    granted_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
 
 class CourseBriefRow(InstanceOwned, Base):

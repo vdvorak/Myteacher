@@ -1,5 +1,5 @@
-from tests.helpers import as_student
-from tests.test_courses import as_other_teacher, create_course
+from tests.helpers import TEACHER_PASSWORD, as_student, back_to_teacher, sign_in
+from tests.test_courses import OTHER_TEACHER, as_other_teacher, create_course
 
 
 def topics_url(course_id: int) -> str:
@@ -142,13 +142,13 @@ def test_another_teacher_cannot_see_or_change_the_topics(teacher, sender):
     assert teacher.put(f"{topics_url(cid)}/order", json={"topic_ids": [a["id"]]}).status_code == 404
 
 
-def test_a_viewer_reads_the_topics_but_cannot_change_them(teacher, sender, monkeypatch):
-    from myteacher.api import courses as courses_api
-
+def test_a_viewer_reads_the_topics_but_cannot_change_them(teacher, sender):
     cid, (a,) = course_with_topics(teacher, "A")
     as_other_teacher(teacher, sender)
-    # Until the course access list exists, grant view right to every teacher.
-    monkeypatch.setattr(courses_api, "can_view_course", lambda actor, course: True)
+    back_to_teacher(teacher)
+    teacher.post(f"/api/courses/{cid}/access", json={"email": OTHER_TEACHER, "right": "view"})
+    teacher.cookies.clear()
+    sign_in(teacher, OTHER_TEACHER, TEACHER_PASSWORD)
 
     assert names(teacher.get(topics_url(cid))) == ["A"]
     assert teacher.get(f"/api/courses/{cid}").json()["can_edit"] is False

@@ -8,6 +8,7 @@ from sqlalchemy import Engine
 
 from myteacher.accounts import service
 from myteacher.api import (
+    access,
     accounts,
     admin,
     auth,
@@ -81,6 +82,7 @@ def create_app(
     app.include_router(classes.router, prefix="/api")
     app.include_router(courses.router, prefix="/api")
     app.include_router(topics.router, prefix="/api")
+    app.include_router(access.router, prefix="/api")
     app.include_router(interview.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
 

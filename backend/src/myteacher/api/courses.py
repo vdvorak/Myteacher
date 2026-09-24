@@ -1,4 +1,4 @@
-"""Courses and their briefs, seen and changed only by the course's owner for now (ADR 0008)."""
+"""Courses and their briefs, seen and changed as the course's access list allows (ADR 0008)."""
 
 from datetime import datetime
 from typing import Annotated
@@ -13,7 +13,14 @@ from myteacher.courses.brief import BriefText, CourseBrief, ExerciseTypes
 from myteacher.courses.models import Course
 from myteacher.lesson.schema import FeedbackMode, LanguageTag
 from myteacher.persistence import InstanceSession
-from myteacher.policy import can_edit_course, can_view_course, is_teacher
+from myteacher.policy import (
+    CourseAccessLevel,
+    can_edit_course,
+    can_manage_course_access,
+    can_view_course,
+    course_access,
+    is_teacher,
+)
 
 router = APIRouter(prefix="/courses", tags=["courses"])
 Teacher = Annotated[Account, requires(is_teacher)]
@@ -27,6 +34,21 @@ class CourseSummary(BaseModel):
     subject: str
     taught_language: str | None
     instruction_language: str
+    # What the actor may do with the course.
+    access: CourseAccessLevel
+
+    @classmethod
+    def of(cls, course: Course, actor: Account) -> "CourseSummary":
+        access = course_access(actor, course)
+        assert access is not None, "a course the actor may not see is never listed"
+        return cls(
+            id=course.id,
+            name=course.name,
+            subject=course.subject,
+            taught_language=course.taught_language,
+            instruction_language=course.instruction_language,
+            access=access,
+        )
 
 
 class CourseOut(CourseSummary):
@@ -35,6 +57,8 @@ class CourseOut(CourseSummary):
     brief: CourseBrief
     # Whether the actor may change the course; viewers see it read-only.
     can_edit: bool
+    # Whether the actor may change the access list and transfer the ownership.
+    can_manage_access: bool
 
     @field_serializer("created_at")
     def _utc(self, at: datetime) -> str:
@@ -43,15 +67,12 @@ class CourseOut(CourseSummary):
     @classmethod
     def of(cls, course: Course, actor: Account) -> "CourseOut":
         return cls(
-            id=course.id,
-            name=course.name,
-            subject=course.subject,
-            taught_language=course.taught_language,
-            instruction_language=course.instruction_language,
+            **CourseSummary.of(course, actor).model_dump(),
             owner_id=course.owner_id,
             created_at=course.created_at,
             brief=courses.brief_of(course),
             can_edit=can_edit_course(actor, course),
+            can_manage_access=can_manage_course_access(actor, course),
         )
 
 
@@ -132,17 +153,8 @@ def editable_course(db: InstanceSession, actor: Account, course_id: int) -> Cour
 
 @router.get("")
 def list_courses(db: Db, actor: Teacher) -> list[CourseSummary]:
-    """The actor's own courses, by name."""
-    return [
-        CourseSummary(
-            id=course.id,
-            name=course.name,
-            subject=course.subject,
-            taught_language=course.taught_language,
-            instruction_language=course.instruction_language,
-        )
-        for course in courses.owned_courses(db, actor)
-    ]
+    """The courses the actor owns or was given a right to, by name."""
+    return [CourseSummary.of(course, actor) for course in courses.visible_courses(db, actor)]
 
 
 @router.post("", status_code=201)

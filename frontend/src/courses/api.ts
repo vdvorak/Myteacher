@@ -33,8 +33,14 @@ export interface CourseBasics {
   instruction_language: string
 }
 
+/** A right on a course's access list, each including the ones before it. */
+export type CourseRight = 'view' | 'fork' | 'edit'
+export const courseRights: CourseRight[] = ['view', 'fork', 'edit']
+
 export interface CourseSummary extends CourseBasics {
   id: number
+  /** What the teacher may do with the course. */
+  access: CourseRight | 'owner'
 }
 
 export interface Course extends CourseSummary {
@@ -43,6 +49,30 @@ export interface Course extends CourseSummary {
   brief: CourseBrief
   /** Whether the teacher may change the course; viewers see it read-only. */
   can_edit: boolean
+  /** Whether the teacher may change the access list and transfer the ownership. */
+  can_manage_access: boolean
+}
+
+export interface AccessEntry {
+  teacher_id: number
+  email: string
+  right: CourseRight
+}
+
+export type AccessRefusal =
+  | 'not_a_teacher'
+  | 'is_owner'
+  /** Another request changed the same entry first. */
+  | 'access_changed'
+
+/** A change of the access list or of the ownership was refused. */
+export class AccessConflict extends Error {
+  readonly reason: AccessRefusal
+
+  constructor(reason: AccessRefusal) {
+    super(reason)
+    this.reason = reason
+  }
 }
 
 export interface Topic {
@@ -128,6 +158,14 @@ export interface CoursesApi {
   answerInterview(id: number, answers: string[]): Promise<InterviewStarted>
   retryInterview(id: number): Promise<InterviewStarted>
   endInterview(id: number): Promise<Interview>
+  /** Each access call answers with the whole access list, by email; only the owner may call. */
+  access(id: number): Promise<AccessEntry[]>
+  /** Replaces the right the teacher had, if any. */
+  grantAccess(id: number, email: string, right: CourseRight): Promise<AccessEntry[]>
+  changeAccess(id: number, teacherId: number, right: CourseRight): Promise<AccessEntry[]>
+  removeAccess(id: number, teacherId: number): Promise<AccessEntry[]>
+  /** The previous owner keeps the right named, or none. */
+  transferOwnership(id: number, email: string, previousOwnerKeeps: CourseRight | null): Promise<void>
 }
 
 async function json<T>(response: Response): Promise<T> {
@@ -156,6 +194,15 @@ async function interviewStep<T>(response: Response): Promise<T> {
   return json(response)
 }
 
+async function accessStep<T>(response: Response): Promise<T> {
+  if (response.status === 409 || response.status === 422) {
+    const body = (await response.json()) as { detail: unknown }
+    if (typeof body.detail === 'string') throw new AccessConflict(body.detail as AccessRefusal)
+  }
+  return json(response)
+}
+
+const accessUrl = (id: number) => `/api/courses/${id}/access`
 const interviewUrl = (id: number) => `/api/courses/${id}/interview`
 const topicsUrl = (id: number) => `/api/courses/${id}/topics`
 
@@ -175,4 +222,12 @@ export const httpCoursesApi: CoursesApi = {
   answerInterview: async (id, answers) => interviewStep(await send('POST', `${interviewUrl(id)}/answers`, { answers })),
   retryInterview: async (id) => interviewStep(await send('POST', `${interviewUrl(id)}/retry`)),
   endInterview: async (id) => interviewStep(await send('POST', `${interviewUrl(id)}/end`)),
+  access: async (id) => json(await fetch(accessUrl(id))),
+  grantAccess: async (id, email, right) => accessStep(await send('POST', accessUrl(id), { email, right })),
+  changeAccess: async (id, teacherId, right) => accessStep(await send('PUT', `${accessUrl(id)}/${teacherId}`, { right })),
+  removeAccess: async (id, teacherId) => accessStep(await send('DELETE', `${accessUrl(id)}/${teacherId}`)),
+  transferOwnership: async (id, email, previousOwnerKeeps) => {
+    const response = await send('POST', `/api/courses/${id}/owner`, { email, previous_owner_keeps: previousOwnerKeeps })
+    if (response.status !== 204) await accessStep(response)
+  },
 }
