@@ -16,13 +16,7 @@ export function optionText(exercise: MultipleChoiceExercisePublic, optionId: str
   return exercise.options.find((option) => option.id === optionId)?.text ?? optionId
 }
 
-export interface MultipleChoiceProps
-  extends ExerciseViewProps<MultipleChoiceExercisePublic, MultipleChoiceAnswer> {
-  /** Option ids in the order the student saw them before; a repeat never looks the same. */
-  previousLayout?: string[]
-}
-
-export function MultipleChoice(props: MultipleChoiceProps) {
+export function MultipleChoice(props: ExerciseViewProps<MultipleChoiceExercisePublic, MultipleChoiceAnswer>) {
   const name = createUniqueId()
   const selected = () => props.draft?.option_id
   // Options already tried and found wrong cannot be picked again.

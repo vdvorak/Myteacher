@@ -1,0 +1,74 @@
+{
+  "id": "en-word-order",
+  "title": "Word order and opposites",
+  "language": "en",
+  "feedback_mode": "at_the_end",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "An English sentence usually runs **subject, verb, object**. A time phrase like *yesterday* can go at the start or at the end."
+    },
+    {
+      "type": "token_ordering",
+      "id": "yesterday",
+      "prompt": "Put the words in order.",
+      "tokens": [
+        {
+          "id": "t1",
+          "text": "grandmother"
+        },
+        {
+          "id": "t2",
+          "text": "I"
+        },
+        {
+          "id": "t3",
+          "text": "my"
+        },
+        {
+          "id": "t4",
+          "text": "visited"
+        },
+        {
+          "id": "t5",
+          "text": "yesterday"
+        }
+      ],
+      "hint": null
+    },
+    {
+      "type": "matching",
+      "id": "opposites",
+      "prompt": "Match each word with its opposite.",
+      "left": [
+        {
+          "id": "p1",
+          "text": "early"
+        },
+        {
+          "id": "p2",
+          "text": "cheap"
+        },
+        {
+          "id": "p3",
+          "text": "empty"
+        }
+      ],
+      "right": [
+        {
+          "id": "r1",
+          "text": "expensive"
+        },
+        {
+          "id": "r2",
+          "text": "full"
+        },
+        {
+          "id": "r3",
+          "text": "late"
+        }
+      ],
+      "hint": null
+    }
+  ]
+}

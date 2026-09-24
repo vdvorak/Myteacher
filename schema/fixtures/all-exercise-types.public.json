@@ -64,6 +64,52 @@
       "hint": null
     },
     {
+      "type": "matching",
+      "id": "pairs",
+      "prompt": "Match.",
+      "left": [
+        {
+          "id": "p1",
+          "text": "sí"
+        },
+        {
+          "id": "p2",
+          "text": "no"
+        }
+      ],
+      "right": [
+        {
+          "id": "r1",
+          "text": "no"
+        },
+        {
+          "id": "r2",
+          "text": "yes"
+        }
+      ],
+      "hint": null
+    },
+    {
+      "type": "token_ordering",
+      "id": "order",
+      "prompt": "Order the words.",
+      "tokens": [
+        {
+          "id": "t1",
+          "text": "Ana"
+        },
+        {
+          "id": "t2",
+          "text": "soy"
+        },
+        {
+          "id": "t3",
+          "text": "Yo"
+        }
+      ],
+      "hint": null
+    },
+    {
       "type": "span_highlight",
       "id": "highlight",
       "prompt": "Highlight every form of *estar*.",

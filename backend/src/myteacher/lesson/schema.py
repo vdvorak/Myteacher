@@ -239,6 +239,122 @@ class ClozeExercise(_Model):
         )
 
 
+ItemText = Annotated[str, StringConstraints(min_length=1, max_length=300)]
+
+
+def _public_ids(texts: list[str], prefix: str) -> list[str]:
+    """Ids by alphabetical rank of the texts, so that they carry no trace of the answer."""
+    ranked = sorted(range(len(texts)), key=lambda i: (texts[i].casefold(), texts[i], i))
+    ids = [""] * len(texts)
+    for rank, index in enumerate(ranked):
+        ids[index] = f"{prefix}{rank + 1}"
+    return ids
+
+
+class MatchItem(_Model):
+    id: Identifier
+    text: str
+
+
+class MatchingPair(_Model):
+    id: Identifier
+    left: ItemText
+    right: ItemText
+
+
+class MatchingExercise(_Model):
+    type: Literal["matching"]
+    id: Identifier
+    prompt: Markdown
+    pairs: Annotated[list[MatchingPair], Field(min_length=2, max_length=10)]
+    partial_credit: Annotated[
+        bool, Field(description="Score the share of right pairs instead of all or nothing.")
+    ] = False
+    hint: Markdown | None = None
+    solution_explanation: Markdown | None = None
+
+    @model_validator(mode="after")
+    def _items_are_unique(self) -> Self:
+        for name, values in [
+            ("pair ids", [pair.id for pair in self.pairs]),
+            ("left items", [pair.left.casefold() for pair in self.pairs]),
+            ("right items", [pair.right.casefold() for pair in self.pairs]),
+        ]:
+            if len(set(values)) != len(values):
+                raise ValueError(f"{name} must be unique")
+        return self
+
+    def right_ids(self) -> dict[str, str]:
+        """The public id of each pair's right item, by pair id."""
+        ids = _public_ids([pair.right for pair in self.pairs], "r")
+        return {pair.id: right for pair, right in zip(self.pairs, ids, strict=True)}
+
+    def public(self) -> "MatchingExercisePublic":
+        rights = self.right_ids()
+        return MatchingExercisePublic(
+            type=self.type,
+            id=self.id,
+            prompt=self.prompt,
+            left=[MatchItem(id=pair.id, text=pair.left) for pair in self.pairs],
+            right=sorted(
+                (MatchItem(id=rights[pair.id], text=pair.right) for pair in self.pairs),
+                key=lambda item: int(item.id[1:]),
+            ),
+            hint=self.hint,
+        )
+
+
+class OrderToken(_Model):
+    id: Identifier
+    text: ItemText
+
+
+class TokenOrderingExercise(_Model):
+    type: Literal["token_ordering"]
+    id: Identifier
+    prompt: Markdown
+    tokens: Annotated[list[OrderToken], Field(min_length=2, max_length=30)]
+    accepted_orders: Annotated[
+        list[list[Identifier]],
+        Field(min_length=1, max_length=10, description="Each lists every token id once."),
+    ]
+    partial_credit: Annotated[
+        bool, Field(description="Score the share of tokens in place instead of all or nothing.")
+    ] = False
+    hint: Markdown | None = None
+    solution_explanation: Markdown | None = None
+
+    @model_validator(mode="after")
+    def _orders_use_every_token_once(self) -> Self:
+        ids = [token.id for token in self.tokens]
+        if len(set(ids)) != len(ids):
+            raise ValueError("token ids must be unique")
+        if any(sorted(order) != sorted(ids) for order in self.accepted_orders):
+            raise ValueError("every accepted order must list every token id exactly once")
+        return self
+
+    def public_ids(self) -> dict[str, str]:
+        ids = _public_ids([token.text for token in self.tokens], "t")
+        return {token.id: public for token, public in zip(self.tokens, ids, strict=True)}
+
+    def accepted_texts(self) -> list[list[str]]:
+        text = {token.id: token.text for token in self.tokens}
+        return [[text[token_id] for token_id in order] for order in self.accepted_orders]
+
+    def public(self) -> "TokenOrderingExercisePublic":
+        ids = self.public_ids()
+        return TokenOrderingExercisePublic(
+            type=self.type,
+            id=self.id,
+            prompt=self.prompt,
+            tokens=sorted(
+                (MatchItem(id=ids[token.id], text=token.text) for token in self.tokens),
+                key=lambda item: int(item.id[1:]),
+            ),
+            hint=self.hint,
+        )
+
+
 # Exercise types below are in the schema so that adding a renderer later is not a schema
 # change. Phase 1 has no renderer and no assessor for them (see `assessment.py`).
 
@@ -407,6 +523,8 @@ Exercise = (
     MultipleChoiceExercise
     | ShortAnswerExercise
     | ClozeExercise
+    | MatchingExercise
+    | TokenOrderingExercise
     | SpanHighlightExercise
     | TableFillExercise
     | NumericExercise
@@ -485,6 +603,23 @@ class ClozeExercisePublic(_Model):
     hint: Markdown | None
 
 
+class MatchingExercisePublic(_Model):
+    type: Literal["matching"]
+    id: Identifier
+    prompt: Markdown
+    left: list[MatchItem]
+    right: Annotated[list[MatchItem], Field(description="In alphabetical order, not paired.")]
+    hint: Markdown | None
+
+
+class TokenOrderingExercisePublic(_Model):
+    type: Literal["token_ordering"]
+    id: Identifier
+    prompt: Markdown
+    tokens: Annotated[list[MatchItem], Field(description="In alphabetical order.")]
+    hint: Markdown | None
+
+
 class SpanHighlightExercisePublic(_Model):
     type: Literal["span_highlight"]
     id: Identifier
@@ -537,6 +672,8 @@ ExercisePublic = (
     MultipleChoiceExercisePublic
     | ShortAnswerExercisePublic
     | ClozeExercisePublic
+    | MatchingExercisePublic
+    | TokenOrderingExercisePublic
     | SpanHighlightExercisePublic
     | TableFillExercisePublic
     | NumericExercisePublic
@@ -572,6 +709,19 @@ class ClozeAnswer(_Model):
         dict[Identifier, Annotated[str, StringConstraints(max_length=200)]],
         Field(min_length=1, max_length=50, description="The typed or placed word per gap id."),
     ]
+
+
+class MatchingAnswer(_Model):
+    type: Literal["matching"]
+    pairs: Annotated[
+        dict[Identifier, Identifier],
+        Field(max_length=10, description="The right item id chosen for each left item id."),
+    ]
+
+
+class TokenOrderingAnswer(_Model):
+    type: Literal["token_ordering"]
+    order: Annotated[list[Identifier], Field(max_length=30)]
 
 
 class SpanHighlightAnswer(_Model):
@@ -614,6 +764,8 @@ ExerciseAnswer = Annotated[
     MultipleChoiceAnswer
     | ShortAnswerAnswer
     | ClozeAnswer
+    | MatchingAnswer
+    | TokenOrderingAnswer
     | SpanHighlightAnswer
     | TableFillAnswer
     | NumericAnswer
@@ -646,13 +798,36 @@ class ClozeSolution(_Model):
     explanation: Markdown | None
 
 
+class MatchedPair(_Model):
+    left_id: Identifier
+    right_id: Identifier
+
+
+class MatchingSolution(_Model):
+    type: Literal["matching"]
+    pairs: list[MatchedPair]
+    explanation: Markdown | None
+
+
+class TokenOrderingSolution(_Model):
+    type: Literal["token_ordering"]
+    tokens: Annotated[list[str], Field(description="The token texts in the first accepted order.")]
+    explanation: Markdown | None
+
+
 ExerciseSolution = Annotated[
-    MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution, Field(discriminator="type")
+    MultipleChoiceSolution
+    | ShortAnswerSolution
+    | ClozeSolution
+    | MatchingSolution
+    | TokenOrderingSolution,
+    Field(discriminator="type"),
 ]
 
 
 class ItemCorrectness(_Model):
-    """Whether one part of an exercise (a cloze gap) was right."""
+    """Whether one part of an exercise was right: a cloze gap, a matched left item, or a token
+    position (identified by the id of the token the student put there)."""
 
     id: Identifier
     correct: bool

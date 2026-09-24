@@ -1,6 +1,8 @@
 import { Match, Switch } from 'solid-js'
 import type { ExerciseSolution, ExercisePublic } from '../schema'
 import { ClozeSolutionText } from './Cloze'
+import { MatchingSolutionText } from './Matching'
+import { TokenOrderingSolutionText } from './TokenOrdering'
 import { optionText } from './MultipleChoice'
 
 /** The canonical answer of an exercise as text, for its solution section and the answer key. */
@@ -26,6 +28,17 @@ export function SolutionText(props: { exercise: ExercisePublic | undefined; solu
             solution={solution()}
           />
         )}
+      </Match>
+      <Match when={props.solution.type === 'matching' && props.exercise?.type === 'matching' && props.solution}>
+        {(solution) => (
+          <MatchingSolutionText
+            exercise={props.exercise as Extract<ExercisePublic, { type: 'matching' }>}
+            solution={solution()}
+          />
+        )}
+      </Match>
+      <Match when={props.solution.type === 'token_ordering' && props.solution}>
+        {(solution) => <TokenOrderingSolutionText solution={solution()} />}
       </Match>
     </Switch>
   )

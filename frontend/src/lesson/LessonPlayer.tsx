@@ -2,8 +2,7 @@ import { createEffect, createSignal, createUniqueId, For, Match, Show, Switch } 
 import type { AssessmentResult, LessonPublic, SecondRound } from '../generated/lesson'
 import { useI18n } from '../i18n/i18n'
 import type { Verdict } from './exercises/ExerciseFrame'
-import { ExerciseView } from './exercises/ExerciseView'
-import { layoutOf } from './exercises/MultipleChoice'
+import { exerciseLayout, ExerciseView } from './exercises/ExerciseView'
 import { Markdown } from './Markdown'
 import { isRendered, type RenderedAnswer } from './schema'
 import { UnsupportedExercise, type UnrenderedExercise } from './UnsupportedExercise'
@@ -131,9 +130,10 @@ export function LessonPlayer(props: LessonPlayerProps) {
 
   const firstLayouts = () =>
     new Map(
-      lessonExercises(props.lesson).flatMap((exercise): [string, string[]][] =>
-        exercise.type === 'multiple_choice' ? [[exercise.id, layoutOf(exercise, props.seed)]] : [],
-      ),
+      lessonExercises(props.lesson).flatMap((exercise): [string, string[]][] => {
+        const layout = exerciseLayout(exercise, props.seed)
+        return layout ? [[exercise.id, layout]] : []
+      }),
     )
 
   function renderExercise(key: RoundKey, exercise: Exercise) {

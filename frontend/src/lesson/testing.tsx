@@ -56,6 +56,22 @@ export const atTheEndLesson: LessonPublic = {
 /** The answer key the fake backend grades against; the player itself never sees it. */
 export const answerKey: Record<string, string> = { location: 'esta', origin: 'somos' }
 export const typedKey: Record<string, string> = { song: 'canción', contraction: "don't" }
+/** Right item id per left item id (right ids are public ranks, see the served fixtures). */
+export const matchingKey: Record<string, Record<string, string>> = {
+  rooms: { p1: 'r3', p2: 'r1', p3: 'r2', p4: 'r4' },
+  opposites: { p1: 'r3', p2: 'r1', p3: 'r2' },
+}
+/** Accepted token orders as public token ids, with the texts of the first order. */
+export const orderKey: Record<string, { orders: string[][]; texts: string[] }> = {
+  'where-bathroom': { orders: [['t4', 't3', 't2', 't1']], texts: ['¿Dónde', 'está', 'el', 'baño?'] },
+  yesterday: {
+    orders: [
+      ['t2', 't4', 't3', 't1', 't5'],
+      ['t5', 't2', 't4', 't3', 't1'],
+    ],
+    texts: ['I', 'visited', 'my', 'grandmother', 'yesterday'],
+  },
+}
 export const clozeKey: Record<string, Record<string, string>> = {
   tomorrow: { w2: 'vamos', w4: 'hermano' },
   yesterday: { v1: 'went', v3: 'saw' },
@@ -103,6 +119,37 @@ function grade(exerciseId: string, answer: RenderedAnswer): Omit<AssessmentResul
           gaps: Object.keys(answer.gaps).map((id) => ({ id, answer: key[id] })),
           explanation,
         },
+      }
+    }
+    case 'matching': {
+      const key = matchingKey[exerciseId]
+      const items = Object.keys(key).map((id) => ({ id, correct: answer.pairs[id] === key[id] }))
+      const correct = items.every((item) => item.correct)
+      return {
+        ...base,
+        score: items.filter((item) => item.correct).length / items.length,
+        correct,
+        items,
+        solution: {
+          type: 'matching',
+          pairs: Object.entries(key).map(([left_id, right_id]) => ({ left_id, right_id })),
+          explanation,
+        },
+      }
+    }
+    case 'token_ordering': {
+      const key = orderKey[exerciseId]
+      const closest = key.orders
+        .map((order) => order.map((id, i) => answer.order[i] === id))
+        .sort((a, b) => b.filter(Boolean).length - a.filter(Boolean).length)[0]
+      const items = answer.order.map((id, i) => ({ id, correct: closest[i] ?? false }))
+      const correct = items.every((item) => item.correct)
+      return {
+        ...base,
+        score: items.filter((item) => item.correct).length / items.length,
+        correct,
+        items,
+        solution: { type: 'token_ordering', tokens: key.texts, explanation },
       }
     }
   }

@@ -38,7 +38,7 @@
 @media print {
   .page-header,
   .print-toolbar,
-  button:not(.cloze-gap):not(.cloze-word),
+  button:not(.cloze-gap):not(.cloze-word):not(.ordering-token):not(.matching-item),
   input[type='radio'],
   input[type='checkbox'],
   select,
@@ -79,7 +79,10 @@
   }
 
   .cloze-word,
-  .cloze-word[aria-pressed='true'] {
+  .cloze-word[aria-pressed='true'],
+  .ordering-token,
+  .matching-item,
+  .matching-item[aria-pressed='true'] {
     padding: 0 var(--space-2);
     border: var(--border-width) solid var(--color-text);
     background: none;

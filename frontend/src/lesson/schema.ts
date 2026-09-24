@@ -7,6 +7,10 @@ import type {
   ClozeExercisePublic,
   ExplanationBlock,
   LessonPublic,
+  MatchingAnswer,
+  MatchingExercisePublic,
+  TokenOrderingAnswer,
+  TokenOrderingExercisePublic,
   MultipleChoiceAnswer,
   MultipleChoiceExercisePublic,
   ShortAnswerAnswer,
@@ -19,13 +23,25 @@ export type AssessmentOutcome = AssessmentResult | AssessmentUnavailable
 export type ExerciseSolution = NonNullable<AssessmentResult['solution']>
 
 /** The exercise types this phase renders and assesses. */
-export type RenderedExercise = MultipleChoiceExercisePublic | ShortAnswerExercisePublic | ClozeExercisePublic
-export type RenderedAnswer = MultipleChoiceAnswer | ShortAnswerAnswer | ClozeAnswer
+export type RenderedExercise =
+  | MultipleChoiceExercisePublic
+  | ShortAnswerExercisePublic
+  | ClozeExercisePublic
+  | MatchingExercisePublic
+  | TokenOrderingExercisePublic
+export type RenderedAnswer =
+  | MultipleChoiceAnswer
+  | ShortAnswerAnswer
+  | ClozeAnswer
+  | MatchingAnswer
+  | TokenOrderingAnswer
 
 const renderedTypes: ReadonlySet<string> = new Set<RenderedExercise['type']>([
   'multiple_choice',
   'short_answer',
   'cloze',
+  'matching',
+  'token_ordering',
 ])
 
 export function isRendered(block: LessonBlockPublic): block is RenderedExercise {

@@ -41,8 +41,10 @@
               "discriminator": {
                 "mapping": {
                   "cloze": "#/$defs/ClozeSolution",
+                  "matching": "#/$defs/MatchingSolution",
                   "multiple_choice": "#/$defs/MultipleChoiceSolution",
-                  "short_answer": "#/$defs/ShortAnswerSolution"
+                  "short_answer": "#/$defs/ShortAnswerSolution",
+                  "token_ordering": "#/$defs/TokenOrderingSolution"
                 },
                 "propertyName": "type"
               },
@@ -55,6 +57,12 @@
                 },
                 {
                   "$ref": "#/$defs/ClozeSolution"
+                },
+                {
+                  "$ref": "#/$defs/MatchingSolution"
+                },
+                {
+                  "$ref": "#/$defs/TokenOrderingSolution"
                 }
               ]
             },
@@ -112,8 +120,10 @@
               "discriminator": {
                 "mapping": {
                   "cloze": "#/$defs/ClozeSolution",
+                  "matching": "#/$defs/MatchingSolution",
                   "multiple_choice": "#/$defs/MultipleChoiceSolution",
-                  "short_answer": "#/$defs/ShortAnswerSolution"
+                  "short_answer": "#/$defs/ShortAnswerSolution",
+                  "token_ordering": "#/$defs/TokenOrderingSolution"
                 },
                 "propertyName": "type"
               },
@@ -126,6 +136,12 @@
                 },
                 {
                   "$ref": "#/$defs/ClozeSolution"
+                },
+                {
+                  "$ref": "#/$defs/MatchingSolution"
+                },
+                {
+                  "$ref": "#/$defs/TokenOrderingSolution"
                 }
               ]
             },
@@ -857,7 +873,7 @@
     },
     "ItemCorrectness": {
       "additionalProperties": false,
-      "description": "Whether one part of an exercise (a cloze gap) was right.",
+      "description": "Whether one part of an exercise was right: a cloze gap, a matched left item, or a token\nposition (identified by the id of the token the student put there).",
       "properties": {
         "id": {
           "maxLength": 64,
@@ -916,11 +932,13 @@
                 "custom": "#/$defs/CustomExercise",
                 "explanation": "#/$defs/ExplanationBlock",
                 "listening": "#/$defs/ListeningExercise",
+                "matching": "#/$defs/MatchingExercise",
                 "multiple_choice": "#/$defs/MultipleChoiceExercise",
                 "numeric": "#/$defs/NumericExercise",
                 "short_answer": "#/$defs/ShortAnswerExercise",
                 "span_highlight": "#/$defs/SpanHighlightExercise",
-                "table_fill": "#/$defs/TableFillExercise"
+                "table_fill": "#/$defs/TableFillExercise",
+                "token_ordering": "#/$defs/TokenOrderingExercise"
               },
               "propertyName": "type"
             },
@@ -936,6 +954,12 @@
               },
               {
                 "$ref": "#/$defs/ClozeExercise"
+              },
+              {
+                "$ref": "#/$defs/MatchingExercise"
+              },
+              {
+                "$ref": "#/$defs/TokenOrderingExercise"
               },
               {
                 "$ref": "#/$defs/SpanHighlightExercise"
@@ -1005,11 +1029,13 @@
                 "custom": "#/$defs/CustomExercisePublic",
                 "explanation": "#/$defs/ExplanationBlock",
                 "listening": "#/$defs/ListeningExercisePublic",
+                "matching": "#/$defs/MatchingExercisePublic",
                 "multiple_choice": "#/$defs/MultipleChoiceExercisePublic",
                 "numeric": "#/$defs/NumericExercisePublic",
                 "short_answer": "#/$defs/ShortAnswerExercisePublic",
                 "span_highlight": "#/$defs/SpanHighlightExercisePublic",
-                "table_fill": "#/$defs/TableFillExercisePublic"
+                "table_fill": "#/$defs/TableFillExercisePublic",
+                "token_ordering": "#/$defs/TokenOrderingExercisePublic"
               },
               "propertyName": "type"
             },
@@ -1025,6 +1051,12 @@
               },
               {
                 "$ref": "#/$defs/ClozeExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/MatchingExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/TokenOrderingExercisePublic"
               },
               {
                 "$ref": "#/$defs/SpanHighlightExercisePublic"
@@ -1200,6 +1232,288 @@
         "hint"
       ],
       "title": "ListeningExercisePublic",
+      "type": "object"
+    },
+    "MatchItem": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "MatchItem",
+      "type": "object"
+    },
+    "MatchedPair": {
+      "additionalProperties": false,
+      "properties": {
+        "left_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Left Id",
+          "type": "string"
+        },
+        "right_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Right Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "left_id",
+        "right_id"
+      ],
+      "title": "MatchedPair",
+      "type": "object"
+    },
+    "MatchingAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "matching",
+          "title": "Type",
+          "type": "string"
+        },
+        "pairs": {
+          "description": "The right item id chosen for each left item id.",
+          "maxProperties": 10,
+          "patternProperties": {
+            "^[a-z0-9][a-z0-9-]*$": {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 64
+          },
+          "title": "Pairs",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "pairs"
+      ],
+      "title": "MatchingAnswer",
+      "type": "object"
+    },
+    "MatchingExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "matching",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "pairs": {
+          "items": {
+            "$ref": "#/$defs/MatchingPair"
+          },
+          "maxItems": 10,
+          "minItems": 2,
+          "title": "Pairs",
+          "type": "array"
+        },
+        "partial_credit": {
+          "default": false,
+          "description": "Score the share of right pairs instead of all or nothing.",
+          "title": "Partial Credit",
+          "type": "boolean"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
+        "solution_explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solution Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "pairs"
+      ],
+      "title": "MatchingExercise",
+      "type": "object"
+    },
+    "MatchingExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "matching",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "left": {
+          "items": {
+            "$ref": "#/$defs/MatchItem"
+          },
+          "title": "Left",
+          "type": "array"
+        },
+        "right": {
+          "description": "In alphabetical order, not paired.",
+          "items": {
+            "$ref": "#/$defs/MatchItem"
+          },
+          "title": "Right",
+          "type": "array"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "left",
+        "right",
+        "hint"
+      ],
+      "title": "MatchingExercisePublic",
+      "type": "object"
+    },
+    "MatchingPair": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "left": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Left",
+          "type": "string"
+        },
+        "right": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Right",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "left",
+        "right"
+      ],
+      "title": "MatchingPair",
+      "type": "object"
+    },
+    "MatchingSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "matching",
+          "title": "Type",
+          "type": "string"
+        },
+        "pairs": {
+          "items": {
+            "$ref": "#/$defs/MatchedPair"
+          },
+          "title": "Pairs",
+          "type": "array"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "pairs",
+        "explanation"
+      ],
+      "title": "MatchingSolution",
       "type": "object"
     },
     "MultipleChoiceAnswer": {
@@ -1539,6 +1853,29 @@
       "title": "NumericExercisePublic",
       "type": "object"
     },
+    "OrderToken": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "OrderToken",
+      "type": "object"
+    },
     "SecondRound": {
       "additionalProperties": false,
       "description": "Varied repeats of the failed exercises, in lesson order; empty when nothing failed.",
@@ -1554,6 +1891,12 @@
               },
               {
                 "$ref": "#/$defs/ClozeExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/MatchingExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/TokenOrderingExercisePublic"
               },
               {
                 "$ref": "#/$defs/SpanHighlightExercisePublic"
@@ -2152,6 +2495,217 @@
         "end"
       ],
       "title": "TextSpan",
+      "type": "object"
+    },
+    "TokenOrderingAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "token_ordering",
+          "title": "Type",
+          "type": "string"
+        },
+        "order": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Order",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "order"
+      ],
+      "title": "TokenOrderingAnswer",
+      "type": "object"
+    },
+    "TokenOrderingExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "token_ordering",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "tokens": {
+          "items": {
+            "$ref": "#/$defs/OrderToken"
+          },
+          "maxItems": 30,
+          "minItems": 2,
+          "title": "Tokens",
+          "type": "array"
+        },
+        "accepted_orders": {
+          "description": "Each lists every token id once.",
+          "items": {
+            "items": {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Accepted Orders",
+          "type": "array"
+        },
+        "partial_credit": {
+          "default": false,
+          "description": "Score the share of tokens in place instead of all or nothing.",
+          "title": "Partial Credit",
+          "type": "boolean"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
+        "solution_explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solution Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "tokens",
+        "accepted_orders"
+      ],
+      "title": "TokenOrderingExercise",
+      "type": "object"
+    },
+    "TokenOrderingExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "token_ordering",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "tokens": {
+          "description": "In alphabetical order.",
+          "items": {
+            "$ref": "#/$defs/MatchItem"
+          },
+          "title": "Tokens",
+          "type": "array"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "tokens",
+        "hint"
+      ],
+      "title": "TokenOrderingExercisePublic",
+      "type": "object"
+    },
+    "TokenOrderingSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "token_ordering",
+          "title": "Type",
+          "type": "string"
+        },
+        "tokens": {
+          "description": "The token texts in the first accepted order.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tokens",
+          "type": "array"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "tokens",
+        "explanation"
+      ],
+      "title": "TokenOrderingSolution",
       "type": "object"
     },
     "ToleranceRules": {

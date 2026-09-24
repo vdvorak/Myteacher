@@ -52,6 +52,10 @@ export function isComplete(exercise: Exercise, draft: RenderedAnswer | undefined
       return exercise.type === 'cloze' && exercise.segments.every(
         (segment) => segment.kind !== 'gap' || (draft.gaps[segment.id] ?? '').trim() !== '',
       )
+    case 'matching':
+      return exercise.type === 'matching' && exercise.left.every((item) => draft.pairs[item.id] !== undefined)
+    case 'token_ordering':
+      return exercise.type === 'token_ordering' && draft.order.length === exercise.tokens.length
   }
 }
 

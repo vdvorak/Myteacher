@@ -20,6 +20,7 @@ from myteacher.lesson.schema import (
     LessonDocument,
     LessonPublic,
     ListeningAnswer,
+    MatchingAnswer,
     MultipleChoiceAnswer,
     NumericAnswer,
     SecondRound,
@@ -27,6 +28,7 @@ from myteacher.lesson.schema import (
     ShortAnswerAnswer,
     SpanHighlightAnswer,
     TableFillAnswer,
+    TokenOrderingAnswer,
 )
 
 MODELS = [
@@ -35,6 +37,8 @@ MODELS = [
     (MultipleChoiceAnswer, "validation"),
     (ShortAnswerAnswer, "validation"),
     (ClozeAnswer, "validation"),
+    (MatchingAnswer, "validation"),
+    (TokenOrderingAnswer, "validation"),
     (SpanHighlightAnswer, "validation"),
     (TableFillAnswer, "validation"),
     (NumericAnswer, "validation"),

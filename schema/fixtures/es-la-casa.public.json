@@ -1,0 +1,78 @@
+{
+  "id": "es-la-casa",
+  "title": "La casa",
+  "language": "es",
+  "feedback_mode": "immediate",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "Rooms of the house: *la cocina* (kitchen), *el baño* (bathroom), *el dormitorio* (bedroom), *el salón* (living room).\n\nA question in Spanish opens with **¿** and closes with **?**: *¿Dónde está la cocina?*"
+    },
+    {
+      "type": "matching",
+      "id": "rooms",
+      "prompt": "Match each room with its English name.",
+      "left": [
+        {
+          "id": "p1",
+          "text": "la cocina"
+        },
+        {
+          "id": "p2",
+          "text": "el baño"
+        },
+        {
+          "id": "p3",
+          "text": "el dormitorio"
+        },
+        {
+          "id": "p4",
+          "text": "el salón"
+        }
+      ],
+      "right": [
+        {
+          "id": "r1",
+          "text": "the bathroom"
+        },
+        {
+          "id": "r2",
+          "text": "the bedroom"
+        },
+        {
+          "id": "r3",
+          "text": "the kitchen"
+        },
+        {
+          "id": "r4",
+          "text": "the living room"
+        }
+      ],
+      "hint": "*Dormir* means to sleep; *cocinar* means to cook."
+    },
+    {
+      "type": "token_ordering",
+      "id": "where-bathroom",
+      "prompt": "Put the words in order to ask where the bathroom is.",
+      "tokens": [
+        {
+          "id": "t1",
+          "text": "baño?"
+        },
+        {
+          "id": "t2",
+          "text": "el"
+        },
+        {
+          "id": "t3",
+          "text": "está"
+        },
+        {
+          "id": "t4",
+          "text": "¿Dónde"
+        }
+      ],
+      "hint": "Question word first, then the verb."
+    }
+  ]
+}

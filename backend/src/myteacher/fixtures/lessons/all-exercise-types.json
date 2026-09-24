@@ -74,6 +74,49 @@
       }
     },
     {
+      "type": "matching",
+      "id": "pairs",
+      "prompt": "Match.",
+      "pairs": [
+        {
+          "id": "p1",
+          "left": "sí",
+          "right": "yes"
+        },
+        {
+          "id": "p2",
+          "left": "no",
+          "right": "no"
+        }
+      ]
+    },
+    {
+      "type": "token_ordering",
+      "id": "order",
+      "prompt": "Order the words.",
+      "tokens": [
+        {
+          "id": "a",
+          "text": "Yo"
+        },
+        {
+          "id": "b",
+          "text": "soy"
+        },
+        {
+          "id": "c",
+          "text": "Ana"
+        }
+      ],
+      "accepted_orders": [
+        [
+          "a",
+          "b",
+          "c"
+        ]
+      ]
+    },
+    {
       "type": "span_highlight",
       "id": "highlight",
       "prompt": "Highlight every form of *estar*.",

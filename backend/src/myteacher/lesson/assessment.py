@@ -15,12 +15,19 @@ from myteacher.lesson.schema import (
     ExerciseSolution,
     ItemCorrectness,
     LessonDocument,
+    MatchedPair,
+    MatchingAnswer,
+    MatchingExercise,
+    MatchingSolution,
     MultipleChoiceAnswer,
     MultipleChoiceExercise,
     MultipleChoiceSolution,
     ShortAnswerAnswer,
     ShortAnswerExercise,
     ShortAnswerSolution,
+    TokenOrderingAnswer,
+    TokenOrderingExercise,
+    TokenOrderingSolution,
 )
 from myteacher.lesson.tolerance import matches
 
@@ -41,6 +48,10 @@ def assess(exercise: Exercise, answer: ExerciseAnswer, *, reveal: bool = True) -
             result = _assess_short_answer(exercise, answer)
         case ClozeExercise(), ClozeAnswer():
             result = _assess_cloze(exercise, answer)
+        case MatchingExercise(), MatchingAnswer():
+            result = _assess_matching(exercise, answer)
+        case TokenOrderingExercise(), TokenOrderingAnswer():
+            result = _assess_token_ordering(exercise, answer)
         case _:
             return AssessmentUnavailable(
                 status="unavailable", exercise_id=exercise.id, reason="no_assessor_in_this_phase"
@@ -115,6 +126,66 @@ def _assess_cloze(exercise: ClozeExercise, answer: ClozeAnswer) -> AssessmentRes
     )
 
 
+def _scored(
+    exercise: MatchingExercise | TokenOrderingExercise, items: list[ItemCorrectness]
+) -> tuple[float, bool]:
+    right = sum(item.correct for item in items)
+    correct = right == len(items)
+    if exercise.partial_credit:
+        return right / len(items), correct
+    return (1.0 if correct else 0.0), correct
+
+
+def _assess_matching(exercise: MatchingExercise, answer: MatchingAnswer) -> AssessmentResult:
+    rights = exercise.right_ids()
+    if set(answer.pairs) != set(rights):
+        raise AnswerMismatch("a matching answer must pair every left item")
+    if sorted(answer.pairs.values()) != sorted(rights.values()):
+        raise AnswerMismatch("a matching answer must use every right item exactly once")
+    items = [
+        ItemCorrectness(id=pair.id, correct=answer.pairs[pair.id] == rights[pair.id])
+        for pair in exercise.pairs
+    ]
+    score, correct = _scored(exercise, items)
+    return AssessmentResult(
+        status="assessed",
+        exercise_id=exercise.id,
+        score=score,
+        correct=correct,
+        items=items,
+        solution=solution_of(exercise),
+    )
+
+
+def _assess_token_ordering(
+    exercise: TokenOrderingExercise, answer: TokenOrderingAnswer
+) -> AssessmentResult:
+    ids = exercise.public_ids()
+    texts = {ids[token.id]: token.text for token in exercise.tokens}
+    if sorted(answer.order) != sorted(texts):
+        raise AnswerMismatch("an order must use every token exactly once")
+    given = [texts[token_id] for token_id in answer.order]
+    # Tokens with the same text are interchangeable, so orders are compared as texts; the
+    # closest accepted order decides which positions count as right.
+    closest = max(
+        exercise.accepted_texts(),
+        key=lambda order: sum(a == b for a, b in zip(given, order, strict=True)),
+    )
+    items = [
+        ItemCorrectness(id=token_id, correct=text == expected)
+        for token_id, text, expected in zip(answer.order, given, closest, strict=True)
+    ]
+    score, correct = _scored(exercise, items)
+    return AssessmentResult(
+        status="assessed",
+        exercise_id=exercise.id,
+        score=score,
+        correct=correct,
+        items=items,
+        solution=solution_of(exercise),
+    )
+
+
 def solution_of(exercise: Exercise) -> ExerciseSolution | None:
     """The canonical solution, or None for a type without an assessor in this phase."""
     match exercise:
@@ -128,6 +199,19 @@ def solution_of(exercise: Exercise) -> ExerciseSolution | None:
             return ShortAnswerSolution(
                 type="short_answer",
                 answer=exercise.accepted_answers[0],
+                explanation=exercise.solution_explanation,
+            )
+        case MatchingExercise():
+            rights = exercise.right_ids()
+            return MatchingSolution(
+                type="matching",
+                pairs=[MatchedPair(left_id=p.id, right_id=rights[p.id]) for p in exercise.pairs],
+                explanation=exercise.solution_explanation,
+            )
+        case TokenOrderingExercise():
+            return TokenOrderingSolution(
+                type="token_ordering",
+                tokens=exercise.accepted_texts()[0],
                 explanation=exercise.solution_explanation,
             )
         case ClozeExercise():

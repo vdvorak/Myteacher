@@ -40,6 +40,13 @@ const en = {
   'cloze.gap': 'Gap {n}',
   'cloze.empty': 'empty',
   'cloze.bank': 'Word bank',
+  'matching.left': 'Match these',
+  'matching.right': 'With these',
+  'matching.unpaired': 'not paired',
+  'ordering.sentence': 'Your order',
+  'ordering.pool': 'Words to place',
+  'ordering.empty': 'Tap the words in order.',
+  'ordering.undo': 'Undo',
 }
 
 export type MessageKey = keyof typeof en
@@ -83,6 +90,13 @@ const cs: Record<MessageKey, string> = {
   'cloze.gap': 'Mezera {n}',
   'cloze.empty': 'prázdná',
   'cloze.bank': 'Nabídka slov',
+  'matching.left': 'Přiřaďte',
+  'matching.right': 'K těmto',
+  'matching.unpaired': 'nespárováno',
+  'ordering.sentence': 'Vaše pořadí',
+  'ordering.pool': 'Slova k zařazení',
+  'ordering.empty': 'Klepejte na slova ve správném pořadí.',
+  'ordering.undo': 'Zpět',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }

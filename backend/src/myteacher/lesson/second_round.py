@@ -11,8 +11,10 @@ from myteacher.lesson.schema import (
     ClozeExercise,
     Exercise,
     LessonDocument,
+    MatchingExercise,
     MultipleChoiceExercise,
     ShortAnswerExercise,
+    TokenOrderingExercise,
 )
 
 
@@ -42,6 +44,15 @@ def vary(exercise: Exercise, seed: str) -> Exercise | None:
         case ShortAnswerExercise():
             # Re-asked with the hint up front: recall with support rather than a copy of the answer.
             return exercise.model_copy(update={"show_hint": True})
+        case MatchingExercise():
+            # The pairs come in another order; right items keep their ids and are re-shuffled
+            # by the renderer from the second round's seed.
+            return exercise.model_copy(
+                update={"pairs": _different_order(exercise.pairs, f"{seed}:{exercise.id}")}
+            )
+        case TokenOrderingExercise():
+            # Tokens are served in a fixed order; the renderer re-orders them for the repeat.
+            return exercise
         case ClozeExercise():
             return exercise.model_copy(
                 update={"blanked": _other_blanks(exercise, f"{seed}:{exercise.id}")}

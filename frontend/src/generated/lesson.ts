@@ -28,7 +28,8 @@ export interface AnswerKeyEntry {
   /**
    * Null for a type without an assessor in this phase.
    */
-  solution: (MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution) | null
+  solution:
+    (MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution | MatchingSolution | TokenOrderingSolution) | null
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -67,6 +68,35 @@ export interface ClozeGapSolution {
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "MatchingSolution".
+ */
+export interface MatchingSolution {
+  type: 'matching'
+  pairs: MatchedPair[]
+  explanation: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "MatchedPair".
+ */
+export interface MatchedPair {
+  left_id: string
+  right_id: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TokenOrderingSolution".
+ */
+export interface TokenOrderingSolution {
+  type: 'token_ordering'
+  /**
+   * The token texts in the first accepted order.
+   */
+  tokens: string[]
+  explanation: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "AssessmentResult".
  */
 export interface AssessmentResult {
@@ -81,10 +111,12 @@ export interface AssessmentResult {
   /**
    * Withheld (null) for a wrong answer the student may still retry.
    */
-  solution: (MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution) | null
+  solution:
+    (MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution | MatchingSolution | TokenOrderingSolution) | null
 }
 /**
- * Whether one part of an exercise (a cloze gap) was right.
+ * Whether one part of an exercise was right: a cloze gap, a matched left item, or a token
+ * position (identified by the id of the token the student put there).
  *
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "ItemCorrectness".
@@ -351,6 +383,8 @@ export interface LessonDocument {
       | MultipleChoiceExercise
       | ShortAnswerExercise
       | ClozeExercise
+      | MatchingExercise
+      | TokenOrderingExercise
       | SpanHighlightExercise
       | TableFillExercise
       | NumericExercise
@@ -362,6 +396,8 @@ export interface LessonDocument {
       | MultipleChoiceExercise
       | ShortAnswerExercise
       | ClozeExercise
+      | MatchingExercise
+      | TokenOrderingExercise
       | SpanHighlightExercise
       | TableFillExercise
       | NumericExercise
@@ -433,6 +469,76 @@ export interface ToleranceRules1 {
    * Punctuation, including ¿ and ¡, does not count.
    */
   ignore_punctuation?: boolean
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "MatchingExercise".
+ */
+export interface MatchingExercise {
+  type: 'matching'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  /**
+   * @minItems 2
+   * @maxItems 10
+   */
+  pairs: [MatchingPair, MatchingPair, ...MatchingPair[]]
+  /**
+   * Score the share of right pairs instead of all or nothing.
+   */
+  partial_credit?: boolean
+  hint?: string | null
+  solution_explanation?: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "MatchingPair".
+ */
+export interface MatchingPair {
+  id: string
+  left: string
+  right: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TokenOrderingExercise".
+ */
+export interface TokenOrderingExercise {
+  type: 'token_ordering'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  /**
+   * @minItems 2
+   * @maxItems 30
+   */
+  tokens: [OrderToken, OrderToken, ...OrderToken[]]
+  /**
+   * Each lists every token id once.
+   *
+   * @minItems 1
+   * @maxItems 10
+   */
+  accepted_orders: [string[], ...string[][]]
+  /**
+   * Score the share of tokens in place instead of all or nothing.
+   */
+  partial_credit?: boolean
+  hint?: string | null
+  solution_explanation?: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "OrderToken".
+ */
+export interface OrderToken {
+  id: string
+  text: string
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -544,6 +650,8 @@ export interface LessonPublic {
     | MultipleChoiceExercisePublic
     | ShortAnswerExercisePublic
     | ClozeExercisePublic
+    | MatchingExercisePublic
+    | TokenOrderingExercisePublic
     | SpanHighlightExercisePublic
     | TableFillExercisePublic
     | NumericExercisePublic
@@ -578,6 +686,49 @@ export interface ShortAnswerExercisePublic {
   prompt: string
   hint: string | null
   show_hint: boolean
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "MatchingExercisePublic".
+ */
+export interface MatchingExercisePublic {
+  type: 'matching'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  left: MatchItem[]
+  /**
+   * In alphabetical order, not paired.
+   */
+  right: MatchItem[]
+  hint: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "MatchItem".
+ */
+export interface MatchItem {
+  id: string
+  text: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TokenOrderingExercisePublic".
+ */
+export interface TokenOrderingExercisePublic {
+  type: 'token_ordering'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  /**
+   * In alphabetical order.
+   */
+  tokens: MatchItem[]
+  hint: string | null
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -646,6 +797,23 @@ export interface ListeningAnswer {
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "MatchingAnswer".
+ */
+export interface MatchingAnswer {
+  type: 'matching'
+  /**
+   * The right item id chosen for each left item id.
+   */
+  pairs: {
+    /**
+     * This interface was referenced by `undefined`'s JSON-Schema definition
+     * via the `patternProperty` "^[a-z0-9][a-z0-9-]*$".
+     */
+    [k: string]: string
+  }
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "MultipleChoiceAnswer".
  */
 export interface MultipleChoiceAnswer {
@@ -671,6 +839,8 @@ export interface SecondRound {
     | MultipleChoiceExercisePublic
     | ShortAnswerExercisePublic
     | ClozeExercisePublic
+    | MatchingExercisePublic
+    | TokenOrderingExercisePublic
     | SpanHighlightExercisePublic
     | TableFillExercisePublic
     | NumericExercisePublic
@@ -721,6 +891,17 @@ export interface TableFillAnswer {
      */
     [k: string]: string
   }
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TokenOrderingAnswer".
+ */
+export interface TokenOrderingAnswer {
+  type: 'token_ordering'
+  /**
+   * @maxItems 30
+   */
+  order: string[]
 }
 /**
  * How strictly a typed answer is compared with the accepted answers.

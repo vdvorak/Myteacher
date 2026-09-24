@@ -1,0 +1,41 @@
+{
+  "id": "en-word-order",
+  "title": "Word order and opposites",
+  "language": "en",
+  "feedback_mode": "at_the_end",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "An English sentence usually runs **subject, verb, object**. A time phrase like *yesterday* can go at the start or at the end."
+    },
+    {
+      "type": "token_ordering",
+      "id": "yesterday",
+      "prompt": "Put the words in order.",
+      "tokens": [
+        { "id": "a", "text": "I" },
+        { "id": "b", "text": "visited" },
+        { "id": "c", "text": "my" },
+        { "id": "d", "text": "grandmother" },
+        { "id": "e", "text": "yesterday" }
+      ],
+      "accepted_orders": [
+        ["a", "b", "c", "d", "e"],
+        ["e", "a", "b", "c", "d"]
+      ],
+      "partial_credit": true,
+      "solution_explanation": "Subject, verb, object: *I visited my grandmother*. *Yesterday* fits at either end."
+    },
+    {
+      "type": "matching",
+      "id": "opposites",
+      "prompt": "Match each word with its opposite.",
+      "pairs": [
+        { "id": "p1", "left": "early", "right": "late" },
+        { "id": "p2", "left": "cheap", "right": "expensive" },
+        { "id": "p3", "left": "empty", "right": "full" }
+      ],
+      "solution_explanation": "*early/late*, *cheap/expensive*, *empty/full*."
+    }
+  ]
+}
