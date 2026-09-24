@@ -14,7 +14,7 @@ from myteacher.api.courses import course_for, editable_course
 from myteacher.api.deps import Db, Now, requires
 from myteacher.api.jobs import JobOut
 from myteacher.assistant.service import paying_credential
-from myteacher.courses import sources
+from myteacher.courses import pages, sources
 from myteacher.courses.models import Course, Source, SourceKind
 from myteacher.jobs import runner
 from myteacher.persistence import InstanceSession
@@ -36,16 +36,19 @@ class SourceOut(BaseModel):
     size: int
     visible_to_students: bool
     created_at: datetime
-    # "file" or "ocr" once text was extracted; None before.
+    # "file", "ocr" or, for a web page, "page" once text was extracted; None before.
     extracted_with: str | None
+    # For a web page: its address, and when its snapshot was taken (None before).
+    url: str | None
+    fetched_at: datetime | None
     # How long the extracted text is; None before it was extracted.
     characters: int | None
     # The latest extraction.
     job: JobOut | None
 
-    @field_serializer("created_at")
-    def _utc(self, at: datetime) -> str:
-        return at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    @field_serializer("created_at", "fetched_at")
+    def _utc(self, at: datetime | None) -> str | None:
+        return at.strftime("%Y-%m-%dT%H:%M:%SZ") if at else None
 
 
 class SourceDetail(SourceOut):
@@ -74,6 +77,22 @@ class SourceChange(BaseModel):
         return value
 
 
+def _web_address(url: str) -> str:
+    if not pages.is_web_address(url):
+        raise ValueError("an http or https address")
+    return url
+
+
+class PageIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    url: Annotated[
+        str, AfterValidator(str.strip), Field(max_length=2000), AfterValidator(_web_address)
+    ]
+    # Without one, the page's title names the source.
+    name: SourceName | None = None
+
+
 class Extraction(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -92,6 +111,8 @@ def _out(db: InstanceSession, source: Source) -> dict:
         "visible_to_students": source.visible_to_students,
         "created_at": source.created_at,
         "extracted_with": source.extracted_with,
+        "url": source.url,
+        "fetched_at": source.fetched_at,
         "characters": len(source.text) if source.text is not None else None,
         "job": JobOut.of(job) if job else None,
     }
@@ -196,6 +217,24 @@ def upload_source(
     return _start(request, background, db, source, ocr=ocr, actor=actor, now=now)
 
 
+@router.post("/url", status_code=202)
+def add_page(
+    course_id: int,
+    body: PageIn,
+    request: Request,
+    background: BackgroundTasks,
+    db: Db,
+    now: Now,
+    actor: Teacher,
+) -> Started:
+    """Add a web page as a source and start taking its snapshot, once."""
+    course = editable_course(db, actor, course_id)
+    source = sources.add_page_source(
+        db, course, url=body.url, name=body.name, uploader=actor, now=now
+    )
+    return _start(request, background, db, source, ocr=False, actor=actor, now=now)
+
+
 @router.get("/{source_id}")
 def read_source(course_id: int, source_id: int, db: Db, actor: Teacher) -> SourceDetail:
     source = _source(db, course_for(db, actor, course_id), source_id)
@@ -206,6 +245,9 @@ def read_source(course_id: int, source_id: int, db: Db, actor: Teacher) -> Sourc
 def download_source(course_id: int, source_id: int, db: Db, actor: Teacher) -> Response:
     """The original file. Sandboxed, so that nothing in it runs with the app's rights."""
     source = _source(db, course_for(db, actor, course_id), source_id)
+    if source.kind == "url":
+        # A web page has no file; its original is its address.
+        raise HTTPException(status_code=404)
     content = sources.file_of(db, source)
     media_type = source.media_type
     if source.kind == "text":
@@ -235,7 +277,9 @@ def change_source(
 @router.post(
     "/{source_id}/extract",
     status_code=202,
-    responses={409: {"description": "An extraction is running, or OCR without a key"}},
+    responses={
+        409: {"description": "Running, OCR without a key, or a page's snapshot already taken"}
+    },
 )
 def extract_again(
     course_id: int,
@@ -247,8 +291,14 @@ def extract_again(
     now: Now,
     actor: Teacher,
 ) -> Started:
-    """Extract the text once more, for example with OCR after the file had none."""
+    """Extract the text once more, for example with OCR after the file had none. A web page is
+    fetched again only while it has no snapshot."""
     source = _source(db, editable_course(db, actor, course_id), source_id)
+    if source.kind == "url":
+        if body.ocr:
+            raise HTTPException(status_code=422, detail="ocr_not_for_pages")
+        if source.text is not None:
+            raise HTTPException(status_code=409, detail="snapshot_taken")
     current = runner.get_job(db, source.job_id) if source.job_id else None
     if current is not None and current.state in ("queued", "running"):
         raise HTTPException(status_code=409, detail="extraction_running")

@@ -1,8 +1,8 @@
 import type { Job } from '../jobs/api'
 import { ApiError } from '../lesson/api'
 
-/** What a source was uploaded as, read from its content. */
-export type SourceKind = 'pdf' | 'text' | 'image'
+/** What a source was uploaded as, read from its content, or a web page the teacher named. */
+export type SourceKind = 'pdf' | 'text' | 'image' | 'url'
 
 export interface Source {
   id: number
@@ -13,8 +13,11 @@ export interface Source {
   /** Whether students may later read the original behind a lesson. */
   visible_to_students: boolean
   created_at: string
-  /** 'file' when read from the file itself, 'ocr' when the assistant read it; null before. */
-  extracted_with: 'file' | 'ocr' | null
+  /** 'file' when read from the file itself, 'ocr' when the assistant read it, 'page' from a web page; null before. */
+  extracted_with: 'file' | 'ocr' | 'page' | null
+  /** For a web page: its address, and when its snapshot was taken, once (null before). */
+  url: string | null
+  fetched_at: string | null
   /** How long the extracted text is; null before it was extracted. */
   characters: number | null
   /** The latest extraction. */
@@ -39,6 +42,8 @@ export type SourceRefusal =
   | 'empty_file'
   | 'no_provider_key'
   | 'extraction_running'
+  /** A web page's snapshot is taken once. */
+  | 'snapshot_taken'
 
 /** An upload or an extraction was refused before it started. */
 export class SourceRefused extends Error {
@@ -57,6 +62,9 @@ export interface SourcesApi {
   /** Starts extracting the text; `ocr` lets the assistant read images and scans. */
   upload(courseId: number, file: File, ocr: boolean): Promise<SourceStarted>
   change(courseId: number, sourceId: number, change: SourceChange): Promise<Source>
+  /** Starts taking the snapshot of a web page; without a name, the page's title names it. */
+  addPage(courseId: number, url: string, name: string | null): Promise<SourceStarted>
+  /** Reads the text again; a web page is fetched again only while it has no snapshot. */
   extract(courseId: number, sourceId: number, ocr: boolean): Promise<SourceStarted>
   remove(courseId: number, sourceId: number): Promise<void>
   /** Where the original file is downloaded from. */
@@ -69,6 +77,7 @@ const refusals: ReadonlySet<string> = new Set<SourceRefusal>([
   'empty_file',
   'no_provider_key',
   'extraction_running',
+  'snapshot_taken',
 ])
 
 async function checked<T>(response: Response): Promise<T> {
@@ -107,6 +116,14 @@ export const httpSourcesApi: SourcesApi = {
       }),
     )
   },
+  addPage: async (courseId, url, name) =>
+    checked(
+      await fetch(`${sourcesUrl(courseId)}/url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(name === null ? { url } : { url, name }),
+      }),
+    ),
   change: async (courseId, sourceId, change) =>
     checked(
       await fetch(`${sourcesUrl(courseId)}/${sourceId}`, {

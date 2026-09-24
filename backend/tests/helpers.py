@@ -154,3 +154,67 @@ def as_student(teacher, sender, email=STUDENT) -> dict:
 def back_to_teacher(client) -> None:
     client.cookies.clear()
     sign_in(client, TEACHER, TEACHER_PASSWORD)
+
+
+def streamed(status: int, headers: dict[str, str], content: bytes):
+    """A response still to be read, as one from the network is."""
+    import httpx
+
+    return httpx.Response(status, headers=headers, stream=httpx.ByteStream(content))
+
+
+class FakeWeb:
+    """Stands in for the internet when the app fetches a page.
+
+    `page` serves a response at a URL, `fail` makes a URL unreachable, and `address` says what a
+    host name resolves to (a public address by default). `requests` records every URL fetched.
+    """
+
+    PUBLIC = "93.184.215.14"
+
+    def __init__(self):
+        self.pages: dict[str, tuple[int, dict[str, str], bytes]] = {}
+        self.unreachable: set[str] = set()
+        self.addresses: dict[str, list[str]] = {}
+        self.requests: list[str] = []
+        # The address each request was sent to, with the URL it asked for.
+        self.connected: list[tuple[str, str]] = []
+
+    def page(
+        self,
+        url: str,
+        body: bytes | str,
+        content_type: str = "text/html; charset=utf-8",
+        status: int = 200,
+        headers: dict[str, str] | None = None,
+    ) -> None:
+        content = body.encode() if isinstance(body, str) else body
+        self.pages[url] = (status, {"content-type": content_type, **(headers or {})}, content)
+
+    def fail(self, url: str) -> None:
+        self.unreachable.add(url)
+
+    def address(self, host: str, *addresses: str) -> None:
+        self.addresses[host] = list(addresses)
+
+    def handle(self, request):
+        import httpx
+
+        # The app connects to the address it checked and names the host in the Host header.
+        url = str(request.url.copy_with(host=request.headers["host"].split(":")[0]))
+        self.requests.append(url)
+        self.connected.append((request.url.host, url))
+        if url in self.unreachable:
+            raise httpx.ConnectError("connection refused", request=request)
+        status, headers, content = self.pages.get(url, (404, {"content-type": "text/html"}, b""))
+        return streamed(status, headers, content)
+
+    async def resolve(self, host: str) -> list[str]:
+        return self.addresses.get(host, [self.PUBLIC])
+
+    def fetcher(self):
+        import httpx
+
+        from myteacher.courses.pages import PageFetcher
+
+        return PageFetcher(transport=httpx.MockTransport(self.handle), resolve=self.resolve)

@@ -11,13 +11,19 @@ import { fakeCoursesApi, spanish } from '../courses/testing'
 import { fakeJobsApi } from '../jobs/testing'
 import { withI18n } from '../lesson/testing'
 import { SourceRefused, type SourceDetail } from './api'
-import { fakeSourcesApi, textbook, type ScriptedExtraction } from './testing'
+import { fakeSourcesApi, textbook, type ScriptedExtraction, type ScriptedPage } from './testing'
 
 const teacher: Account = { ...invitedTeacher, language: 'en' }
 const viewer: Course = { ...spanish, access: 'view', can_edit: false, can_manage_access: false }
 
 function renderSources(
-  options: { course?: Course; sources?: SourceDetail[]; hasKey?: boolean; extractions?: ScriptedExtraction[] } = {},
+  options: {
+    course?: Course
+    sources?: SourceDetail[]
+    hasKey?: boolean
+    extractions?: ScriptedExtraction[]
+    pages?: Record<string, ScriptedPage>
+  } = {},
 ) {
   const course = options.course ?? spanish
   const history = createMemoryHistory()
@@ -28,6 +34,7 @@ function renderSources(
     jobs,
     hasKey: options.hasKey,
     extractions: options.extractions,
+    pages: options.pages,
   })
   const apis = fakeApis({
     auth: fakeAuthApi({ signedIn: teacher }),
@@ -211,5 +218,88 @@ describe('course sources', () => {
     expect(source.getByRole('checkbox', { name: 'Visible to students' })).toBeDisabled()
     await user.click(source.getByRole('button', { name: 'Show the text' }))
     expect(await source.findByText(/El presente de ser/)).toBeInTheDocument()
+  })
+})
+
+describe('web pages as sources', () => {
+  const blogPage: SourceDetail = {
+    id: 7,
+    name: 'El pretérito indefinido',
+    kind: 'url',
+    media_type: 'text/html',
+    size: 18_432,
+    visible_to_students: false,
+    created_at: '2026-09-24T08:00:00Z',
+    extracted_with: 'page',
+    url: 'https://spanish.example/preterito',
+    fetched_at: '2026-09-24T08:00:00Z',
+    characters: 120,
+    job: null,
+    text: 'Se usa para acciones terminadas.',
+  }
+
+  async function addPage(url: string, name = '') {
+    const user = userEvent.setup()
+    const sources = await section()
+    await user.type(sources.getByRole('textbox', { name: 'Web page address' }), url)
+    if (name) await user.type(sources.getByRole('textbox', { name: 'Name (optional)' }), name)
+    await user.click(sources.getByRole('button', { name: 'Take a snapshot' }))
+    return user
+  }
+
+  it('takes a snapshot of a page once and shows when it was taken', async () => {
+    const { sources } = renderSources({
+      sources: [],
+      pages: { 'https://spanish.example/preterito': { title: 'El pretérito', text: 'Hablé, hablaste, habló.' } },
+    })
+
+    await addPage('https://spanish.example/preterito')
+
+    expect(sources.addPage).toHaveBeenCalledWith(1, 'https://spanish.example/preterito', null)
+    const page = await item('El pretérito')
+    expect(await page.findByText(/^Snapshot taken .*2026/)).toBeInTheDocument()
+    expect(page.getByRole('link', { name: 'Open the page' })).toHaveAttribute('href', 'https://spanish.example/preterito')
+    expect(page.queryByRole('link', { name: 'Open the original' })).not.toBeInTheDocument()
+    expect(page.queryByRole('button', { name: 'Read with OCR' })).not.toBeInTheDocument()
+    expect(page.queryByRole('button', { name: 'Fetch again' })).not.toBeInTheDocument()
+    expect((await section()).getByRole('textbox', { name: 'Web page address' })).toHaveValue('')
+  })
+
+  it('keeps the name the teacher gave the page', async () => {
+    const { sources } = renderSources({ sources: [] })
+
+    await addPage('https://spanish.example/preterito', 'Blog o pretéritu')
+
+    expect(sources.addPage).toHaveBeenCalledWith(1, 'https://spanish.example/preterito', 'Blog o pretéritu')
+    expect(await item('Blog o pretéritu')).toBeTruthy()
+  })
+
+  it('explains a page that could not be fetched and fetches it again', async () => {
+    const { sources } = renderSources({ sources: [], pages: {} })
+
+    const user = await addPage('https://spanish.example/gone')
+
+    const page = await item('https://spanish.example/gone')
+    const again = await page.findByRole('button', { name: 'Fetch again' })
+    expect(page.getByText(/could not be reached/)).toBeInTheDocument()
+    await user.click(again)
+    expect(sources.extract).toHaveBeenCalledWith(1, 100, false)
+  })
+
+  it('refuses an address that is not a web page', async () => {
+    const { sources } = renderSources({ sources: [] })
+
+    await addPage('spanish.example/preterito')
+
+    expect(await (await section()).findByRole('alert')).toHaveTextContent('Enter a full web address starting with https://')
+    expect(sources.addPage).not.toHaveBeenCalled()
+  })
+
+  it('shows a stored snapshot with its page', async () => {
+    renderSources({ sources: [blogPage] })
+
+    const page = await item('El pretérito indefinido')
+    expect(page.getByText('Web page, 18 KB')).toBeInTheDocument()
+    expect(page.getByText(/^Snapshot taken .*2026/)).toBeInTheDocument()
   })
 })

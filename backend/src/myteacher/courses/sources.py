@@ -140,6 +140,33 @@ def add_source(
     return source
 
 
+def add_page_source(
+    db: InstanceSession,
+    course: Course,
+    *,
+    url: str,
+    name: str | None,
+    uploader: Account,
+    now: datetime,
+) -> Source:
+    """A web page as a source; its snapshot is taken by an extraction job. Without a name it is
+    named after its URL until the snapshot gives it the page's title."""
+    source = Source(
+        course_id=course.id,
+        name=shortened(name or url),
+        kind="url",
+        media_type="",
+        size=0,
+        visible_to_students=False,
+        url=url,
+        uploaded_by_id=uploader.id,
+        created_at=now,
+    )
+    db.add(source)
+    db.flush()
+    return source
+
+
 def remove_source(db: InstanceSession, source: Source) -> None:
     db.execute(delete(SourceFile).where(SourceFile.source_id == source.id))
     db.delete(source)
@@ -196,6 +223,34 @@ async def _ocr(db: InstanceSession, ctx: JobContext, job: Job, source: Source, c
     return read.text
 
 
+async def _snapshot(
+    db: InstanceSession, ctx: JobContext, job: Job, source: Source
+) -> dict[str, Any]:
+    """Fetch the page once and keep its readable text."""
+    assert source.url is not None
+    source_id, url, named_after_url = source.id, source.url, source.name == shortened(source.url)
+    # No transaction stays open while the page is fetched.
+    db.commit()
+    page = await ctx.pages.fetch(url)
+    values: dict[str, Any] = {
+        "text": page.text,
+        "extracted_with": "page",
+        "media_type": page.media_type,
+        "size": page.size,
+        "fetched_at": ctx.assistant.clock(),
+    }
+    if named_after_url and page.title:
+        values["name"] = shortened(page.title)
+    # Only if the job is still the current one and no snapshot was taken: it never changes.
+    db.execute(
+        update(Source)
+        .where(Source.id == source_id, Source.job_id == job.id, Source.text.is_(None))
+        .values(**values)
+        .execution_options(synchronize_session=False)
+    )
+    return {"source_id": source_id, "characters": len(page.text), "extracted_with": "page"}
+
+
 def extraction(source_id: int, *, ocr: bool) -> Work:
     """The work of an extraction job for the source."""
 
@@ -204,6 +259,8 @@ def extraction(source_id: int, *, ocr: bool) -> Work:
         if source is None or source.job_id != job.id:
             # Removed, or started again meanwhile: the later extraction's result counts.
             return {"superseded": True}
+        if source.kind == "url":
+            return await _snapshot(db, ctx, job, source)
         content = file_of(db, source)
         text: str | None = None
         method = "file"

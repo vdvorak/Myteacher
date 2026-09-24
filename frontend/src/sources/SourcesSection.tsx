@@ -12,6 +12,7 @@ const kindNames: Record<SourceKind, MessageKey> = {
   pdf: 'sources.kind.pdf',
   text: 'sources.kind.text',
   image: 'sources.kind.image',
+  url: 'sources.kind.url',
 }
 
 const refusals: Record<SourceRefusal, MessageKey> = {
@@ -20,12 +21,16 @@ const refusals: Record<SourceRefusal, MessageKey> = {
   empty_file: 'sources.emptyFile',
   no_provider_key: 'sources.noKey',
   extraction_running: 'sources.running',
+  snapshot_taken: 'sources.snapshotExists',
 }
 
-type Problem = SourceRefusal | 'failed' | null
+type Problem = SourceRefusal | 'failed' | 'badUrl' | null
 
 const problemMessage = (problem: Exclude<Problem, null>): MessageKey =>
-  problem === 'failed' ? 'courses.saveFailed' : refusals[problem]
+  problem === 'failed' ? 'courses.saveFailed' : problem === 'badUrl' ? 'sources.badUrl' : refusals[problem]
+
+// What the backend takes as a web page's address.
+const webAddress = /^https?:\/\/[^\s/?#]+/i
 
 /** The files a course is grounded in, with the text read from each. */
 export function SourcesSection(props: { courseId: number; canEdit: boolean }) {
@@ -91,6 +96,15 @@ export function SourcesSection(props: { courseId: number; canEdit: boolean }) {
       </Show>
       <Show when={props.canEdit}>
         <UploadForm upload={(file, ocr) => start(() => api.upload(props.courseId, file, ocr))} />
+        <PageForm
+          add={(url, name) => {
+            if (!webAddress.test(url)) {
+              setProblem('badUrl')
+              return Promise.resolve(false)
+            }
+            return start(() => api.addPage(props.courseId, url, name))
+          }}
+        />
       </Show>
       <Show when={problem()}>{(current) => <p role="alert">{t(problemMessage(current()))}</p>}</Show>
     </section>
@@ -104,7 +118,7 @@ function SourceItem(props: {
   onChanged: () => Promise<void>
   onExtract: (ocr: boolean) => Promise<boolean>
 }) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const api = useApi().sources
   const [text, setText] = createSignal<string | null | undefined>(undefined)
   const [confirming, setConfirming] = createSignal(false)
@@ -120,6 +134,7 @@ function SourceItem(props: {
     const job = props.source.job
     return job?.state === 'failed' ? job.error_kind : null
   }
+  const isPage = () => props.source.kind === 'url'
 
   /** Runs a change, then reloads the list; says whether the change was saved. */
   async function act(action: () => Promise<unknown>): Promise<boolean> {
@@ -153,15 +168,34 @@ function SourceItem(props: {
   return (
     <article class="source" aria-labelledby={headingId}>
       <h3 id={headingId}>{props.source.name}</h3>
-      <p class="settings-note">
-        {t('sources.description', { kind: t(kindNames[props.source.kind]), size: size(props.source.size, t) })}
-      </p>
+      {/* A web page has a size only once its snapshot is taken. */}
+      <Show when={!isPage() || props.source.size > 0}>
+        <p class="settings-note">
+          {t('sources.description', { kind: t(kindNames[props.source.kind]), size: size(props.source.size, t) })}
+        </p>
+      </Show>
       {/* Keyed by the job, so a new extraction gets a fresh status that polls it. */}
       <Show when={running()?.id} keyed>
-        {(_id) => <JobStatus job={running()!} working="jobs.extracting" onFinished={() => void props.onChanged()} />}
+        {(_id) => (
+          <JobStatus
+            job={running()!}
+            working={isPage() ? 'jobs.fetchingPage' : 'jobs.extracting'}
+            onFinished={() => void props.onChanged()}
+          />
+        )}
       </Show>
       <Show when={!running() && failure()}>{(kind) => <JobFailureMessage kind={kind()} />}</Show>
-      <Show when={!running() && props.source.characters !== null}>
+      <Show when={!running() && isPage() && props.source.fetched_at}>
+        {(at) => (
+          <p>
+            {t('sources.snapshotTaken', {
+              date: new Intl.DateTimeFormat(locale(), { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(at())),
+              count: String(props.source.characters ?? 0),
+            })}
+          </p>
+        )}
+      </Show>
+      <Show when={!running() && !isPage() && props.source.characters !== null}>
         <p>
           {t(props.source.extracted_with === 'ocr' ? 'sources.readByOcr' : 'sources.readFromFile', {
             count: String(props.source.characters),
@@ -174,15 +208,33 @@ function SourceItem(props: {
             {t(text() === undefined ? 'sources.showText' : 'sources.hideText')}
           </button>
         </Show>
-        <a href={api.fileUrl(props.courseId, props.source.id)} target="_blank" rel="noopener">
-          {t('sources.original')}
-        </a>
+        <Show
+          when={isPage() && props.source.url}
+          fallback={
+            <a href={api.fileUrl(props.courseId, props.source.id)} target="_blank" rel="noopener">
+              {t('sources.original')}
+            </a>
+          }
+        >
+          {(url) => (
+            <a href={url()} target="_blank" rel="noopener noreferrer">
+              {t('sources.openPage')}
+            </a>
+          )}
+        </Show>
+        {/* A page whose snapshot could not be taken; once taken, it is never fetched again. */}
+        <Show when={props.canEdit && !running() && isPage() && props.source.characters === null}>
+          <button type="button" disabled={busy()} onClick={() => void props.onExtract(false)}>
+            {t('sources.fetchAgain')}
+          </button>
+        </Show>
         {/* A scan or an image not read by the assistant yet, or whose reading failed. */}
         <Show
           when={
             props.canEdit &&
             !running() &&
             props.source.kind !== 'text' &&
+            !isPage() &&
             (props.source.extracted_with !== 'ocr' || failure())
           }
         >
@@ -284,6 +336,44 @@ function UploadForm(props: { upload: (file: File, ocr: boolean) => Promise<boole
       <div class="settings-actions">
         <button type="submit" disabled={busy() || file() === null}>
           {t('sources.upload')}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function PageForm(props: { add: (url: string, name: string | null) => Promise<boolean> }) {
+  const { t } = useI18n()
+  const [url, setUrl] = createSignal('')
+  const [name, setName] = createSignal('')
+  const [busy, setBusy] = createSignal(false)
+
+  async function submit(event: SubmitEvent) {
+    event.preventDefault()
+    setBusy(true)
+    if (await props.add(url().trim(), name().trim() || null)) {
+      setUrl('')
+      setName('')
+    }
+    setBusy(false)
+  }
+
+  return (
+    <form class="settings-form" onSubmit={submit}>
+      <h3>{t('sources.addPage')}</h3>
+      <p class="settings-note">{t('sources.pageIntro')}</p>
+      <label>
+        {t('sources.pageUrl')}
+        {/* Checked here rather than as type="url", so a bad address gets the app's own message. */}
+        <input inputMode="url" maxLength={2000} value={url()} onInput={(e) => setUrl(e.currentTarget.value)} />
+      </label>
+      <label>
+        {t('sources.pageName')}
+        <input maxLength={200} value={name()} onInput={(e) => setName(e.currentTarget.value)} />
+      </label>
+      <div class="settings-actions">
+        <button type="submit" disabled={busy() || url().trim() === ''}>
+          {t('sources.takeSnapshot')}
         </button>
       </div>
     </form>

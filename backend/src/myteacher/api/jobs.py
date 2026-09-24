@@ -25,7 +25,8 @@ class JobOut(BaseModel):
     progress: str | None
     result: dict[str, Any] | None
     # Why it failed: a provider problem, "invalid_output", "no_key", "interrupted", "other", or
-    # for an extraction "no_text" or "unreadable_file".
+    # for an extraction "no_text" or "unreadable_file", and for a web page also "unreachable",
+    # "page_error", "not_a_page", "too_large" or "blocked_address".
     error_kind: str | None
     # The model's answer when it did not validate.
     raw_output: str | None

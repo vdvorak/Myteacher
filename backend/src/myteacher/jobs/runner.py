@@ -8,7 +8,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Engine, select, update
 
@@ -16,6 +16,9 @@ from myteacher.accounts.models import Account
 from myteacher.assistant.service import AssistantContext, AssistantFailed
 from myteacher.jobs.models import Job
 from myteacher.persistence import InstanceSession, open_session
+
+if TYPE_CHECKING:
+    from myteacher.courses.pages import PageFetcher
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,8 @@ class JobContext:
     engine: Engine
     instance_id: int
     assistant: AssistantContext
+    # How source pages are fetched from the web.
+    pages: "PageFetcher"
 
 
 class JobFailed(Exception):

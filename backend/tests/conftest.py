@@ -14,6 +14,7 @@ from tests.helpers import (
     TEACHER,
     TEACHER_PASSWORD,
     FakeClock,
+    FakeWeb,
     ScriptedModels,
     accept,
     configure_smtp,
@@ -68,8 +69,19 @@ def models() -> ScriptedModels:
 
 
 @pytest.fixture
-def app_client(admin_settings, clock, sender, models):
-    app = create_app(admin_settings, clock=clock, sender=sender, model_factory=models)
+def web() -> FakeWeb:
+    return FakeWeb()
+
+
+@pytest.fixture
+def app_client(admin_settings, clock, sender, models, web):
+    app = create_app(
+        admin_settings,
+        clock=clock,
+        sender=sender,
+        model_factory=models,
+        page_fetcher=web.fetcher(),
+    )
     with TestClient(app) as client:
         yield client
 

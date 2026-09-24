@@ -122,8 +122,9 @@ class Interview(InstanceOwned, Base):
     __mapper_args__ = {"version_id_col": version}
 
 
-# What a source was uploaded as, read from its content rather than from what the browser said.
-SourceKind = Literal["pdf", "text", "image"]
+# What a source was uploaded as, read from its content rather than from what the browser said,
+# or "url" for a web page the teacher named.
+SourceKind = Literal["pdf", "text", "image", "url"]
 
 
 class Source(InstanceOwned, Base):
@@ -142,8 +143,12 @@ class Source(InstanceOwned, Base):
     visible_to_students: Mapped[bool] = mapped_column(default=False)
     # None until an extraction succeeded.
     text: Mapped[str | None] = mapped_column(Text)
-    # "file" when read from the file itself, "ocr" when the assistant read it.
+    # "file" when read from the file itself, "ocr" when the assistant read it, "page" when read
+    # from a fetched web page.
     extracted_with: Mapped[str | None] = mapped_column(String(10))
+    # The page a "url" source was fetched from, and when: its snapshot is taken once.
+    url: Mapped[str | None] = mapped_column(String(2000))
+    fetched_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     # The latest extraction; only its result lands.
     job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
     uploaded_by_id: Mapped[int] = mapped_column(ForeignKey("account.id"))

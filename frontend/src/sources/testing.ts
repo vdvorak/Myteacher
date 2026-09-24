@@ -6,6 +6,8 @@ import { SourceRefused, type Source, type SourceDetail, type SourceKind, type So
 
 /** How the fake reads a file: its text, or why it found none. */
 export type ScriptedExtraction = { text: string } | { fail: JobFailure }
+/** What the fake finds at a web address: a page with a title and text, or why it found none. */
+export type ScriptedPage = { title: string | null; text: string } | { fail: JobFailure }
 
 export const textbook: SourceDetail = {
   id: 1,
@@ -16,6 +18,8 @@ export const textbook: SourceDetail = {
   visible_to_students: false,
   created_at: '2026-09-24T08:00:00Z',
   extracted_with: 'file',
+  url: null,
+  fetched_at: null,
   characters: 27,
   job: null,
   text: 'Unidad 1\n\nEl presente de ser',
@@ -41,6 +45,8 @@ export function fakeSourcesApi(
     /** Whether the teacher has a provider key to pay OCR with. */
     hasKey?: boolean
     extractions?: ScriptedExtraction[]
+    /** What each web address serves; with none given, every page has text. */
+    pages?: Record<string, ScriptedPage>
   } = {},
 ) {
   const jobs = options.jobs ?? fakeJobsApi()
@@ -80,6 +86,36 @@ export function fakeSourcesApi(
     return { source: summary(source), job }
   }
 
+  // A web page is fetched by its own job: its snapshot, or why there is none.
+  const snapshot = (source: SourceDetail, named: boolean) => {
+    const job = jobs.start(
+      'source_extraction',
+      () => {
+        const page: ScriptedPage = options.pages
+          ? (options.pages[source.url!] ?? { fail: 'unreachable' })
+          : { title: null, text: `The text of ${source.url}` }
+        if ('fail' in page) {
+          source.job = { ...source.job!, state: 'failed', error_kind: page.fail, progress: null }
+          return { state: 'failed', error_kind: page.fail, raw_output: null }
+        }
+        Object.assign(source, {
+          text: page.text,
+          characters: page.text.length,
+          extracted_with: 'page',
+          media_type: 'text/html',
+          size: page.text.length,
+          fetched_at: '2026-09-24T08:00:00Z',
+          name: !named && page.title ? page.title : source.name,
+        })
+        source.job = { ...source.job!, state: 'succeeded', progress: null }
+        return { state: 'succeeded', error_kind: null, raw_output: null }
+      },
+      'extracting',
+    )
+    source.job = job
+    return { source: summary(source), job }
+  }
+
   return {
     list: vi.fn(async (courseId: number) => listOf(courseId).map(summary)),
     get: vi.fn(async (courseId: number, sourceId: number) => structuredClone(find(courseId, sourceId))),
@@ -97,6 +133,8 @@ export function fakeSourcesApi(
         visible_to_students: false,
         created_at: '2026-09-24T08:00:00Z',
         extracted_with: null,
+        url: null,
+        fetched_at: null,
         characters: null,
         job: null,
         text: null,
@@ -109,10 +147,34 @@ export function fakeSourcesApi(
       Object.assign(source, change)
       return summary(source)
     }),
+    addPage: vi.fn(async (courseId: number, url: string, name: string | null) => {
+      if (!/^https?:\/\/[^/]+/.test(url)) throw new ApiError(422)
+      const source: SourceDetail = {
+        id: nextId++,
+        name: name ?? url,
+        kind: 'url',
+        media_type: '',
+        size: 0,
+        visible_to_students: false,
+        created_at: '2026-09-24T08:00:00Z',
+        extracted_with: null,
+        url,
+        fetched_at: null,
+        characters: null,
+        job: null,
+        text: null,
+      }
+      listOf(courseId).push(source)
+      return snapshot(source, name !== null)
+    }),
     extract: vi.fn(async (courseId: number, sourceId: number, ocr: boolean) => {
       const source = find(courseId, sourceId)
       if (source.job && (source.job.state === 'queued' || source.job.state === 'running')) {
         throw new SourceRefused('extraction_running')
+      }
+      if (source.kind === 'url') {
+        if (source.text !== null) throw new SourceRefused('snapshot_taken')
+        return snapshot(source, source.name !== source.url)
       }
       return extract(source, ocr, source.kind === 'text' ? source.text : null)
     }),

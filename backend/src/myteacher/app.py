@@ -25,6 +25,7 @@ from myteacher.api import (
 )
 from myteacher.assistant.providers import ModelFactory, pydantic_ai_model
 from myteacher.assistant.service import AssistantContext
+from myteacher.courses.pages import PageFetcher
 from myteacher.db import migrate
 from myteacher.jobs.runner import JobContext, fail_interrupted
 from myteacher.mail import Sender, SmtpSender
@@ -39,6 +40,7 @@ def create_app(
     clock: Clock = utc_now,
     sender: Sender | None = None,
     model_factory: ModelFactory = pydantic_ai_model,
+    page_fetcher: PageFetcher | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
 
@@ -60,6 +62,7 @@ def create_app(
             assistant=AssistantContext(
                 model_factory=model_factory, secret_box=secret_box, clock=clock
             ),
+            pages=page_fetcher or PageFetcher(),
         )
         # One process runs every job (phase 1), so whatever it did not finish was cut off.
         with open_session(engine, app.state.instance_id) as db:

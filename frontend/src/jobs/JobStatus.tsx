@@ -16,6 +16,11 @@ const failureMessages: Record<JobFailure, MessageKey> = {
   interrupted: 'jobs.failed.interrupted',
   no_text: 'jobs.failed.no_text',
   unreadable_file: 'jobs.failed.unreadable_file',
+  unreachable: 'jobs.failed.unreachable',
+  page_error: 'jobs.failed.page_error',
+  not_a_page: 'jobs.failed.not_a_page',
+  too_large: 'jobs.failed.too_large',
+  blocked_address: 'jobs.failed.blocked_address',
 }
 
 // Failures fixed in the teacher's settings, not by trying again.

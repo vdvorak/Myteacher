@@ -101,6 +101,8 @@ def test_a_teacher_uploads_a_text_file_and_sees_the_extracted_text(teacher, cour
         "visible_to_students": False,
         "created_at": "2026-09-24T08:00:00Z",
         "extracted_with": "file",
+        "url": None,
+        "fetched_at": None,
         "characters": len(TEXT),
         "job": read["job"],
         "text": TEXT,

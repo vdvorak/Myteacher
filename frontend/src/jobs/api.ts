@@ -13,6 +13,13 @@ export type JobFailure =
   /** An extraction found no text: a scan or an image read without OCR. */
   | 'no_text'
   | 'unreadable_file'
+  /** Taking a web page's snapshot: the site did not answer, answered with an error, sent no
+   * page (a PDF, an image), sent too much, or is inside the network, which is never fetched. */
+  | 'unreachable'
+  | 'page_error'
+  | 'not_a_page'
+  | 'too_large'
+  | 'blocked_address'
 
 export interface Job {
   id: number
