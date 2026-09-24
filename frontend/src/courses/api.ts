@@ -75,12 +75,31 @@ export class AccessConflict extends Error {
   }
 }
 
+/** What a topic adds to the course brief, from the topic interview or by hand. */
+export interface TopicAdditions {
+  goals: string | null
+  prior_knowledge: string | null
+  emphasis: string | null
+  notes: string | null
+}
+
+export const additionFields = ['goals', 'prior_knowledge', 'emphasis', 'notes'] as const
+
+/** The assistant's offer of a diagnostic lesson; only accepting it sets `diagnostic_wanted`. */
+export interface DiagnosticOffer {
+  reason: string
+  /** Null while the offer waits for the teacher. */
+  answer: 'accepted' | 'declined' | null
+}
+
 export interface Topic {
   id: number
   name: string
   position: number
   /** Whether the topic starts with a diagnostic lesson in a run. */
   diagnostic_wanted: boolean
+  additions: TopicAdditions
+  diagnostic_offer: DiagnosticOffer | null
 }
 
 export interface InterviewQuestion {
@@ -96,20 +115,29 @@ export interface InterviewRound {
   answers: string[] | null
 }
 
-export interface Interview {
+/** What the course interview and a topic interview have in common. */
+export interface InterviewBase {
   id: number
-  /** Finished once the brief was patched; ended when the teacher stopped it early. */
+  /** Finished once its result landed; ended when the teacher stopped it early. */
   state: 'active' | 'finished' | 'ended'
   rounds: InterviewRound[]
-  /** Set once finished: false means content will be generated without sources. */
-  sources_offered: boolean | null
   summary: string | null
   /** The latest job working on the interview. */
   job: Job | null
 }
 
-export interface InterviewStarted {
-  interview: Interview
+export interface Interview extends InterviewBase {
+  /** Set once finished: false means content will be generated without sources. */
+  sources_offered: boolean | null
+}
+
+/** The short interview about one topic; it ends in the topic's additions. */
+export interface TopicInterview extends InterviewBase {
+  topic_id: number
+}
+
+export interface InterviewStarted<I extends InterviewBase = Interview> {
+  interview: I
   job: Job
 }
 
@@ -132,7 +160,10 @@ export class InterviewConflict extends Error {
   }
 }
 
-export type TopicChange = Partial<Pick<Topic, 'name' | 'diagnostic_wanted'>>
+export type TopicChange = Partial<Pick<Topic, 'name' | 'diagnostic_wanted'>> & {
+  /** Only the additions given change; null clears one. */
+  additions?: Partial<TopicAdditions>
+}
 
 /** A type would be both preferred and forbidden. */
 export class TypeConflict extends Error {}
@@ -151,6 +182,14 @@ export interface CoursesApi {
   /** Refused with a 409 `ApiError` when the list no longer holds exactly these topics. */
   reorderTopics(id: number, topicIds: number[]): Promise<Topic[]>
   removeTopic(id: number, topicId: number): Promise<Topic[]>
+  /** Accepting sets the topic's diagnostic flag, declining leaves it; a 409 `ApiError` when no offer is open. */
+  answerDiagnosticOffer(id: number, topicId: number, accept: boolean): Promise<Topic[]>
+  /** The topic's latest interview, or null when there has been none. */
+  topicInterview(id: number, topicId: number): Promise<TopicInterview | null>
+  startTopicInterview(id: number, topicId: number): Promise<InterviewStarted<TopicInterview>>
+  answerTopicInterview(id: number, topicId: number, answers: string[]): Promise<InterviewStarted<TopicInterview>>
+  retryTopicInterview(id: number, topicId: number): Promise<InterviewStarted<TopicInterview>>
+  endTopicInterview(id: number, topicId: number): Promise<TopicInterview>
   /** The course's latest interview, or null when there has been none. */
   interview(id: number): Promise<Interview | null>
   startInterview(id: number): Promise<InterviewStarted>
@@ -205,6 +244,7 @@ async function accessStep<T>(response: Response): Promise<T> {
 const accessUrl = (id: number) => `/api/courses/${id}/access`
 const interviewUrl = (id: number) => `/api/courses/${id}/interview`
 const topicsUrl = (id: number) => `/api/courses/${id}/topics`
+const topicInterviewUrl = (id: number, topicId: number) => `${topicsUrl(id)}/${topicId}/interview`
 
 export const httpCoursesApi: CoursesApi = {
   list: async () => json(await fetch('/api/courses')),
@@ -217,6 +257,14 @@ export const httpCoursesApi: CoursesApi = {
   changeTopic: async (id, topicId, change) => json(await send('PATCH', `${topicsUrl(id)}/${topicId}`, change)),
   reorderTopics: async (id, topicIds) => json(await send('PUT', `${topicsUrl(id)}/order`, { topic_ids: topicIds })),
   removeTopic: async (id, topicId) => json(await send('DELETE', `${topicsUrl(id)}/${topicId}`)),
+  answerDiagnosticOffer: async (id, topicId, accept) =>
+    json(await send('POST', `${topicsUrl(id)}/${topicId}/diagnostic-offer`, { accept })),
+  topicInterview: async (id, topicId) => json(await fetch(topicInterviewUrl(id, topicId))),
+  startTopicInterview: async (id, topicId) => interviewStep(await send('POST', topicInterviewUrl(id, topicId))),
+  answerTopicInterview: async (id, topicId, answers) =>
+    interviewStep(await send('POST', `${topicInterviewUrl(id, topicId)}/answers`, { answers })),
+  retryTopicInterview: async (id, topicId) => interviewStep(await send('POST', `${topicInterviewUrl(id, topicId)}/retry`)),
+  endTopicInterview: async (id, topicId) => interviewStep(await send('POST', `${topicInterviewUrl(id, topicId)}/end`)),
   interview: async (id) => json(await fetch(interviewUrl(id))),
   startInterview: async (id) => interviewStep(await send('POST', interviewUrl(id))),
   answerInterview: async (id, answers) => interviewStep(await send('POST', `${interviewUrl(id)}/answers`, { answers })),

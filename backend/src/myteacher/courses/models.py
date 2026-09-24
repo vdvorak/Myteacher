@@ -79,6 +79,16 @@ class Topic(InstanceOwned, Base):
     name: Mapped[str] = mapped_column(String(200))
     # Whether the topic starts with a diagnostic lesson; runs in slice 4 read it.
     diagnostic_wanted: Mapped[bool] = mapped_column(default=False)
+    # What the topic adds to the course brief, from the topic interview or by hand; one column
+    # each, so that saving one never writes another.
+    goals: Mapped[str | None] = mapped_column(Text)
+    prior_knowledge: Mapped[str | None] = mapped_column(Text)
+    emphasis: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    # Why the assistant offers a diagnostic lesson, when it does, and the teacher's answer:
+    # "accepted" or "declined", None while open. Only accepting sets `diagnostic_wanted`.
+    diagnostic_offer: Mapped[str | None] = mapped_column(Text)
+    diagnostic_offer_answer: Mapped[str | None] = mapped_column(String(10))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
 
@@ -117,6 +127,38 @@ class Interview(InstanceOwned, Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     # Checked on every write, so that of two concurrent changes (two answers, an answer and
     # the end, the job's result and the end) the second fails instead of overwriting the first.
+    version: Mapped[int] = mapped_column(default=1)
+
+    __mapper_args__ = {"version_id_col": version}
+
+
+class TopicInterview(InstanceOwned, Base):
+    """The short interview about one topic: rounds like the course interview, ending in
+    additions stored on the topic rather than in a brief of its own."""
+
+    __tablename__ = "topic_interview"
+    # At most one active interview per topic, even when two requests start one at once.
+    __table_args__ = (
+        Index(
+            "one_active_topic_interview",
+            "topic_id",
+            unique=True,
+            sqlite_where=text("state = 'active'"),
+            postgresql_where=text("state = 'active'"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("topic.id", ondelete="CASCADE"), index=True)
+    # "active", "finished" once the additions landed, "ended" when stopped early.
+    state: Mapped[str] = mapped_column(String(20))
+    # The same shape as Interview.rounds.
+    rounds: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    summary: Mapped[str | None] = mapped_column(Text)
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
+    started_by_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     version: Mapped[int] = mapped_column(default=1)
 
     __mapper_args__ = {"version_id_col": version}

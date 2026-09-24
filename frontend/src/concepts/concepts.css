@@ -59,3 +59,17 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius);
 }
+
+.topic-additions {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.topic-additions dt {
+  font-weight: 600;
+}
+
+.topic-additions dd {
+  margin: 0 0 var(--space-2);
+}

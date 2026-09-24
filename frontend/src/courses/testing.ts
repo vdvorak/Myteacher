@@ -12,8 +12,11 @@ import {
   type CourseBrief,
   type CoursesApi,
   type Interview,
+  type InterviewBase,
   type InterviewQuestion,
   type Topic,
+  type TopicAdditions,
+  type TopicInterview,
 } from './api'
 
 export const emptyBrief: CourseBrief = {
@@ -44,6 +47,16 @@ export const spanish: Course = {
   can_manage_access: true,
 }
 
+export const noAdditions: TopicAdditions = { goals: null, prior_knowledge: null, emphasis: null, notes: null }
+
+/** A topic with no additions and no diagnostic offer, unless given. */
+export const topicFixture = (topic: Pick<Topic, 'id' | 'name' | 'position'> & Partial<Topic>): Topic => ({
+  diagnostic_wanted: false,
+  additions: noAdditions,
+  diagnostic_offer: null,
+  ...topic,
+})
+
 /** The emails the fake knows as teachers, besides those on an access list. */
 export const knownTeachers = ['svoboda@skola.example', 'kralova@skola.example', 'novak@skola.example']
 
@@ -53,7 +66,15 @@ export type ScriptedStep =
   | { brief: Partial<CourseBrief>; sources_offered: boolean; summary: string }
   | { fail: JobFailure; raw_output?: string }
 
+/** What the fake assistant does at each topic interview step, in order. */
+export type ScriptedTopicStep =
+  | { round: Omit<InterviewQuestion, 'number'>[] }
+  | { additions: Partial<TopicAdditions>; summary: string }
+  | { fail: JobFailure; raw_output?: string }
+
 const trimmed = (value: string | null) => (value === null ? null : value.trim() || null)
+const trimmedAdditions = (additions: Partial<TopicAdditions>) =>
+  Object.fromEntries(Object.entries(additions).map(([k, v]) => [k, trimmed(v ?? null)])) as Partial<TopicAdditions>
 
 /** A stand-in for the course endpoints, keeping the courses it was given in memory. */
 export function fakeCoursesApi(
@@ -61,9 +82,13 @@ export function fakeCoursesApi(
     courses?: Course[]
     topics?: Record<number, Topic[]>
     interviews?: Record<number, Interview>
+    /** Topic interviews by topic id. */
+    topicInterviews?: Record<number, TopicInterview>
     access?: Record<number, AccessEntry[]>
     /** The assistant's answers to interview steps, in order. */
     script?: ScriptedStep[]
+    /** The assistant's answers to topic interview steps, in order. */
+    topicScript?: ScriptedTopicStep[]
     jobs?: FakeJobs
     /** Whether the teacher has a provider key to pay with. */
     hasKey?: boolean
@@ -82,12 +107,19 @@ export function fakeCoursesApi(
     if (!current || current.state !== 'active') throw new InterviewConflict('no_active_interview')
     return current
   }
-  // The next step of the interview as a job; the scripted step lands when the job ends.
-  const schedule = (id: number) => {
+  const topicInterviews: Record<number, TopicInterview> = structuredClone(options.topicInterviews ?? {})
+  const topicScript = [...(options.topicScript ?? [])]
+  // The next step of an interview as a job; the scripted step lands when the job ends.
+  const scheduleStep = <I extends InterviewBase, S extends ScriptedStep | ScriptedTopicStep>(
+    kind: string,
+    current: () => I,
+    steps: S[],
+    finish: (interview: I, step: Exclude<S, { round: unknown } | { fail: unknown }>) => void,
+  ) => {
     if (options.hasKey === false) throw new InterviewConflict('no_provider_key')
-    const job = jobs.start('course_interview', () => {
-      const current = interviews[id]
-      const step = script.shift()
+    const job = jobs.start(kind, () => {
+      const interview = current()
+      const step = steps.shift()
       if (!step) throw new Error('the fake assistant was asked more often than scripted')
       let outcome: Pick<typeof job, 'state' | 'error_kind' | 'raw_output'>
       if ('fail' in step) {
@@ -95,27 +127,49 @@ export function fakeCoursesApi(
       } else {
         outcome = { state: 'succeeded', error_kind: null, raw_output: null }
         if ('round' in step) {
-          current.rounds = [
-            ...current.rounds,
+          interview.rounds = [
+            ...interview.rounds,
             {
-              number: current.rounds.length + 1,
+              number: interview.rounds.length + 1,
               questions: step.round.map((q, i) => ({ ...q, number: i + 1 })),
               answers: null,
             },
           ]
         } else {
-          const course = find(id)
-          store({ ...course, brief: { ...course.brief, ...step.brief } })
-          current.state = 'finished'
-          current.sources_offered = step.sources_offered
-          current.summary = step.summary
+          finish(interview, step as Exclude<S, { round: unknown } | { fail: unknown }>)
         }
       }
-      current.job = { ...job, ...outcome, progress: null }
+      interview.job = { ...job, ...outcome, progress: null }
       return outcome
     })
-    interviews[id].job = job
-    return { interview: structuredClone(interviews[id]), job }
+    current().job = job
+    return { interview: structuredClone(current()), job }
+  }
+  const schedule = (id: number) =>
+    scheduleStep('course_interview', () => interviews[id], script, (interview, step) => {
+      if (!('brief' in step)) throw new Error('a course interview ends in a brief')
+      const course = find(id)
+      store({ ...course, brief: { ...course.brief, ...step.brief } })
+      interview.state = 'finished'
+      interview.sources_offered = step.sources_offered
+      interview.summary = step.summary
+    })
+  const scheduleTopic = (id: number, topicId: number) =>
+    scheduleStep('topic_interview', () => topicInterviews[topicId], topicScript, (interview, step) => {
+      if (!('additions' in step)) throw new Error('a topic interview ends in additions')
+      const topic = topicOf(id, topicId)
+      topic.additions = { ...topic.additions, ...step.additions }
+      interview.state = 'finished'
+      interview.summary = step.summary
+    })
+  const topicInterviewOf = (id: number, topicId: number) => {
+    topicOf(id, topicId)
+    return topicInterviews[topicId] ?? null
+  }
+  const activeTopicInterview = (id: number, topicId: number) => {
+    const current = topicInterviewOf(id, topicId)
+    if (!current || current.state !== 'active') throw new InterviewConflict('no_active_interview')
+    return current
   }
   const access: Record<number, AccessEntry[]> = { ...options.access }
   const accessOf = (id: number) => {
@@ -136,9 +190,9 @@ export function fakeCoursesApi(
     if (!known.includes(email)) throw new AccessConflict('not_a_teacher')
     return 10 + known.indexOf(email)
   }
-  const topics: Record<number, Topic[]> = { ...options.topics }
+  const topics: Record<number, Topic[]> = structuredClone(options.topics ?? {})
   let nextTopicId = 1000
-  const topicsOf = (id: number) => {
+  function topicsOf(id: number) {
     find(id)
     return topics[id] ?? []
   }
@@ -147,18 +201,18 @@ export function fakeCoursesApi(
     return copies(topics[id])
   }
   // Fresh objects on every answer, as over HTTP: callers may keep and change what they get.
-  const copies = (list: Topic[]) => list.map((topic) => ({ ...topic }))
-  const topicOf = (id: number, topicId: number) => {
+  const copies = (list: Topic[]) => structuredClone(list)
+  function topicOf(id: number, topicId: number) {
     const topic = topicsOf(id).find((t) => t.id === topicId)
     if (!topic) throw new ApiError(404)
     return topic
   }
-  const find = (id: number) => {
+  function find(id: number) {
     const course = courses.find((c) => c.id === id)
     if (!course) throw new ApiError(404)
     return course
   }
-  const store = (course: Course) => {
+  function store(course: Course) {
     courses = [...courses.filter((c) => c.id !== course.id), course]
     return course
   }
@@ -263,14 +317,48 @@ export function fakeCoursesApi(
       }
     }),
     addTopic: vi.fn(async (id: number, name: string) =>
-      storeTopics(id, [...topicsOf(id), { id: nextTopicId++, name: name.trim(), position: 0, diagnostic_wanted: false }]),
+      storeTopics(id, [...topicsOf(id), topicFixture({ id: nextTopicId++, name: name.trim(), position: 0 })]),
     ),
     changeTopic: vi.fn(async (id: number, topicId: number, change) => {
       topicOf(id, topicId)
+      const { additions, ...rest } = change
       return storeTopics(
         id,
-        topicsOf(id).map((t) => (t.id === topicId ? { ...t, ...change } : t)),
+        topicsOf(id).map((t) =>
+          t.id === topicId ? { ...t, ...rest, additions: { ...t.additions, ...trimmedAdditions(additions ?? {}) } } : t,
+        ),
       )
+    }),
+    answerDiagnosticOffer: vi.fn(async (id: number, topicId: number, accept: boolean) => {
+      const topic = topicOf(id, topicId)
+      if (!topic.diagnostic_offer || topic.diagnostic_offer.answer !== null) throw new ApiError(409)
+      topic.diagnostic_offer.answer = accept ? 'accepted' : 'declined'
+      if (accept) topic.diagnostic_wanted = true
+      return copies(topicsOf(id))
+    }),
+    topicInterview: vi.fn(async (id: number, topicId: number) => structuredClone(topicInterviewOf(id, topicId))),
+    startTopicInterview: vi.fn(async (id: number, topicId: number) => {
+      if (topicInterviewOf(id, topicId)?.state === 'active') throw new InterviewConflict('interview_active')
+      if (options.hasKey === false) throw new InterviewConflict('no_provider_key')
+      topicInterviews[topicId] = { id: 800 + topicId, topic_id: topicId, state: 'active', rounds: [], summary: null, job: null }
+      return scheduleTopic(id, topicId)
+    }),
+    answerTopicInterview: vi.fn(async (id: number, topicId: number, answers: string[]) => {
+      const current = activeTopicInterview(id, topicId)
+      const last = current.rounds.at(-1)
+      if (!last || last.answers !== null) throw new InterviewConflict('no_open_round')
+      current.rounds = [...current.rounds.slice(0, -1), { ...last, answers }]
+      return scheduleTopic(id, topicId)
+    }),
+    retryTopicInterview: vi.fn(async (id: number, topicId: number) => {
+      const current = activeTopicInterview(id, topicId)
+      if (current.job?.state !== 'failed') throw new InterviewConflict('nothing_to_retry')
+      return scheduleTopic(id, topicId)
+    }),
+    endTopicInterview: vi.fn(async (id: number, topicId: number) => {
+      const current = activeTopicInterview(id, topicId)
+      current.state = 'ended'
+      return structuredClone(current)
     }),
     reorderTopics: vi.fn(async (id: number, topicIds: number[]) => {
       const current = topicsOf(id)
@@ -283,5 +371,12 @@ export function fakeCoursesApi(
       topicOf(id, topicId)
       return storeTopics(id, topicsOf(id).filter((t) => t.id !== topicId))
     }),
-  } satisfies CoursesApi
+    /** What a finished proposal does to the topic: the assistant's diagnostic offer, if any. */
+    offerDiagnostic(id: number, topicId: number, reason: string | null) {
+      const topic = topicOf(id, topicId)
+      topic.diagnostic_offer = reason && !topic.diagnostic_wanted ? { reason, answer: null } : null
+    },
+  } satisfies CoursesApi & Record<string, unknown>
 }
+
+export type FakeCourses = ReturnType<typeof fakeCoursesApi>

@@ -13,7 +13,7 @@ from myteacher.accounts import service as accounts
 from myteacher.assistant.service import Task, generate
 from myteacher.courses import service as courses
 from myteacher.courses.brief import BriefText, ExerciseTypes
-from myteacher.courses.models import Course, Interview
+from myteacher.courses.models import Course, Interview, TopicInterview
 from myteacher.jobs.models import Job
 from myteacher.jobs.runner import JobContext
 from myteacher.lesson.schema import FeedbackMode
@@ -99,7 +99,11 @@ def latest(db: InstanceSession, course: Course) -> Interview | None:
     ).first()
 
 
-def open_round(interview: Interview) -> dict[str, Any] | None:
+# The course interview and a topic interview run their rounds alike.
+AnyInterview = Interview | TopicInterview
+
+
+def open_round(interview: AnyInterview) -> dict[str, Any] | None:
     """The last round when it still waits for answers."""
     if interview.state != "active" or not interview.rounds:
         return None
@@ -123,7 +127,7 @@ def start(db: InstanceSession, course: Course, starter_id: int, *, now: datetime
     return interview
 
 
-def record_answers(interview: Interview, answers: list[str]) -> None:
+def record_answers(interview: AnyInterview, answers: list[str]) -> None:
     current = open_round(interview)
     if current is None:
         raise NoOpenRound()
@@ -133,7 +137,7 @@ def record_answers(interview: Interview, answers: list[str]) -> None:
     interview.rounds = [*interview.rounds[:-1], {**current, "answers": answers}]
 
 
-def end(interview: Interview) -> None:
+def end(interview: AnyInterview) -> None:
     interview.state = "ended"
 
 

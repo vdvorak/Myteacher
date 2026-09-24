@@ -542,7 +542,9 @@ def test_concept_maps_hold_no_student_data():
 
 
 def test_the_concept_map_prompt_is_versioned():
-    assert prompts.current_version("concept_map") == "v1"
+    assert prompts.current_version("concept_map") == "v2"
+    # The earlier version stays for the generation records that point at it.
+    assert prompts.load("concept_map", "v1").version == "v1"
 
 
 def test_a_topic_removed_while_its_map_is_proposed_ends_the_job_quietly(

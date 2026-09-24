@@ -35,14 +35,14 @@ def test_topics_are_added_at_the_end_in_order(teacher):
 
     assert added.status_code == 201
     topics = added.json()
+    fresh = {
+        "diagnostic_wanted": False,
+        "additions": {"goals": None, "prior_knowledge": None, "emphasis": None, "notes": None},
+        "diagnostic_offer": None,
+    }
     assert topics == [
-        {"id": topics[0]["id"], "name": "Presente", "position": 0, "diagnostic_wanted": False},
-        {
-            "id": topics[1]["id"],
-            "name": "Pretérito indefinido",
-            "position": 1,
-            "diagnostic_wanted": False,
-        },
+        {"id": topics[0]["id"], "name": "Presente", "position": 0, **fresh},
+        {"id": topics[1]["id"], "name": "Pretérito indefinido", "position": 1, **fresh},
     ]
     assert teacher.get(topics_url(cid)).json() == topics
 

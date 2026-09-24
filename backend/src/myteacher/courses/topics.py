@@ -55,3 +55,12 @@ def remove_topic(db: InstanceSession, course: Course, topic: Topic) -> None:
     db.delete(topic)
     db.flush()
     _renumber(topics_of(db, course))
+
+
+def settle_offer(topic: Topic) -> None:
+    """After the teacher set the diagnostic flag by hand, the assistant's offer says what the flag
+    says: ticking it accepts an open offer, and an answered offer follows the flag."""
+    if topic.diagnostic_offer is None:
+        return
+    if topic.diagnostic_wanted or topic.diagnostic_offer_answer is not None:
+        topic.diagnostic_offer_answer = "accepted" if topic.diagnostic_wanted else "declined"

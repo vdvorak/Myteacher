@@ -7,7 +7,7 @@ import { fakeApis } from '../api/testing'
 import type { Account } from '../auth/api'
 import { fakeAuthApi, invitedTeacher } from '../auth/testing'
 import type { Course, Topic } from '../courses/api'
-import { fakeCoursesApi, spanish } from '../courses/testing'
+import { fakeCoursesApi, spanish, topicFixture } from '../courses/testing'
 import { fakeJobsApi } from '../jobs/testing'
 import { withI18n } from '../lesson/testing'
 import { ConceptMapRefused, type ConceptMap } from './api'
@@ -15,8 +15,8 @@ import { fakeConceptsApi, preteritMap, type ScriptedProposal } from './testing'
 
 const teacher: Account = { ...invitedTeacher, language: 'en' }
 const topics: Topic[] = [
-  { id: 1, name: 'Presente', position: 0, diagnostic_wanted: false },
-  { id: 2, name: 'Pretérito indefinido', position: 1, diagnostic_wanted: false },
+  topicFixture({ id: 1, name: 'Presente', position: 0 }),
+  topicFixture({ id: 2, name: 'Pretérito indefinido', position: 1 }),
 ]
 const proposal: ScriptedProposal = {
   concepts: [

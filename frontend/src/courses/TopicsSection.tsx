@@ -4,6 +4,9 @@ import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
+import { ConceptMapRefused, type MapStatus } from '../concepts/api'
+import { finished } from '../jobs/api'
+import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
 import { ApiError } from '../lesson/api'
 import type { Topic } from './api'
 import './courses.css'
@@ -29,7 +32,46 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
   const [newName, setNewName] = createSignal('')
   const [removing, setRemoving] = createSignal<number | null>(null)
 
-  const show = (topics: Topic[]) => setList(reconcile(topics, { key: 'id' }))
+  const conceptsApi = useApi().concepts
+  // Where the concept map of each topic stands, by topic id.
+  const [statuses, setStatuses] = createSignal<Record<number, MapStatus>>({})
+  const [preparing, setPreparing] = createSignal(false)
+  const [prepared, setPrepared] = createSignal<{ started: number; skipped: number } | null>(null)
+  const [prepareProblem, setPrepareProblem] = createSignal<'no_key' | 'failed' | null>(null)
+
+  async function reloadStatuses() {
+    try {
+      const list = await conceptsApi.statuses(props.courseId)
+      setStatuses(Object.fromEntries(list.map((status) => [status.topic_id, status])))
+    } catch {
+      // The topics stay usable without their progress.
+    }
+  }
+
+  async function prepare() {
+    setPreparing(true)
+    setPrepared(null)
+    setPrepareProblem(null)
+    try {
+      const result = await conceptsApi.prepare(props.courseId)
+      setPrepared({ started: result.started.length, skipped: result.skipped.length })
+    } catch (error) {
+      setPrepareProblem(error instanceof ConceptMapRefused && error.reason === 'no_provider_key' ? 'no_key' : 'failed')
+    } finally {
+      setPreparing(false)
+      await reloadStatuses()
+    }
+  }
+
+  const show = (topics: Topic[]) => {
+    setList(reconcile(topics, { key: 'id' }))
+    void reloadStatuses()
+  }
+  const progressOf = (topic: Topic) => (
+    <Show when={statuses()[topic.id]}>
+      {(status) => <MapProgress status={status()} onFinished={() => void reloadStatuses()} />}
+    </Show>
+  )
   const [loaded, { refetch }] = createResource(
     () => props.courseId,
     async (id) => {
@@ -113,6 +155,7 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
                     <li>
                       <A href={`/courses/${props.courseId}/topics/${topic.id}`}>{topic.name}</A>
                       {topic.diagnostic_wanted ? ` (${t('topics.diagnosticNote')})` : ''}
+                      {progressOf(topic)}
                     </li>
                   )}
                 </For>
@@ -151,6 +194,7 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
                       />
                       {t('topics.diagnosticWanted')}
                     </label>
+                    {progressOf(topic)}
                     <div class="settings-actions">
                       <A href={`/courses/${props.courseId}/topics/${topic.id}`}>{t('topics.conceptMap')}</A>
                       <button type="button" disabled={busy() || index() === 0} onClick={() => move(index(), -1)}>
@@ -186,6 +230,23 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
           </Show>
         </Show>
       </Show>
+      <Show when={props.canEdit && list.length > 0}>
+        <p class="settings-note">{t('topics.prepareNote')}</p>
+        <div class="settings-actions">
+          <button type="button" disabled={preparing()} onClick={prepare}>
+            {t('topics.prepare')}
+          </button>
+        </div>
+        <Show when={prepared()}>
+          {(counts) => <p role="status">{t('topics.prepared', counts())}</p>}
+        </Show>
+        <Show when={prepareProblem() === 'no_key'}>
+          <JobFailureMessage kind="no_key" />
+        </Show>
+        <Show when={prepareProblem() === 'failed'}>
+          <p role="alert">{t('courses.saveFailed')}</p>
+        </Show>
+      </Show>
       <Show when={props.canEdit}>
         <form class="topic-name" onSubmit={add}>
           <label>
@@ -205,5 +266,42 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
         )}
       </Show>
     </section>
+  )
+}
+
+/** Where the concept map of a topic stands: polled while the assistant proposes it. */
+function MapProgress(props: { status: MapStatus; onFinished: () => void }) {
+  const { t } = useI18n()
+  const running = () => {
+    const job = props.status.job
+    return job && !finished(job) ? job : null
+  }
+  const failure = () => {
+    const job = props.status.job
+    return job?.state === 'failed' && props.status.concepts === 0 ? job : null
+  }
+  return (
+    <>
+      {/* Keyed by the job, so a new proposal gets a fresh status that polls it. */}
+      <Show when={running()?.id} keyed>
+        {(_id) => <JobStatus job={running()!} working="topics.proposing" onFinished={props.onFinished} />}
+      </Show>
+      <Show when={!running()}>
+        <Show
+          when={failure()}
+          fallback={
+            <p class="settings-note">
+              {props.status.state === 'approved'
+                ? t('topics.mapApproved')
+                : props.status.concepts > 0
+                  ? t('topics.mapDraft', { count: props.status.concepts })
+                  : t('topics.noMap')}
+            </p>
+          }
+        >
+          {(job) => <JobFailureMessage kind={job().error_kind ?? 'other'} rawOutput={job().raw_output} />}
+        </Show>
+      </Show>
+    </>
   )
 }

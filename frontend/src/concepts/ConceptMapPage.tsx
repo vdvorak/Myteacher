@@ -18,6 +18,7 @@ import {
   type ConceptMapRefusal,
 } from './api'
 import './concepts.css'
+import { AdditionsSection, DiagnosticOfferSection, TopicInterviewPanel } from './TopicSections'
 
 type Problem =
   | { kind: 'refused'; reason: ConceptMapRefusal }
@@ -70,7 +71,7 @@ function ConceptMapDetail() {
   const courseId = () => Number(params.courseId)
   const topicId = () => Number(params.topicId)
   const [course] = createResource(courseId, (id) => apis.courses.get(id))
-  const [topics] = createResource(courseId, (id) => apis.courses.topics(id))
+  const [topics, { mutate: setTopics, refetch: refetchTopics }] = createResource(courseId, (id) => apis.courses.topics(id))
   const topic = () => (topics.error ? undefined : topics()?.find((t) => t.id === topicId()))
   // Reconciled by id, so a concept keeps its row (and what is typed in it) when the map changes.
   const [state, setState] = createStore<{ map: ConceptMap | null }>({ map: null })
@@ -140,6 +141,14 @@ function ConceptMapDetail() {
     <section class="admin-section">
       <A href={`/courses/${courseId()}`}>{course()?.name ?? t('concepts.backToCourse')}</A>
       <h1>{topic()?.name ?? t('concepts.heading')}</h1>
+      <Show when={canEdit()}>
+        <TopicInterviewPanel courseId={courseId()} topicId={topicId()} onFinished={() => void refetchTopics()} />
+      </Show>
+      <Show when={course() && topic()}>
+        {(shown) => (
+          <AdditionsSection courseId={courseId()} topic={shown()} canEdit={canEdit()} onChanged={setTopics} />
+        )}
+      </Show>
       <section class="settings-form" aria-labelledby="concepts-heading">
         <h2 id="concepts-heading">{t('concepts.heading')}</h2>
         <Show when={loaded() && course()}>
@@ -153,7 +162,16 @@ function ConceptMapDetail() {
             )}
           </p>
           <Show when={working(map()) && map()!.job} keyed>
-            {(job) => <JobStatus job={job} onFinished={() => void refetch()} />}
+            {(job) => (
+              <JobStatus
+                job={job}
+                onFinished={() => {
+                  // A proposal may bring a diagnostic offer, which is part of the topic.
+                  void refetch()
+                  void refetchTopics()
+                }}
+              />
+            )}
           </Show>
           <Show when={failedJob()}>
             {(job) => <JobFailureMessage kind={job().error_kind ?? 'other'} rawOutput={job().raw_output} />}
@@ -242,6 +260,17 @@ function ConceptMapDetail() {
           }}
         </Show>
       </section>
+      <Show when={course() && topic()}>
+        {(shown) => (
+          <DiagnosticOfferSection
+            courseId={courseId()}
+            topic={shown()}
+            canEdit={canEdit()}
+            onChanged={setTopics}
+            onStale={() => void refetchTopics()}
+          />
+        )}
+      </Show>
       <Show when={loaded() && course()}>
         <DocumentsSection
           courseId={courseId()}

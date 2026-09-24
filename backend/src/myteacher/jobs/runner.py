@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+import anyio
 from sqlalchemy import Engine, select, update
 
 from myteacher.accounts.models import Account
@@ -96,6 +97,14 @@ async def run(
         job.progress = None
         job.finished_at = ctx.assistant.clock()
         db.commit()
+
+
+async def run_together(ctx: JobContext, jobs: list[tuple[int, Work]]) -> None:
+    """Run several jobs side by side, each as `run` does, so that none waits for the others.
+    Their work commits before every assistant call, so no transaction spans the waiting."""
+    async with anyio.create_task_group() as group:
+        for job_id, work in jobs:
+            group.start_soon(run, ctx, job_id, work)
 
 
 def fail_interrupted(db: InstanceSession, now: datetime) -> None:

@@ -22,6 +22,7 @@ from myteacher.api import (
     reference_documents,
     sources,
     students,
+    topic_interview,
     topics,
 )
 from myteacher.assistant.providers import ModelFactory, pydantic_ai_model
@@ -89,6 +90,8 @@ def create_app(
     app.include_router(courses.router, prefix="/api")
     app.include_router(topics.router, prefix="/api")
     app.include_router(concept_maps.router, prefix="/api")
+    app.include_router(concept_maps.course_router, prefix="/api")
+    app.include_router(topic_interview.router, prefix="/api")
     app.include_router(reference_documents.router, prefix="/api")
     app.include_router(access.router, prefix="/api")
     app.include_router(sources.router, prefix="/api")

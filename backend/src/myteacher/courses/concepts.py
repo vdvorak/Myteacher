@@ -28,6 +28,7 @@ from myteacher.courses.models import (
     SuccessionKind,
     Topic,
 )
+from myteacher.courses.topic_interview import topic_inputs
 from myteacher.courses.topics import topics_of
 from myteacher.jobs.models import Job
 from myteacher.jobs.runner import JobContext, Work
@@ -89,6 +90,11 @@ class ProposedConcept(_Strict):
 
 class Proposal(_Strict):
     concepts: Annotated[list[ProposedConcept], Field(min_length=1, max_length=80)]
+    diagnostic_offer: Annotated[str, Field(min_length=1, max_length=1000)] | None = Field(
+        None,
+        description="Why a diagnostic lesson would help at the start of this topic, to the "
+        "teacher; null when you do not offer one.",
+    )
 
     @model_validator(mode="after")
     def _consistent(self) -> Self:
@@ -386,7 +392,7 @@ def _inputs(db: InstanceSession, course: Course, topic: Topic) -> dict[str, Any]
         },
         "brief": courses.brief_of(course).model_dump(mode="json"),
         "topics": [t.name for t in topics_of(db, course)],
-        "topic": {"name": topic.name, "position": topic.position},
+        "topic": topic_inputs(topic),
     }
 
 
@@ -407,6 +413,13 @@ def _replace(db: InstanceSession, concept_map: ConceptMap, proposal: Proposal, n
         graph[concept.id] = {ids[key] for key in proposed.prerequisites}
     _save_graph(db, concept_map, graph)
     _changed(concept_map)
+
+
+def _offer(topic: Topic, reason: str | None) -> None:
+    """The proposal's diagnostic offer replaces an earlier one; a topic that already wants a
+    diagnostic needs none. Only the teacher's acceptance sets the flag."""
+    topic.diagnostic_offer = None if topic.diagnostic_wanted else reason
+    topic.diagnostic_offer_answer = None
 
 
 def proposal(concept_map_id: int) -> Work:
@@ -437,6 +450,8 @@ def proposal(concept_map_id: int) -> Work:
                 return {"superseded": True}
             concept_map = fresh
             _replace(db, concept_map, output, ctx.assistant.clock())
+            db.refresh(topic)
+            _offer(topic, output.diagnostic_offer)
             try:
                 db.flush()
                 break

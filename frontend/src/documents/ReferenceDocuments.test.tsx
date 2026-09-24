@@ -9,14 +9,14 @@ import { fakeAuthApi, invitedTeacher } from '../auth/testing'
 import type { ConceptMap } from '../concepts/api'
 import { fakeConceptsApi, preteritMap } from '../concepts/testing'
 import type { Course, Topic } from '../courses/api'
-import { fakeCoursesApi, spanish } from '../courses/testing'
+import { fakeCoursesApi, spanish, topicFixture } from '../courses/testing'
 import { fakeJobsApi } from '../jobs/testing'
 import { withI18n } from '../lesson/testing'
 import { DocumentRefused, type ReferenceDocument } from './api'
 import { cheatSheet, fakeDocumentsApi, type ScriptedDocument } from './testing'
 
 const teacher: Account = { ...invitedTeacher, language: 'en' }
-const topics: Topic[] = [{ id: 2, name: 'Pretérito indefinido', position: 0, diagnostic_wanted: false }]
+const topics: Topic[] = [topicFixture({ id: 2, name: 'Pretérito indefinido', position: 0 })]
 const approvedMap: ConceptMap = { ...preteritMap, state: 'approved', approved_at: '2026-09-24T08:00:00Z', approved_before: true }
 const written: ScriptedDocument = {
   title: 'Vocabulario del pretérito',

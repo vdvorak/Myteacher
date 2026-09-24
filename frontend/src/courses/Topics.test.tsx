@@ -9,13 +9,13 @@ import { fakeAuthApi, invitedTeacher } from '../auth/testing'
 import { ApiError } from '../lesson/api'
 import { withI18n } from '../lesson/testing'
 import type { Course, Topic } from './api'
-import { fakeCoursesApi, spanish } from './testing'
+import { fakeCoursesApi, spanish, topicFixture } from './testing'
 
 const teacher: Account = { ...invitedTeacher, language: 'en' }
 const topics: Topic[] = [
-  { id: 1, name: 'Presente', position: 0, diagnostic_wanted: true },
-  { id: 2, name: 'Pretérito indefinido', position: 1, diagnostic_wanted: false },
-  { id: 3, name: 'Imperfecto', position: 2, diagnostic_wanted: false },
+  topicFixture({ id: 1, name: 'Presente', position: 0, diagnostic_wanted: true }),
+  topicFixture({ id: 2, name: 'Pretérito indefinido', position: 1 }),
+  topicFixture({ id: 3, name: 'Imperfecto', position: 2 }),
 ]
 
 function renderCourse(course: Course = spanish) {

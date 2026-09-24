@@ -1,12 +1,13 @@
 import { vi } from 'vitest'
 import type { JobFailure } from '../jobs/api'
 import { fakeJobsApi, type FakeJobs } from '../jobs/testing'
+import type { FakeCourses } from '../courses/testing'
 import { ApiError } from '../lesson/api'
-import { ConceptMapRefused, type Concept, type ConceptMap, type ConceptsApi } from './api'
+import { ConceptMapRefused, type Concept, type ConceptMap, type ConceptsApi, type Preparation } from './api'
 
 /** What the fake assistant proposes: concepts with prerequisites named by name, or a failure. */
 export type ScriptedProposal =
-  | { concepts: { name: string; description: string; requires?: string[] }[] }
+  | { concepts: { name: string; description: string; requires?: string[] }[]; diagnostic_offer?: string }
   | { fail: JobFailure }
 
 export const preteritMap: ConceptMap = {
@@ -34,6 +35,10 @@ export function fakeConceptsApi(
     proposals?: ScriptedProposal[]
     jobs?: FakeJobs
     hasKey?: boolean
+    /** The topics of the course, in order, for the status of every map. */
+    topics?: number[]
+    /** Where a proposal's diagnostic offer lands. */
+    courses?: Pick<FakeCourses, 'offerDiagnostic'>
   } = {},
 ) {
   const jobs = options.jobs ?? fakeJobsApi()
@@ -88,34 +93,64 @@ export function fakeConceptsApi(
     }
   }
 
+  // The proposal as a job; the scripted proposal lands when the job ends.
+  const startProposal = (courseId: number, map: ConceptMap) => {
+    const job = jobs.start('concept_map', () => {
+      const step = script.shift()
+      if (!step) throw new Error('the fake assistant was asked more often than scripted')
+      if ('fail' in step) {
+        map.job = { ...job, state: 'failed', error_kind: step.fail, progress: null }
+        return { state: 'failed', error_kind: step.fail, raw_output: null }
+      }
+      const ids = step.concepts.map(() => nextId++)
+      map.concepts = step.concepts.map((c, i) => ({
+        id: ids[i],
+        name: c.name,
+        description: c.description,
+        prerequisite_ids: (c.requires ?? []).map((name) => ids[step.concepts.findIndex((x) => x.name === name)]),
+      }))
+      map.version += 1
+      map.job = { ...job, state: 'succeeded', progress: null }
+      options.courses?.offerDiagnostic(courseId, map.topic_id, step.diagnostic_offer ?? null)
+      return { state: 'succeeded', error_kind: null, raw_output: null }
+    })
+    map.job = job
+    map.version += 1
+    return job
+  }
+
   return {
     map: vi.fn(async (_courseId: number, topicId: number) => (maps[topicId] ? answer(maps[topicId]) : null)),
-    propose: vi.fn(async (_courseId: number, topicId: number) => {
+    propose: vi.fn(async (courseId: number, topicId: number) => {
       if (options.hasKey === false) throw new ConceptMapRefused('no_provider_key')
       const map = ensure(topicId)
       if (map.approved_before) throw new ConceptMapRefused('approved_before')
       if (busy(map)) throw new ConceptMapRefused('proposal_running')
-      const job = jobs.start('concept_map', () => {
-        const step = script.shift()
-        if (!step) throw new Error('the fake assistant was asked more often than scripted')
-        if ('fail' in step) {
-          map.job = { ...job, state: 'failed', error_kind: step.fail, progress: null }
-          return { state: 'failed', error_kind: step.fail, raw_output: null }
-        }
-        const ids = step.concepts.map(() => nextId++)
-        map.concepts = step.concepts.map((c, i) => ({
-          id: ids[i],
-          name: c.name,
-          description: c.description,
-          prerequisite_ids: (c.requires ?? []).map((name) => ids[step.concepts.findIndex((x) => x.name === name)]),
-        }))
-        map.version += 1
-        map.job = { ...job, state: 'succeeded', progress: null }
-        return { state: 'succeeded', error_kind: null, raw_output: null }
-      })
-      map.job = job
-      map.version += 1
+      const job = startProposal(courseId, map)
       return { concept_map: answer(map), job }
+    }),
+    statuses: vi.fn(async (_courseId: number) =>
+      (options.topics ?? []).map((topicId) => {
+        const map = maps[topicId]
+        return {
+          topic_id: topicId,
+          state: map?.state ?? null,
+          concepts: map?.concepts.length ?? 0,
+          job: map?.job ? { ...map.job } : null,
+        }
+      }),
+    ),
+    prepare: vi.fn(async (courseId: number) => {
+      if (options.hasKey === false) throw new ConceptMapRefused('no_provider_key')
+      const prepared: Preparation = { started: [], skipped: [] }
+      for (const topicId of options.topics ?? []) {
+        const map = ensure(topicId)
+        if (map.approved_before) prepared.skipped.push({ topic_id: topicId, reason: 'approved_before' })
+        else if (busy(map)) prepared.skipped.push({ topic_id: topicId, reason: 'proposal_running' })
+        else if (map.concepts.length > 0) prepared.skipped.push({ topic_id: topicId, reason: 'has_concepts' })
+        else prepared.started.push({ topic_id: topicId, job: startProposal(courseId, map) })
+      }
+      return prepared
     }),
     add: vi.fn(async (_courseId: number, topicId: number, draftConcept) => {
       const map = draft(topicId)

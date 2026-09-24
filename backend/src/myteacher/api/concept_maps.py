@@ -28,12 +28,16 @@ from myteacher.courses import concepts, topics
 from myteacher.courses.concepts import ConceptDescription, ConceptName
 from myteacher.courses.models import Concept, ConceptMap, Course, Topic
 from myteacher.jobs import runner
+from myteacher.jobs.models import Job
+from myteacher.jobs.runner import Work
 from myteacher.persistence import InstanceSession
 from myteacher.policy import is_teacher
 
 router = APIRouter(
     prefix="/courses/{course_id}/topics/{topic_id}/concept-map", tags=["concept maps"]
 )
+# The concept maps of all topics of a course at once.
+course_router = APIRouter(prefix="/courses/{course_id}/concept-maps", tags=["concept maps"])
 Teacher = Annotated[Account, requires(is_teacher)]
 
 
@@ -66,6 +70,31 @@ class ConceptMapOut(BaseModel):
 class Started(BaseModel):
     concept_map: ConceptMapOut
     job: JobOut
+
+
+class MapStatus(BaseModel):
+    topic_id: int
+    # None while the topic has no map.
+    state: str | None
+    concepts: int
+    # The latest proposal.
+    job: JobOut | None
+
+
+class TopicStarted(BaseModel):
+    topic_id: int
+    job: JobOut
+
+
+class TopicSkipped(BaseModel):
+    topic_id: int
+    # "approved_before", "proposal_running" or "has_concepts".
+    reason: str
+
+
+class Preparation(BaseModel):
+    started: list[TopicStarted]
+    skipped: list[TopicSkipped]
 
 
 class ConceptIn(BaseModel):
@@ -149,6 +178,17 @@ def _out(db: InstanceSession, concept_map: ConceptMap) -> ConceptMapOut:
         ],
         job=JobOut.of(job) if job else None,
     )
+
+
+def _proposal_job(
+    db: InstanceSession, concept_map: ConceptMap, actor: Account, now: datetime
+) -> Job:
+    job = runner.create_job(
+        db, concepts.TASK_KIND, starter=actor, course_id=concept_map.course_id, now=now
+    )
+    concept_map.job_id = job.id
+    _save(db)
+    return job
 
 
 def _topic(db: InstanceSession, course: Course, topic_id: int) -> Topic:
@@ -240,9 +280,7 @@ def propose(
         raise HTTPException(status_code=409, detail="approved_before")
     if _busy(db, concept_map):
         raise HTTPException(status_code=409, detail="proposal_running")
-    job = runner.create_job(db, concepts.TASK_KIND, starter=actor, course_id=course.id, now=now)
-    concept_map.job_id = job.id
-    _save(db)
+    job = _proposal_job(db, concept_map, actor, now)
     # Runs after the response, once this request's transaction has committed.
     background.add_task(
         runner.run, request.app.state.jobs, job.id, concepts.proposal(concept_map.id)
@@ -362,3 +400,56 @@ def reopen_map(course_id: int, topic_id: int, db: Db, actor: Teacher) -> Concept
     concepts.reopen(concept_map)
     _save(db)
     return _out(db, concept_map)
+
+
+@course_router.get("")
+def map_statuses(course_id: int, db: Db, actor: Teacher) -> list[MapStatus]:
+    """Where the concept map of every topic stands, in topic order: to follow preparation."""
+    statuses = []
+    for topic in topics.topics_of(db, course_for(db, actor, course_id)):
+        concept_map = concepts.map_of(db, topic)
+        job = runner.get_job(db, concept_map.job_id) if concept_map and concept_map.job_id else None
+        statuses.append(
+            MapStatus(
+                topic_id=topic.id,
+                state=concept_map.state if concept_map else None,
+                concepts=len(concepts.concepts_of(db, concept_map)) if concept_map else 0,
+                job=JobOut.of(job) if job else None,
+            )
+        )
+    return statuses
+
+
+@course_router.post(
+    "/proposals", status_code=202, responses={409: {"description": "No provider key"}}
+)
+def prepare_all_topics(
+    course_id: int, request: Request, background: BackgroundTasks, db: Db, now: Now, actor: Teacher
+) -> Preparation:
+    """Propose a map for every topic that has none to review yet, one job per topic.
+
+    A map approved before is changed by hand, one being proposed is left to finish, and a draft
+    with concepts is the teacher's to review: those topics are skipped.
+    """
+    course = editable_course(db, actor, course_id)
+    if paying_credential(db, actor) is None:
+        raise HTTPException(status_code=409, detail="no_provider_key")
+    started: list[TopicStarted] = []
+    skipped: list[TopicSkipped] = []
+    work: list[tuple[int, Work]] = []
+    for topic in topics.topics_of(db, course):
+        concept_map = concepts.ensure_map(db, topic, now=now)
+        if concept_map.approved_before:
+            skipped.append(TopicSkipped(topic_id=topic.id, reason="approved_before"))
+        elif _busy(db, concept_map):
+            skipped.append(TopicSkipped(topic_id=topic.id, reason="proposal_running"))
+        elif concepts.concepts_of(db, concept_map):
+            skipped.append(TopicSkipped(topic_id=topic.id, reason="has_concepts"))
+        else:
+            job = _proposal_job(db, concept_map, actor, now)
+            started.append(TopicStarted(topic_id=topic.id, job=JobOut.of(job)))
+            work.append((job.id, concepts.proposal(concept_map.id)))
+    # One background task for them all: tasks of a response run one after another, and every
+    # topic's proposal should not wait for the ones before it.
+    background.add_task(runner.run_together, request.app.state.jobs, work)
+    return Preparation(started=started, skipped=skipped)

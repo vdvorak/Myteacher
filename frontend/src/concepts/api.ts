@@ -30,6 +30,21 @@ export interface ConceptMapStarted {
   job: Job
 }
 
+/** Where one topic's map stands, to follow the preparation of all topics. */
+export interface MapStatus {
+  topic_id: number
+  /** Null while the topic has no map. */
+  state: ConceptMap['state'] | null
+  concepts: number
+  /** The latest proposal. */
+  job: Job | null
+}
+
+export interface Preparation {
+  started: { topic_id: number; job: Job }[]
+  skipped: { topic_id: number; reason: 'approved_before' | 'proposal_running' | 'has_concepts' }[]
+}
+
 export interface ConceptDraft {
   name: string
   description: string
@@ -75,6 +90,10 @@ export interface ConceptsApi {
   split(courseId: number, topicId: number, conceptId: number, parts: ConceptDraft[]): Promise<ConceptMap>
   approve(courseId: number, topicId: number, version: number): Promise<ConceptMap>
   reopen(courseId: number, topicId: number): Promise<ConceptMap>
+  /** Every topic's map status, in topic order. */
+  statuses(courseId: number): Promise<MapStatus[]>
+  /** A proposal job for every topic with no map to review yet; the others are skipped. */
+  prepare(courseId: number): Promise<Preparation>
 }
 
 const refusals: ReadonlySet<string> = new Set<ConceptMapRefusal>([
@@ -126,4 +145,6 @@ export const httpConceptsApi: ConceptsApi = {
   approve: async (courseId, topicId, version) =>
     checked(await send('POST', `${mapUrl(courseId, topicId)}/approval`, { version })),
   reopen: async (courseId, topicId) => checked(await send('POST', `${mapUrl(courseId, topicId)}/reopening`)),
+  statuses: async (courseId) => checked(await fetch(`/api/courses/${courseId}/concept-maps`)),
+  prepare: async (courseId) => checked(await send('POST', `/api/courses/${courseId}/concept-maps/proposals`)),
 }

@@ -8,7 +8,7 @@ import { AccessDialog } from './AccessDialog'
 import type { Course, CourseBasics, CourseRight } from './api'
 import { BriefEditor } from './BriefEditor'
 import { CourseBasicsForm } from './CourseBasicsForm'
-import { InterviewPanel } from './InterviewPanel'
+import { CourseInterviewPanel } from './InterviewPanel'
 import { SourcesSection } from '../sources/SourcesSection'
 import { TopicsSection } from './TopicsSection'
 
@@ -119,7 +119,7 @@ function CourseDetail() {
               }
             </Show>
             <Show when={loaded()!.can_edit}>
-              <InterviewPanel courseId={id} onBriefChanged={() => briefChanged(id)} />
+              <CourseInterviewPanel courseId={id} onBriefChanged={() => briefChanged(id)} />
             </Show>
             <Show when={`${briefRevision()}-${loaded()!.can_edit}`} keyed>
               {(_revision) => (
