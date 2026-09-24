@@ -9,42 +9,7 @@ from myteacher.accounts import service
 from myteacher.app import create_app
 from myteacher.persistence import UnscopedQuery, open_session, utc_now
 from myteacher.settings import Settings
-
-ADMIN_EMAIL = "admin@skola.example"
-ADMIN_PASSWORD = "correct horse battery"
-
-
-class FakeClock:
-    def __init__(self):
-        from datetime import UTC, datetime
-
-        self.now = datetime(2026, 9, 24, 8, 0, tzinfo=UTC)
-
-    def __call__(self):
-        return self.now
-
-
-@pytest.fixture
-def admin_settings(settings) -> Settings:
-    return settings.model_copy(
-        update={"admin_email": ADMIN_EMAIL, "admin_password": ADMIN_PASSWORD}
-    )
-
-
-@pytest.fixture
-def clock():
-    return FakeClock()
-
-
-@pytest.fixture
-def app_client(admin_settings, clock):
-    with TestClient(create_app(admin_settings, clock=clock)) as client:
-        yield client
-
-
-def sign_in(client, email=ADMIN_EMAIL, password=ADMIN_PASSWORD):
-    return client.post("/api/auth/sign-in", json={"email": email, "password": password})
-
+from tests.helpers import ADMIN_EMAIL, ADMIN_PASSWORD, create_engine_for, sign_in
 
 # Admin bootstrap
 
@@ -281,12 +246,6 @@ def test_queries_are_scoped_to_the_session_instance(admin_settings):
         assert service.find_account_by_email(db, ADMIN_EMAIL) is None
     with open_session(engine, instance_id=None) as db, pytest.raises(UnscopedQuery):
         service.find_account_by_email(db, ADMIN_EMAIL)
-
-
-def create_engine_for(settings: Settings):
-    from myteacher.persistence import make_engine
-
-    return make_engine(settings.database_url)
 
 
 def deactivate(settings: Settings, email: str) -> None:

@@ -5,12 +5,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import { sampleLesson, withI18n } from '../lesson/testing'
 import type { Locale } from '../i18n/messages'
+import { fakeAdminApi } from '../admin/testing'
 import { admin, fakeAuthApi } from './testing'
 
 function renderApp(path: string, auth = fakeAuthApi(), locale: Locale = 'en') {
   const history = createMemoryHistory()
   history.set({ value: path })
-  render(withI18n(() => <App auth={auth} history={history} />, locale))
+  render(withI18n(() => <App auth={auth} admin={fakeAdminApi()} history={history} />, locale))
   return { auth, history }
 }
 
@@ -92,6 +93,23 @@ describe('sign-in', () => {
     renderApp('/', fakeAuthApi({ meFails: true }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Your account could not be loaded.')
+  })
+
+  it('offers the administration only to admins', async () => {
+    const { history } = renderApp('/', fakeAuthApi({ signedIn: admin }))
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('link', { name: 'Administration' }))
+
+    expect(await screen.findByRole('heading', { name: 'Email (SMTP)' })).toBeInTheDocument()
+    expect(history.get()).toBe('/admin')
+  })
+
+  it('refuses the administration to a teacher who is not an admin', async () => {
+    renderApp('/admin', fakeAuthApi({ signedIn: { ...admin, roles: ['teacher'] } }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Only admins can open this page.')
+    expect(screen.queryByRole('link', { name: 'Administration' })).not.toBeInTheDocument()
   })
 
   it('is available in Czech', async () => {

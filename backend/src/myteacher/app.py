@@ -9,11 +9,14 @@ from sqlalchemy import Engine
 from myteacher.accounts import service
 from myteacher.api import admin, auth, lessons
 from myteacher.db import migrate
+from myteacher.mail import Sender, SmtpSender
 from myteacher.persistence import Clock, make_engine, open_session, singleton_instance_id, utc_now
 from myteacher.settings import Settings
 
 
-def create_app(settings: Settings | None = None, *, clock: Clock = utc_now) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, *, clock: Clock = utc_now, sender: Sender | None = None
+) -> FastAPI:
     settings = settings or Settings.from_env()
 
     @asynccontextmanager
@@ -22,6 +25,7 @@ def create_app(settings: Settings | None = None, *, clock: Clock = utc_now) -> F
         engine = make_engine(settings.database_url)
         app.state.settings = settings
         app.state.clock = clock
+        app.state.sender = sender or SmtpSender()
         app.state.engine = engine
         app.state.instance_id = singleton_instance_id(engine)
         bootstrap_admin(engine, settings, clock)

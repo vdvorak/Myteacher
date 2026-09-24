@@ -1,4 +1,4 @@
-import { Navigate, type RouteSectionProps } from '@solidjs/router'
+import { A, Navigate, type RouteSectionProps } from '@solidjs/router'
 import { createSignal, For, Match, Show, Switch } from 'solid-js'
 import { useSession } from '../auth/session'
 import { useI18n } from '../i18n/i18n'
@@ -57,6 +57,14 @@ export function Shell(props: RouteSectionProps) {
                 </button>
               </div>
             </header>
+            <nav class="shell-nav" aria-label={t('nav.label')}>
+              <A href="/" end>
+                {t('nav.home')}
+              </A>
+              <Show when={account().roles.includes('admin')}>
+                <A href="/admin">{t('nav.admin')}</A>
+              </Show>
+            </nav>
             <Show when={signOutFailed()}>
               <p role="alert">{t('auth.signOutFailed')}</p>
             </Show>

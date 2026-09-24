@@ -18,3 +18,13 @@
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius);
 }
+
+.shell-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.shell-nav a[aria-current='page'] {
+  font-weight: bold;
+}

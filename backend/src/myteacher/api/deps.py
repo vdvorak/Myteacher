@@ -8,6 +8,7 @@ from fastapi import Depends, HTTPException, Request
 
 from myteacher.accounts import service
 from myteacher.accounts.models import Account
+from myteacher.mail import Sender
 from myteacher.persistence import InstanceSession, open_session
 from myteacher.policy import Predicate
 from myteacher.settings import Settings
@@ -32,9 +33,14 @@ def get_now(request: Request) -> datetime:
 
 # Function scope: the commit happens before the response is sent, so a client is never told
 # about a write that has not landed.
+def get_sender(request: Request) -> Sender:
+    return request.app.state.sender
+
+
 Db = Annotated[InstanceSession, Depends(get_db, scope="function")]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 Now = Annotated[datetime, Depends(get_now)]
+MailSender = Annotated[Sender, Depends(get_sender)]
 
 
 def current_account(request: Request, db: Db, now: Now) -> Account:
