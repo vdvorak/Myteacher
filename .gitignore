@@ -12,3 +12,5 @@ dist/
 # Local data
 data/
 *.db
+instance-secret
+.env

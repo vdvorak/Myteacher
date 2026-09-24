@@ -5,38 +5,20 @@ A teaching platform where a teacher designs a course with an AI assistant and ev
 - [CONTEXT.md](./CONTEXT.md): the project's vocabulary. Read it before naming anything.
 - [docs/PHASE-1.md](./docs/PHASE-1.md): what phase 1 builds and leaves out.
 - [docs/adr](./docs/adr): decisions and the reasons behind them.
+- [docs/INSTALL.md](./docs/INSTALL.md): installing, configuring, backing up and upgrading an instance.
 
 ## Running
 
+Installing an instance, including the instance secret that must be generated once and kept safe, is described in [docs/INSTALL.md](./docs/INSTALL.md). To try it locally:
+
 ```sh
 docker build -t myteacher .
-openssl rand -base64 48 > instance-secret   # once; keep it, see below
-docker run -p 8000:8000 -v myteacher-data:/data -e MYTEACHER_INSTANCE_SECRET="$(cat instance-secret)" myteacher
+openssl rand -base64 48 > instance-secret   # once; keep it, see docs/INSTALL.md
+docker run -p 8000:8000 -v myteacher-data:/data -e MYTEACHER_INSTANCE_SECRET="$(cat instance-secret)" \
+  -e MYTEACHER_ADMIN_EMAIL=admin@example.org -e MYTEACHER_ADMIN_PASSWORD='at least 12 characters' myteacher
 ```
 
-The app and its API are served from one origin on port 8000; the SQLite database in `/data` is created by migrations on start. Open `/preview/es-ser-estar` for the sample lesson.
-
-There is no registration page. Create the first admin either from deploy configuration, which is harmless on every later start because nothing is created once the instance has an admin:
-
-```sh
-docker run -p 8000:8000 -v myteacher-data:/data -e MYTEACHER_INSTANCE_SECRET=… \
-  -e MYTEACHER_ADMIN_EMAIL=admin@example.org -e MYTEACHER_ADMIN_PASSWORD='at least 12 characters' \
-  myteacher
-```
-
-or with a one-off command that asks for the password:
-
-```sh
-docker run -it --rm -v myteacher-data:/data -e MYTEACHER_INSTANCE_SECRET=… myteacher myteacher create-admin --email admin@example.org
-```
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `MYTEACHER_INSTANCE_SECRET` | required | At least 32 random characters. Encrypts teachers' provider keys and the SMTP password at rest. Keep it with your backups: without it they cannot be read, and a copied database alone reveals none of them. Generate one with `openssl rand -base64 48`. |
-| `MYTEACHER_ADMIN_EMAIL`, `MYTEACHER_ADMIN_PASSWORD` | unset | The first admin, created on start if the instance has none. |
-| `MYTEACHER_SESSION_HOURS` | `168` | How long a sign-in lasts. |
-| `MYTEACHER_PUBLIC_URL` | the request's address | The address people open the app at, used in invitation links. Set it behind a reverse proxy. |
-| `MYTEACHER_SECURE_COOKIES` | `true` | Set to `false` only when serving plain HTTP on a host other than localhost. |
+Open `http://localhost:8000` and sign in; `/preview/es-ser-estar` shows the sample lesson.
 
 ## Development
 
