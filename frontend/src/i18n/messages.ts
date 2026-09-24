@@ -15,6 +15,16 @@ const en = {
   'exercise.incorrect': 'Not quite',
   'exercise.solution': 'Solution',
   'exercise.assessFailed': 'The answer could not be checked. Try again.',
+  'exercise.tryAgain': 'Not quite. Try once more.',
+  'exercise.hint': 'Hint',
+  'lesson.submit': 'Submit answers',
+  'lesson.unanswered': '{count} unanswered',
+  'lesson.secondRoundIntro': 'Some answers were wrong. They come back once more, in a new order.',
+  'lesson.startSecondRound': 'Start the second round',
+  'lesson.secondRound': 'Second round',
+  'lesson.secondRoundFailed': 'The second round could not be loaded. Try again.',
+  'lesson.finished': 'Lesson finished',
+  'lesson.firstPassScore': '{correct} of {total} right in the first pass.',
 }
 
 export type MessageKey = keyof typeof en
@@ -33,6 +43,16 @@ const cs: Record<MessageKey, string> = {
   'exercise.incorrect': 'Ne tak docela',
   'exercise.solution': 'Řešení',
   'exercise.assessFailed': 'Odpověď se nepodařilo zkontrolovat. Zkuste to znovu.',
+  'exercise.tryAgain': 'Ne tak docela. Zkuste to ještě jednou.',
+  'exercise.hint': 'Nápověda',
+  'lesson.submit': 'Odevzdat odpovědi',
+  'lesson.unanswered': 'Nezodpovězeno: {count}',
+  'lesson.secondRoundIntro': 'Některé odpovědi byly špatně. Vrátí se ještě jednou, v novém pořadí.',
+  'lesson.startSecondRound': 'Začít druhé kolo',
+  'lesson.secondRound': 'Druhé kolo',
+  'lesson.secondRoundFailed': 'Druhé kolo se nepodařilo načíst. Zkuste to znovu.',
+  'lesson.finished': 'Lekce dokončena',
+  'lesson.firstPassScore': 'V prvním průchodu správně {correct} z {total}.',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }

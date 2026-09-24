@@ -13,14 +13,18 @@ export function browserLocale(languages: readonly string[] = navigator.languages
 interface I18n {
   locale: () => Locale
   setLocale: (locale: Locale) => void
-  t: (key: MessageKey) => string
+  /** The message for `key`, with `{name}` placeholders filled from `params`. */
+  t: (key: MessageKey, params?: Record<string, string | number>) => string
 }
 
 const I18nContext = createContext<I18n>()
 
 export function I18nProvider(props: ParentProps<{ initialLocale?: Locale }>) {
   const [locale, setLocale] = createSignal<Locale>(props.initialLocale ?? browserLocale())
-  const t = (key: MessageKey) => messages[locale()][key]
+  const t = (key: MessageKey, params: Record<string, string | number> = {}) =>
+    messages[locale()][key].replace(/\{(\w+)\}/g, (placeholder, name: string) =>
+      name in params ? String(params[name]) : placeholder,
+    )
   // Screen readers pronounce the interface by the document language.
   createEffect(() => document.documentElement.setAttribute('lang', locale()))
   return (

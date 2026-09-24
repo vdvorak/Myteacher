@@ -2,6 +2,7 @@
   "id": "es-ser-estar",
   "title": "Ser, or estar?",
   "language": "es",
+  "feedback_mode": "immediate",
   "blocks": [
     {
       "type": "explanation",
@@ -18,7 +19,36 @@
         { "id": "estan", "text": "están" }
       ],
       "correct_option_id": "esta",
+      "hint": "Ask yourself: is the sentence saying *where* Madrid is?",
       "solution_explanation": "Location takes **estar**, even for a city that never moves: *Madrid está en el centro.*"
+    },
+    {
+      "type": "multiple_choice",
+      "id": "origin",
+      "prompt": "Nosotros ___ de Brno.",
+      "options": [
+        { "id": "somos", "text": "somos" },
+        { "id": "estamos", "text": "estamos" },
+        { "id": "son", "text": "son" },
+        { "id": "estan", "text": "están" }
+      ],
+      "correct_option_id": "somos",
+      "hint": "Where someone comes from does not change from day to day. And check the person: *nosotros*.",
+      "solution_explanation": "Origin is a lasting trait, so **ser**, first person plural: *somos de Brno.*"
+    },
+    {
+      "type": "multiple_choice",
+      "id": "mood",
+      "prompt": "Hoy María ___ muy contenta.",
+      "options": [
+        { "id": "es", "text": "es" },
+        { "id": "esta", "text": "está" },
+        { "id": "ser", "text": "ser" },
+        { "id": "estar", "text": "estar" }
+      ],
+      "correct_option_id": "esta",
+      "hint": "*Hoy*: is this how María is today, or who she is?",
+      "solution_explanation": "A mood right now takes **estar**: *Hoy María está muy contenta.*"
     }
   ]
 }

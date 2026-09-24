@@ -9,8 +9,12 @@ from myteacher.lesson.schema import (
     ExerciseAnswer,
     LessonDocument,
     LessonPublic,
+    SecondRound,
+    SecondRoundRequest,
+    exercise_to_public,
     to_public,
 )
+from myteacher.lesson.second_round import UnknownExercise, second_round
 
 router = APIRouter(tags=["lessons"])
 
@@ -61,11 +65,25 @@ def get_lesson(lesson_id: str) -> LessonPublic:
 @router.post(
     "/lessons/{lesson_id}/exercises/{exercise_id}/assessment", response_model=AssessmentResult
 )
-def assess_answer(lesson_id: str, exercise_id: str, answer: ExerciseAnswer) -> AssessmentResult:
+def assess_answer(
+    lesson_id: str, exercise_id: str, answer: ExerciseAnswer, reveal: bool = True
+) -> AssessmentResult:
+    """Assess one answer. `reveal=false` marks a try the student may retry: a wrong answer
+    then comes back without its solution. Stateless for now; attempts (slice 4) will decide
+    server-side how many tries remain."""
     exercise = _lesson(lesson_id).exercise(exercise_id)
     if exercise is None:
         raise HTTPException(status_code=404, detail="exercise not found")
     try:
-        return assess(exercise, answer)
+        return assess(exercise, answer, reveal=reveal)
     except AnswerMismatch as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.post("/lessons/{lesson_id}/second-round", response_model=SecondRound)
+def get_second_round(lesson_id: str, request: SecondRoundRequest) -> SecondRound:
+    try:
+        repeats = second_round(_lesson(lesson_id), request.failed_exercise_ids, request.seed)
+    except UnknownExercise as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return SecondRound(exercises=[exercise_to_public(exercise) for exercise in repeats])

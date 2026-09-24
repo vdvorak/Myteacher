@@ -16,6 +16,8 @@ from myteacher.lesson.schema import (
     LessonDocument,
     LessonPublic,
     MultipleChoiceAnswer,
+    SecondRound,
+    SecondRoundRequest,
 )
 
 MODELS = [
@@ -23,6 +25,8 @@ MODELS = [
     (LessonPublic, "serialization"),
     (MultipleChoiceAnswer, "validation"),
     (AssessmentResult, "serialization"),
+    (SecondRoundRequest, "validation"),
+    (SecondRound, "serialization"),
     (ValidationReport, "serialization"),
 ]
 

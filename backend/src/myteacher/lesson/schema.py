@@ -39,6 +39,17 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+FeedbackMode = Annotated[
+    Literal["immediate", "at_the_end"],
+    Field(
+        description=(
+            "immediate: each closed answer is assessed at once, with one retry and a hint "
+            "after a wrong answer. at_the_end: nothing is assessed until the lesson is submitted."
+        )
+    ),
+]
+
+
 class ExplanationBlock(_Model):
     type: Literal["explanation"]
     markdown: Markdown
@@ -55,6 +66,7 @@ class MultipleChoiceExercise(_Model):
     prompt: Markdown
     options: Annotated[list[ChoiceOption], Field(min_length=2, max_length=8)]
     correct_option_id: Identifier
+    hint: Markdown | None = None
     solution_explanation: Markdown | None = None
 
     @model_validator(mode="after")
@@ -77,6 +89,7 @@ class LessonDocument(_Model):
     id: Identifier
     title: Annotated[str, StringConstraints(min_length=1, max_length=200)]
     language: LanguageTag
+    feedback_mode: FeedbackMode
     blocks: Annotated[list[LessonBlock], Field(min_length=1)]
 
     @model_validator(mode="after")
@@ -85,6 +98,9 @@ class LessonDocument(_Model):
         if len(set(ids)) != len(ids):
             raise ValueError("exercise ids must be unique within a lesson")
         return self
+
+    def exercises(self) -> list[Exercise]:
+        return [block for block in self.blocks if not isinstance(block, ExplanationBlock)]
 
     def exercise(self, exercise_id: str) -> Exercise | None:
         return next(
@@ -102,7 +118,10 @@ class MultipleChoiceExercisePublic(_Model):
     id: Identifier
     prompt: Markdown
     options: list[ChoiceOption]
+    hint: Markdown | None
 
+
+ExercisePublic = MultipleChoiceExercisePublic
 
 LessonBlockPublic = Annotated[
     ExplanationBlock | MultipleChoiceExercisePublic, Field(discriminator="type")
@@ -115,6 +134,7 @@ class LessonPublic(_Model):
     id: Identifier
     title: str
     language: LanguageTag
+    feedback_mode: FeedbackMode
     blocks: list[LessonBlockPublic]
 
 
@@ -139,19 +159,41 @@ class AssessmentResult(_Model):
     exercise_id: Identifier
     score: Annotated[float, Field(ge=0, le=1)]
     correct: bool
-    solution: ExerciseSolution
+    solution: Annotated[
+        ExerciseSolution | None,
+        Field(description="Withheld (null) for a wrong answer the student may still retry."),
+    ]
+
+
+class SecondRoundRequest(_Model):
+    failed_exercise_ids: list[Identifier]
+    seed: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+
+
+class SecondRound(_Model):
+    """Varied repeats of the failed exercises, in lesson order; empty when nothing failed."""
+
+    exercises: list[ExercisePublic]
+
+
+def exercise_to_public(exercise: Exercise) -> ExercisePublic:
+    return MultipleChoiceExercisePublic(
+        type=exercise.type,
+        id=exercise.id,
+        prompt=exercise.prompt,
+        options=exercise.options,
+        hint=exercise.hint,
+    )
 
 
 def to_public(lesson: LessonDocument) -> LessonPublic:
-    blocks: list[ExplanationBlock | MultipleChoiceExercisePublic] = []
-    for block in lesson.blocks:
-        match block:
-            case ExplanationBlock():
-                blocks.append(block)
-            case MultipleChoiceExercise():
-                blocks.append(
-                    MultipleChoiceExercisePublic(
-                        type=block.type, id=block.id, prompt=block.prompt, options=block.options
-                    )
-                )
-    return LessonPublic(id=lesson.id, title=lesson.title, language=lesson.language, blocks=blocks)
+    return LessonPublic(
+        id=lesson.id,
+        title=lesson.title,
+        language=lesson.language,
+        feedback_mode=lesson.feedback_mode,
+        blocks=[
+            block if isinstance(block, ExplanationBlock) else exercise_to_public(block)
+            for block in lesson.blocks
+        ],
+    )

@@ -15,3 +15,38 @@
 .markdown > :last-child {
   margin-bottom: 0;
 }
+
+.lesson-round {
+  display: grid;
+  gap: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.lesson-round h2,
+.lesson-finished h2 {
+  margin: 0;
+}
+
+.lesson-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.lesson-note {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.lesson-error {
+  margin: 0;
+  color: var(--color-incorrect);
+}
+
+.lesson-finished {
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-correct-surface);
+}

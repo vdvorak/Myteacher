@@ -11,7 +11,10 @@ export interface AssessmentResult {
   exercise_id: string
   score: number
   correct: boolean
-  solution: MultipleChoiceSolution
+  /**
+   * Withheld (null) for a wrong answer the student may still retry.
+   */
+  solution: MultipleChoiceSolution | null
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -61,6 +64,10 @@ export interface LessonDocument {
   title: string
   language: string
   /**
+   * immediate: each closed answer is assessed at once, with one retry and a hint after a wrong answer. at_the_end: nothing is assessed until the lesson is submitted.
+   */
+  feedback_mode: 'immediate' | 'at_the_end'
+  /**
    * @minItems 1
    */
   blocks: [ExplanationBlock | MultipleChoiceExercise, ...(ExplanationBlock | MultipleChoiceExercise)[]]
@@ -82,6 +89,7 @@ export interface MultipleChoiceExercise {
    */
   options: [ChoiceOption, ChoiceOption, ...ChoiceOption[]]
   correct_option_id: string
+  hint?: string | null
   solution_explanation?: string | null
 }
 /**
@@ -94,6 +102,10 @@ export interface LessonPublic {
   id: string
   title: string
   language: string
+  /**
+   * immediate: each closed answer is assessed at once, with one retry and a hint after a wrong answer. at_the_end: nothing is assessed until the lesson is submitted.
+   */
+  feedback_mode: 'immediate' | 'at_the_end'
   blocks: (ExplanationBlock | MultipleChoiceExercisePublic)[]
 }
 /**
@@ -108,6 +120,7 @@ export interface MultipleChoiceExercisePublic {
    */
   prompt: string
   options: ChoiceOption[]
+  hint: string | null
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -116,6 +129,23 @@ export interface MultipleChoiceExercisePublic {
 export interface MultipleChoiceAnswer {
   type: 'multiple_choice'
   option_id: string
+}
+/**
+ * Varied repeats of the failed exercises, in lesson order; empty when nothing failed.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "SecondRound".
+ */
+export interface SecondRound {
+  exercises: MultipleChoiceExercisePublic[]
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "SecondRoundRequest".
+ */
+export interface SecondRoundRequest {
+  failed_exercise_ids: string[]
+  seed: string
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema

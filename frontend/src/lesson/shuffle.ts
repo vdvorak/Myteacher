@@ -29,3 +29,10 @@ export function seededShuffle<T>(items: readonly T[], seed: string): T[] {
   }
   return result
 }
+
+/** Like `seededShuffle`, but never the `previous` order, so a repeat always looks new. */
+export function reshuffle<T>(items: readonly T[], seed: string, previous: readonly T[]): T[] {
+  const result = seededShuffle(items, seed)
+  const same = result.length === previous.length && result.every((item, i) => item === previous[i])
+  return same && result.length > 1 ? [...result.slice(1), result[0]] : result
+}

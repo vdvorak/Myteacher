@@ -1,0 +1,48 @@
+{
+  "id": "en-present-perfect",
+  "title": "Present perfect or past simple?",
+  "language": "en",
+  "feedback_mode": "at_the_end",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "Use the **past simple** for a finished time: *I saw her yesterday.*\n\nUse the **present perfect** when the time is not finished or not named: *I have seen her this week. Have you ever been to Spain?*\n\nCheck your answers before you submit: nothing is marked until you do."
+    },
+    {
+      "type": "multiple_choice",
+      "id": "yesterday",
+      "prompt": "I ___ my keys yesterday.",
+      "options": [
+        { "id": "lost", "text": "lost" },
+        { "id": "have-lost", "text": "have lost" },
+        { "id": "lose", "text": "lose" }
+      ],
+      "correct_option_id": "lost",
+      "solution_explanation": "*Yesterday* is a finished time, so the past simple: *I lost my keys yesterday.*"
+    },
+    {
+      "type": "multiple_choice",
+      "id": "ever",
+      "prompt": "___ you ever ___ sushi?",
+      "options": [
+        { "id": "did-eat", "text": "Did … eat" },
+        { "id": "have-eaten", "text": "Have … eaten" },
+        { "id": "do-eat", "text": "Do … eat" }
+      ],
+      "correct_option_id": "have-eaten",
+      "solution_explanation": "*Ever* asks about your whole life up to now, an unfinished time: *Have you ever eaten sushi?*"
+    },
+    {
+      "type": "multiple_choice",
+      "id": "this-week",
+      "prompt": "She ___ three emails this week.",
+      "options": [
+        { "id": "has-written", "text": "has written" },
+        { "id": "wrote", "text": "wrote" },
+        { "id": "writes", "text": "writes" }
+      ],
+      "correct_option_id": "has-written",
+      "solution_explanation": "*This week* is not over yet, so the present perfect: *She has written three emails this week.*"
+    }
+  ]
+}

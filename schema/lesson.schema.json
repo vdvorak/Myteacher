@@ -21,7 +21,15 @@
           "type": "boolean"
         },
         "solution": {
-          "$ref": "#/$defs/MultipleChoiceSolution"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MultipleChoiceSolution"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Withheld (null) for a wrong answer the student may still retry."
         }
       },
       "required": [
@@ -133,6 +141,15 @@
           "title": "Language",
           "type": "string"
         },
+        "feedback_mode": {
+          "description": "immediate: each closed answer is assessed at once, with one retry and a hint after a wrong answer. at_the_end: nothing is assessed until the lesson is submitted.",
+          "enum": [
+            "immediate",
+            "at_the_end"
+          ],
+          "title": "Feedback Mode",
+          "type": "string"
+        },
         "blocks": {
           "items": {
             "discriminator": {
@@ -160,6 +177,7 @@
         "id",
         "title",
         "language",
+        "feedback_mode",
         "blocks"
       ],
       "title": "LessonDocument",
@@ -182,6 +200,15 @@
         "language": {
           "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
           "title": "Language",
+          "type": "string"
+        },
+        "feedback_mode": {
+          "description": "immediate: each closed answer is assessed at once, with one retry and a hint after a wrong answer. at_the_end: nothing is assessed until the lesson is submitted.",
+          "enum": [
+            "immediate",
+            "at_the_end"
+          ],
+          "title": "Feedback Mode",
           "type": "string"
         },
         "blocks": {
@@ -210,6 +237,7 @@
         "id",
         "title",
         "language",
+        "feedback_mode",
         "blocks"
       ],
       "title": "LessonPublic",
@@ -273,6 +301,21 @@
           "title": "Correct Option Id",
           "type": "string"
         },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
         "solution_explanation": {
           "anyOf": [
             {
@@ -326,13 +369,28 @@
           },
           "title": "Options",
           "type": "array"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
         }
       },
       "required": [
         "type",
         "id",
         "prompt",
-        "options"
+        "options",
+        "hint"
       ],
       "title": "MultipleChoiceExercisePublic",
       "type": "object"
@@ -372,6 +430,50 @@
         "explanation"
       ],
       "title": "MultipleChoiceSolution",
+      "type": "object"
+    },
+    "SecondRound": {
+      "additionalProperties": false,
+      "description": "Varied repeats of the failed exercises, in lesson order; empty when nothing failed.",
+      "properties": {
+        "exercises": {
+          "items": {
+            "$ref": "#/$defs/MultipleChoiceExercisePublic"
+          },
+          "title": "Exercises",
+          "type": "array"
+        }
+      },
+      "required": [
+        "exercises"
+      ],
+      "title": "SecondRound",
+      "type": "object"
+    },
+    "SecondRoundRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "failed_exercise_ids": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "type": "string"
+          },
+          "title": "Failed Exercise Ids",
+          "type": "array"
+        },
+        "seed": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Seed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "failed_exercise_ids",
+        "seed"
+      ],
+      "title": "SecondRoundRequest",
       "type": "object"
     },
     "ValidationReport": {

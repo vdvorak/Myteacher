@@ -14,10 +14,15 @@ class AnswerMismatch(ValueError):
     """The answer does not fit the exercise it was given for."""
 
 
-def assess(exercise: Exercise, answer: ExerciseAnswer) -> AssessmentResult:
+def assess(exercise: Exercise, answer: ExerciseAnswer, *, reveal: bool = True) -> AssessmentResult:
+    """Score an answer. With `reveal=False` the solution of a wrong answer is withheld,
+    so that a student who may still retry does not receive it."""
     match exercise, answer:
         case MultipleChoiceExercise(), MultipleChoiceAnswer():
-            return _assess_multiple_choice(exercise, answer)
+            result = _assess_multiple_choice(exercise, answer)
+            if not result.correct and not reveal:
+                return result.model_copy(update={"solution": None})
+            return result
     raise AnswerMismatch(f"a {answer.type} answer cannot assess a {exercise.type} exercise")
 
 
