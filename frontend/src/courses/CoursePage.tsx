@@ -7,6 +7,7 @@ import { TeachersOnly } from '../students/StudentsPage'
 import type { Course, CourseBasics } from './api'
 import { BriefEditor } from './BriefEditor'
 import { CourseBasicsForm } from './CourseBasicsForm'
+import { TopicsSection } from './TopicsSection'
 
 /** One course: its basics and its brief, each brief field edited on its own. */
 export function CoursePage() {
@@ -61,6 +62,7 @@ function CourseDetail() {
               save={(change) => api.changeBrief(id, change)}
               onSaved={(brief) => mutate((current) => current && { ...current, brief })}
             />
+            <TopicsSection courseId={id} canEdit={loaded()!.can_edit} />
           </>
         )}
       </Show>

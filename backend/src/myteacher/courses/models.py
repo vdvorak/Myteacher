@@ -44,3 +44,18 @@ class CourseBriefRow(InstanceOwned, Base):
     retry_with_hint: Mapped[bool]
     second_round: Mapped[bool]
     notes: Mapped[str | None] = mapped_column(Text)
+
+
+class Topic(InstanceOwned, Base):
+    """A teacher-defined unit of a course, in the order the teacher teaches."""
+
+    __tablename__ = "topic"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    # 0-based and without gaps within the course.
+    position: Mapped[int]
+    name: Mapped[str] = mapped_column(String(200))
+    # Whether the topic starts with a diagnostic lesson; runs in slice 4 read it.
+    diagnostic_wanted: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)

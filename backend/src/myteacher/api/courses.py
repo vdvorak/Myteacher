@@ -33,13 +33,15 @@ class CourseOut(CourseSummary):
     owner_id: int
     created_at: datetime
     brief: CourseBrief
+    # Whether the actor may change the course; viewers see it read-only.
+    can_edit: bool
 
     @field_serializer("created_at")
     def _utc(self, at: datetime) -> str:
         return at.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     @classmethod
-    def of(cls, course: Course) -> "CourseOut":
+    def of(cls, course: Course, actor: Account) -> "CourseOut":
         return cls(
             id=course.id,
             name=course.name,
@@ -49,6 +51,7 @@ class CourseOut(CourseSummary):
             owner_id=course.owner_id,
             created_at=course.created_at,
             brief=courses.brief_of(course),
+            can_edit=can_edit_course(actor, course),
         )
 
 
@@ -112,7 +115,7 @@ class BriefChange(BaseModel):
         return value
 
 
-def _course(db: InstanceSession, actor: Account, course_id: int) -> Course:
+def course_for(db: InstanceSession, actor: Account, course_id: int) -> Course:
     """The course, or 404 for one the actor may not see, so its existence does not leak."""
     course = courses.get_course(db, course_id)
     if course is None or not can_view_course(actor, course):
@@ -120,8 +123,8 @@ def _course(db: InstanceSession, actor: Account, course_id: int) -> Course:
     return course
 
 
-def _editable(db: InstanceSession, actor: Account, course_id: int) -> Course:
-    course = _course(db, actor, course_id)
+def editable_course(db: InstanceSession, actor: Account, course_id: int) -> Course:
+    course = course_for(db, actor, course_id)
     if not can_edit_course(actor, course):
         raise HTTPException(status_code=403, detail="forbidden")
     return course
@@ -154,20 +157,20 @@ def create_course(body: CourseIn, db: Db, now: Now, actor: Teacher) -> CourseOut
         instruction_language=body.instruction_language,
         now=now,
     )
-    return CourseOut.of(course)
+    return CourseOut.of(course, actor)
 
 
 @router.get("/{course_id}")
 def read_course(course_id: int, db: Db, actor: Teacher) -> CourseOut:
-    return CourseOut.of(_course(db, actor, course_id))
+    return CourseOut.of(course_for(db, actor, course_id), actor)
 
 
 @router.patch("/{course_id}")
 def change_course(course_id: int, body: CourseChange, db: Db, actor: Teacher) -> CourseOut:
-    course = _editable(db, actor, course_id)
+    course = editable_course(db, actor, course_id)
     for field in body.model_fields_set:
         setattr(course, field, getattr(body, field))
-    return CourseOut.of(course)
+    return CourseOut.of(course, actor)
 
 
 @router.patch(
@@ -176,7 +179,7 @@ def change_course(course_id: int, body: CourseChange, db: Db, actor: Teacher) ->
 )
 def change_brief(course_id: int, body: BriefChange, db: Db, actor: Teacher) -> CourseBrief:
     """Change the brief field by field; the fields left out keep their value."""
-    course = _editable(db, actor, course_id)
+    course = editable_course(db, actor, course_id)
     try:
         return courses.change_brief(course, body.model_dump(include=body.model_fields_set))
     except courses.TypePreferredAndForbidden:

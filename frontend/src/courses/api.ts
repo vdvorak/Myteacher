@@ -40,7 +40,19 @@ export interface Course extends CourseSummary {
   owner_id: number
   created_at: string
   brief: CourseBrief
+  /** Whether the teacher may change the course; viewers see it read-only. */
+  can_edit: boolean
 }
+
+export interface Topic {
+  id: number
+  name: string
+  position: number
+  /** Whether the topic starts with a diagnostic lesson in a run. */
+  diagnostic_wanted: boolean
+}
+
+export type TopicChange = Partial<Pick<Topic, 'name' | 'diagnostic_wanted'>>
 
 /** A type would be both preferred and forbidden. */
 export class TypeConflict extends Error {}
@@ -52,22 +64,44 @@ export interface CoursesApi {
   change(id: number, change: Partial<CourseBasics>): Promise<Course>
   /** Only the fields given change. */
   changeBrief(id: number, change: Partial<CourseBrief>): Promise<CourseBrief>
+  /** Each topic call answers with the course's whole ordered topic list. */
+  topics(id: number): Promise<Topic[]>
+  addTopic(id: number, name: string): Promise<Topic[]>
+  changeTopic(id: number, topicId: number, change: TopicChange): Promise<Topic[]>
+  /** Refused with a 409 `ApiError` when the list no longer holds exactly these topics. */
+  reorderTopics(id: number, topicIds: number[]): Promise<Topic[]>
+  removeTopic(id: number, topicId: number): Promise<Topic[]>
 }
 
 async function json<T>(response: Response): Promise<T> {
-  if (response.status === 409) throw new TypeConflict()
   if (!response.ok) throw new ApiError(response.status)
   return (await response.json()) as T
 }
 
-function send(method: string, url: string, body: unknown) {
-  return fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+async function brief(response: Response): Promise<CourseBrief> {
+  if (response.status === 409) throw new TypeConflict()
+  return json(response)
 }
+
+function send(method: string, url: string, body?: unknown) {
+  return fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+}
+
+const topicsUrl = (id: number) => `/api/courses/${id}/topics`
 
 export const httpCoursesApi: CoursesApi = {
   list: async () => json(await fetch('/api/courses')),
   get: async (id) => json(await fetch(`/api/courses/${id}`)),
   create: async (basics) => json(await send('POST', '/api/courses', basics)),
   change: async (id, change) => json(await send('PATCH', `/api/courses/${id}`, change)),
-  changeBrief: async (id, change) => json(await send('PATCH', `/api/courses/${id}/brief`, change)),
+  changeBrief: async (id, change) => brief(await send('PATCH', `/api/courses/${id}/brief`, change)),
+  topics: async (id) => json(await fetch(topicsUrl(id))),
+  addTopic: async (id, name) => json(await send('POST', topicsUrl(id), { name })),
+  changeTopic: async (id, topicId, change) => json(await send('PATCH', `${topicsUrl(id)}/${topicId}`, change)),
+  reorderTopics: async (id, topicIds) => json(await send('PUT', `${topicsUrl(id)}/order`, { topic_ids: topicIds })),
+  removeTopic: async (id, topicId) => json(await send('DELETE', `${topicsUrl(id)}/${topicId}`)),
 }

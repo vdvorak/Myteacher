@@ -30,3 +30,41 @@
 .brief-types legend {
   font-weight: bold;
 }
+
+.topic-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
+.topic {
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.topic-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.topic-name label {
+  display: grid;
+  gap: var(--space-1);
+  flex: 1 1 0;
+}
+
+.topic-name input {
+  flex: 1 1 0;
+  min-width: 0;
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}

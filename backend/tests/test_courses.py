@@ -71,6 +71,7 @@ def test_a_teacher_creates_a_course_with_an_empty_brief(teacher, clock):
         "owner_id": me["id"],
         "created_at": "2026-09-24T08:00:00Z",
         "brief": DEFAULT_BRIEF,
+        "can_edit": True,
     }
     assert teacher.get(f"/api/courses/{body['id']}").json() == body
 
