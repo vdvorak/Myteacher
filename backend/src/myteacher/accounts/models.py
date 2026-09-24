@@ -23,6 +23,8 @@ class Account(InstanceOwned, Base):
     # None until the account's invitation is accepted.
     password_hash: Mapped[str | None]
     is_admin: Mapped[bool] = mapped_column(default=False)
+    # A minor's account stays inactive until a guardian's consent is recorded (ADR 0007).
+    is_minor: Mapped[bool] = mapped_column(default=False)
     active: Mapped[bool] = mapped_column(default=True)
     # Interface language; None until chosen, and the interface follows the browser meanwhile.
     language: Mapped[str | None] = mapped_column(String(2))
@@ -84,3 +86,18 @@ class PasswordReset(InstanceOwned, Base):
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
     used_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+
+
+class GuardianConsent(InstanceOwned, Base):
+    """A teacher's attestation that a minor's legal guardian agreed to the account (ADR 0007).
+
+    Recording consent again adds a row; the latest one is the student's consent.
+    """
+
+    __tablename__ = "guardian_consent"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("account.id", ondelete="CASCADE"))
+    attested_by_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
+    recorded_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    note: Mapped[str | None] = mapped_column(String(1000))

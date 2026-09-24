@@ -20,13 +20,16 @@ export function StudentForm(props: {
   const [name, setName] = createSignal(props.initial?.name ?? '')
   const [email, setEmail] = createSignal(props.initial?.email ?? '')
   const [language, setLanguage] = createSignal<Locale>(props.initial?.language ?? locale())
+  const [minor, setMinor] = createSignal(props.initial?.minor ?? false)
 
   async function submit(event: SubmitEvent) {
     event.preventDefault()
-    const taken = await props.onSubmit({ name: name().trim(), email: email().trim(), language: language() })
+    const basics = { name: name().trim(), email: email().trim(), language: language(), minor: minor() }
+    const taken = await props.onSubmit(basics)
     if (taken && props.initial === undefined) {
       setName('')
       setEmail('')
+      setMinor(false)
     }
   }
 
@@ -48,6 +51,10 @@ export function StudentForm(props: {
         <select value={language()} onChange={(e) => setLanguage(e.currentTarget.value as Locale)}>
           <For each={locales}>{(code) => <option value={code}>{localeNames[code]}</option>}</For>
         </select>
+      </label>
+      <label class="settings-check">
+        <input type="checkbox" checked={minor()} onChange={(e) => setMinor(e.currentTarget.checked)} />
+        {t('students.minor')}
       </label>
       <div class="settings-actions">
         <button type="submit" disabled={props.busy}>

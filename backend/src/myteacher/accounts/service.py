@@ -6,7 +6,13 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import delete, select
 
-from myteacher.accounts.models import Account, AccountKind, AuditEvent, AuthSession
+from myteacher.accounts.models import (
+    Account,
+    AccountKind,
+    AuditEvent,
+    AuthSession,
+    GuardianConsent,
+)
 from myteacher.accounts.passwords import check_password_strength, hash_password, verify_password
 from myteacher.persistence import InstanceSession
 
@@ -146,6 +152,17 @@ class EmailTaken(Exception):
     pass
 
 
+class ConsentMissing(Exception):
+    """A minor cannot be active until a guardian's consent is recorded."""
+
+
+def has_guardian_consent(db: InstanceSession, student: Account) -> bool:
+    found = db.scalars(
+        select(GuardianConsent.id).where(GuardianConsent.student_id == student.id)
+    ).first()
+    return found is not None
+
+
 def account_state(account: Account) -> str:
     if not account.active:
         return "inactive"
@@ -223,6 +240,8 @@ def set_active(
     """Deactivate or reactivate; deactivation ends the account's sessions and keeps its data."""
     if active == account.active:
         return
+    if active and account.is_minor and not has_guardian_consent(db, account):
+        raise ConsentMissing()
     account.active = active
     if not active:
         close_all_auth_sessions(db, account)

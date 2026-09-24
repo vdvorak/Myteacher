@@ -1,57 +1,20 @@
 from datetime import timedelta
 
-import pytest
-
-from tests.helpers import ADMIN_EMAIL, configure_smtp, link_token, sign_in
-
-TEACHER = "novak@skola.example"
-TEACHER_PASSWORD = "the teacher's password"
-STUDENT = "jana@skola.example"
-STUDENT_PASSWORD = "the student's password"
-OTHER_STUDENT = "petr@skola.example"
-
-
-def accept(client, token, password):
-    return client.post("/api/auth/invitations/accept", json={"token": token, "password": password})
-
-
-def create_student(client, email=STUDENT, name="Jana Veselá", language="cs"):
-    return client.post("/api/students", json={"name": name, "email": email, "language": language})
-
-
-def students(client) -> dict[str, dict]:
-    return {s["email"]: s for s in client.get("/api/students").json()}
-
-
-@pytest.fixture
-def teacher(app_client, sender):
-    """A client signed in as a teacher who is not an admin."""
-    sign_in(app_client)
-    configure_smtp(app_client)
-    app_client.post("/api/admin/teachers", json={"email": TEACHER, "language": "cs"})
-    token = link_token(sender.sent[-1].message.text)
-    app_client.cookies.clear()
-    assert accept(app_client, token, TEACHER_PASSWORD).status_code == 200
-    return app_client
-
-
-def invited_student(teacher, sender, email=STUDENT, **fields) -> tuple[dict, str]:
-    student = create_student(teacher, email, **fields).json()
-    return student, link_token(sender.sent[-1].message.text)
-
-
-def as_student(teacher, sender, email=STUDENT) -> dict:
-    """Create a student, accept their invitation and leave the client signed in as them."""
-    student, token = invited_student(teacher, sender, email)
-    teacher.cookies.clear()
-    assert accept(teacher, token, STUDENT_PASSWORD).status_code == 200
-    return student
-
-
-def back_to_teacher(client) -> None:
-    client.cookies.clear()
-    sign_in(client, TEACHER, TEACHER_PASSWORD)
-
+from tests.helpers import (
+    ADMIN_EMAIL,
+    OTHER_STUDENT,
+    STUDENT,
+    STUDENT_PASSWORD,
+    TEACHER,
+    accept,
+    as_student,
+    back_to_teacher,
+    create_student,
+    invited_student,
+    link_token,
+    sign_in,
+    students,
+)
 
 # Round trip
 
@@ -104,6 +67,8 @@ def test_the_student_list_and_page_show_state_and_basics(teacher, sender):
         "name": "Petr Malý",
         "email": OTHER_STUDENT,
         "language": "en",
+        "minor": False,
+        "consent": None,
         "state": "invited",
     }
     assert ADMIN_EMAIL not in listed and TEACHER not in listed

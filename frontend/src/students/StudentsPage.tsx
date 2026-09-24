@@ -13,6 +13,7 @@ export const stateNames: Record<Student['state'], MessageKey> = {
   invited: 'teachers.state.invited',
   active: 'teachers.state.active',
   inactive: 'teachers.state.inactive',
+  awaiting_consent: 'students.state.awaitingConsent',
 }
 
 /** Student pages are for teachers; students do not manage accounts. */
@@ -45,6 +46,7 @@ function StudentsList() {
     run(async () => {
       const { invitation_sent, error, ...student } = await api.create(basics)
       mutate((list) => [...(list ?? []), student].sort((a, b) => a.name.localeCompare(b.name)))
+      if (student.state === 'awaiting_consent') return { kind: 'done', message: 'students.createdMinor' }
       return invitationOutcome(student.email, { invitation_sent, error }, true)
     })
 

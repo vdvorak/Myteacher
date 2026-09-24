@@ -66,3 +66,43 @@ class ScriptedModels:
             raise error
 
         return FunctionModel(fail)
+
+
+# Teachers and students
+
+TEACHER = "novak@skola.example"
+TEACHER_PASSWORD = "the teacher's password"
+STUDENT = "jana@skola.example"
+STUDENT_PASSWORD = "the student's password"
+OTHER_STUDENT = "petr@skola.example"
+
+
+def accept(client, token, password):
+    return client.post("/api/auth/invitations/accept", json={"token": token, "password": password})
+
+
+def create_student(client, email=STUDENT, name="Jana Veselá", language="cs", **fields):
+    body = {"name": name, "email": email, "language": language, **fields}
+    return client.post("/api/students", json=body)
+
+
+def students(client) -> dict[str, dict]:
+    return {s["email"]: s for s in client.get("/api/students").json()}
+
+
+def invited_student(teacher, sender, email=STUDENT, **fields) -> tuple[dict, str]:
+    student = create_student(teacher, email, **fields).json()
+    return student, link_token(sender.sent[-1].message.text)
+
+
+def as_student(teacher, sender, email=STUDENT) -> dict:
+    """Create a student, accept their invitation and leave the client signed in as them."""
+    student, token = invited_student(teacher, sender, email)
+    teacher.cookies.clear()
+    assert accept(teacher, token, STUDENT_PASSWORD).status_code == 200
+    return student
+
+
+def back_to_teacher(client) -> None:
+    client.cookies.clear()
+    sign_in(client, TEACHER, TEACHER_PASSWORD)

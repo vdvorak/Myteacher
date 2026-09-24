@@ -51,7 +51,13 @@ export interface TeacherChange {
 
 /** A refusal the admin can act on, from the backend's 409 answers. */
 export class Conflict extends Error {
-  readonly reason: 'email_taken' | 'last_active_admin' | 'already_accepted' | 'account_inactive'
+  readonly reason:
+    | 'email_taken'
+    | 'last_active_admin'
+    | 'already_accepted'
+    | 'account_inactive'
+    | 'consent_missing'
+    | 'not_a_minor'
 
   constructor(reason: Conflict['reason']) {
     super(reason)

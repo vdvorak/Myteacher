@@ -7,7 +7,19 @@ from fastapi.testclient import TestClient
 from myteacher.app import create_app
 from myteacher.mail import RecordingSender
 from myteacher.settings import Settings
-from tests.helpers import ADMIN_EMAIL, ADMIN_PASSWORD, INSTANCE_SECRET, FakeClock, ScriptedModels
+from tests.helpers import (
+    ADMIN_EMAIL,
+    ADMIN_PASSWORD,
+    INSTANCE_SECRET,
+    TEACHER,
+    TEACHER_PASSWORD,
+    FakeClock,
+    ScriptedModels,
+    accept,
+    configure_smtp,
+    link_token,
+    sign_in,
+)
 
 
 @pytest.fixture
@@ -60,3 +72,15 @@ def app_client(admin_settings, clock, sender, models):
     app = create_app(admin_settings, clock=clock, sender=sender, model_factory=models)
     with TestClient(app) as client:
         yield client
+
+
+@pytest.fixture
+def teacher(app_client, sender):
+    """A client signed in as a teacher who is not an admin, with SMTP configured."""
+    sign_in(app_client)
+    configure_smtp(app_client)
+    app_client.post("/api/admin/teachers", json={"email": TEACHER, "language": "cs"})
+    token = link_token(sender.sent[-1].message.text)
+    app_client.cookies.clear()
+    assert accept(app_client, token, TEACHER_PASSWORD).status_code == 200
+    return app_client

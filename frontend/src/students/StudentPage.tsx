@@ -5,6 +5,7 @@ import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
 import type { Student, StudentBasics } from './api'
 import { createActions, invitationOutcome, OutcomeMessage } from './outcome'
+import { ConsentSection } from './ConsentSection'
 import { StudentForm } from './StudentForm'
 import { stateNames, TeachersOnly } from './StudentsPage'
 
@@ -24,12 +25,21 @@ function StudentDetail() {
   const [student, { mutate }] = createResource(() => Number(params.studentId), (id) => api.get(id))
   const { busy, outcome, run } = createActions()
 
+  const isInactive = (current: Student) => current.state === 'inactive' || current.state === 'awaiting_consent'
+  const activationLabel = (current: Student) => {
+    if (current.state === 'awaiting_consent') return t('students.activate')
+    return current.state === 'inactive' ? t('teachers.reactivate') : t('teachers.deactivate')
+  }
+
   const save = (current: Student, basics: StudentBasics) =>
     run(async () => {
       const saved = await api.change(current.id, basics)
       mutate(saved)
       // The backend voids an open invitation when the address it went to is corrected.
       const voided = current.state === 'invited' && saved.email !== current.email
+      if (saved.state === 'awaiting_consent' && current.state !== 'awaiting_consent') {
+        return { kind: 'done', message: 'students.savedMinorDeactivated' }
+      }
       return { kind: 'done', message: voided ? 'students.savedInvitationVoided' : 'students.saved' }
     })
 
@@ -37,6 +47,14 @@ function StudentDetail() {
     run(async () => {
       mutate(await api.change(current.id, { active }))
       return null
+    })
+
+  const recordConsent = (current: Student, note: string | null) =>
+    run(async () => {
+      const recorded = await api.recordConsent(current.id, note)
+      mutate(recorded)
+      const canActivate = recorded.state === 'inactive'
+      return { kind: 'done', message: canActivate ? 'students.consentRecordedActivate' : 'students.consentRecorded' }
     })
 
   const resend = (current: Student) =>
@@ -67,10 +85,18 @@ function StudentDetail() {
                   name: current().name,
                   email: current().email,
                   language: current().language ?? 'en',
+                  minor: current().minor,
                 }}
                 submitLabel={t('students.save')}
                 busy={busy()}
                 onSubmit={(basics) => save(current(), basics)}
+              />
+            </Show>
+            <Show when={current().minor}>
+              <ConsentSection
+                student={current()}
+                busy={busy()}
+                onRecord={(note) => recordConsent(current(), note)}
               />
             </Show>
             <div class="settings-actions">
@@ -85,9 +111,9 @@ function StudentDetail() {
               <button
                 type="button"
                 disabled={busy()}
-                onClick={() => setActive(current(), current().state === 'inactive')}
+                onClick={() => setActive(current(), isInactive(current()))}
               >
-                {current().state === 'inactive' ? t('teachers.reactivate') : t('teachers.deactivate')}
+                {activationLabel(current())}
               </button>
             </div>
           </>

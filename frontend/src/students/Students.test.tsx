@@ -50,7 +50,12 @@ describe('students list', () => {
     await user.click(screen.getByRole('button', { name: 'Create and invite' }))
 
     expect(await screen.findByRole('status')).toHaveTextContent('Invitation sent to eva@skola.example.')
-    expect(students.create).toHaveBeenCalledWith({ name: 'Eva Dlouhá', email: 'eva@skola.example', language: 'cs' })
+    expect(students.create).toHaveBeenCalledWith({
+      name: 'Eva Dlouhá',
+      email: 'eva@skola.example',
+      language: 'cs',
+      minor: false,
+    })
     expect(within(await row('Eva Dlouhá')).getByText('Invited')).toBeInTheDocument()
     expect(screen.getByLabelText('Name')).toHaveValue('')
   })
@@ -123,6 +128,7 @@ describe('student page', () => {
       name: 'Jana Nová',
       email: 'jana@skola.example',
       language: 'en',
+      minor: false,
     })
     expect(screen.getByRole('heading', { name: 'Jana Nová' })).toBeInTheDocument()
   })

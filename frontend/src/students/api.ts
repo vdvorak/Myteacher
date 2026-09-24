@@ -2,18 +2,30 @@ import { Conflict, type InvitationResult } from '../admin/api'
 import type { Locale } from '../i18n/messages'
 import { ApiError } from '../lesson/api'
 
+export interface Consent {
+  attested_by_id: number
+  attested_by_email: string
+  recorded_at: string
+  note: string | null
+}
+
 export interface Student {
   id: number
   name: string
   email: string
   language: Locale | null
-  state: 'invited' | 'active' | 'inactive'
+  minor: boolean
+  /** The latest guardian consent recorded; null when there is none. */
+  consent: Consent | null
+  /** A minor without consent is never active; they are awaiting consent instead. */
+  state: 'invited' | 'active' | 'inactive' | 'awaiting_consent'
 }
 
 export interface StudentBasics {
   name: string
   email: string
   language: Locale
+  minor: boolean
 }
 
 export type CreatedStudent = Student & InvitationResult
@@ -23,6 +35,7 @@ export interface StudentChange {
   name?: string
   email?: string
   language?: Locale
+  minor?: boolean
   active?: boolean
 }
 
@@ -33,6 +46,8 @@ export interface StudentsApi {
   change(id: number, change: StudentChange): Promise<Student>
   resendInvitation(id: number): Promise<InvitationResult>
   revokeInvitation(id: number): Promise<void>
+  /** Records the signed-in teacher's attestation of a guardian's consent; it activates nobody. */
+  recordConsent(id: number, note: string | null): Promise<Student>
 }
 
 async function checked(response: Response): Promise<Response> {
@@ -62,6 +77,7 @@ export const httpStudentsApi: StudentsApi = {
   create: async (basics) => json(await send('POST', '/api/students', basics)),
   change: async (id, change) => json(await send('PATCH', `/api/students/${id}`, change)),
   resendInvitation: async (id) => json(await send('POST', `/api/students/${id}/invitation`)),
+  recordConsent: async (id, note) => json(await send('POST', `/api/students/${id}/consent`, { note })),
   revokeInvitation: async (id) => {
     await checked(await send('DELETE', `/api/students/${id}/invitation`))
   },

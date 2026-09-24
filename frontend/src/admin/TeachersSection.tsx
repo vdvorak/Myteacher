@@ -14,6 +14,8 @@ const conflictMessages: Record<Conflict['reason'], MessageKey> = {
   email_taken: 'teachers.emailTaken',
   last_active_admin: 'teachers.lastAdmin',
   account_inactive: 'accounts.inactiveNotInvited',
+  consent_missing: 'students.consentMissing',
+  not_a_minor: 'students.notAMinor',
   already_accepted: 'teachers.alreadyAccepted',
 }
 
