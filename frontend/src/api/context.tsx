@@ -1,6 +1,7 @@
 import { createContext, useContext, type ParentProps } from 'solid-js'
 import { httpAdminApi, type AdminApi } from '../admin/api'
 import { httpClassesApi, type ClassesApi } from '../classes/api'
+import { httpConceptsApi, type ConceptsApi } from '../concepts/api'
 import { httpCoursesApi, type CoursesApi } from '../courses/api'
 import { httpJobsApi, type JobsApi } from '../jobs/api'
 import { httpAuthApi, type AuthApi } from '../auth/api'
@@ -17,6 +18,7 @@ export interface Apis {
   classes: ClassesApi
   courses: CoursesApi
   sources: SourcesApi
+  concepts: ConceptsApi
   jobs: JobsApi
 }
 
@@ -28,6 +30,7 @@ export const httpApis: Apis = {
   classes: httpClassesApi,
   courses: httpCoursesApi,
   sources: httpSourcesApi,
+  concepts: httpConceptsApi,
   jobs: httpJobsApi,
 }
 

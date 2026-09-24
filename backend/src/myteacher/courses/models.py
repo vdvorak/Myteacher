@@ -159,3 +159,90 @@ class SourceFile(InstanceOwned, Base):
         ForeignKey("source.id", ondelete="CASCADE"), primary_key=True
     )
     content: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+class ConceptMap(InstanceOwned, Base):
+    """The concepts of one topic: proposed by the assistant, edited and approved by the teacher.
+
+    Only an approved map decides what is tracked; reopening it for changes makes it a draft again.
+    """
+
+    __tablename__ = "concept_map"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("topic.id", ondelete="CASCADE"), unique=True)
+    # "draft" while it is being changed, "approved" once the teacher approved it.
+    state: Mapped[str] = mapped_column(String(20))
+    # Set while approved.
+    approved_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("account.id"))
+    # Once approved, its concepts may be tracked, so a proposal no longer replaces them.
+    approved_before: Mapped[bool] = mapped_column(default=False)
+    # The latest proposal; only its result lands.
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # Bumped by every change to the map or its concepts, so that the teacher approves exactly
+    # the map they saw and of two concurrent changes the second fails instead of mixing in.
+    version: Mapped[int] = mapped_column(default=1)
+
+    __mapper_args__ = {"version_id_col": version}
+
+
+class Concept(InstanceOwned, Base):
+    """The smallest tracked unit of a topic: a word, a grammar point, a sub-skill.
+
+    Its identifier survives edits to its text and is never reused, not even after the row is
+    gone (hence AUTOINCREMENT), so concept states of slice 4 can point at it. A removed, merged or
+    split concept is retired rather than deleted; merges and splits record their successors.
+    """
+
+    __tablename__ = "concept"
+    __table_args__ = {"sqlite_autoincrement": True}
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    concept_map_id: Mapped[int] = mapped_column(
+        ForeignKey("concept_map.id", ondelete="CASCADE"), index=True
+    )
+    # 0-based and without gaps among the map's current concepts.
+    position: Mapped[int]
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # Set once removed, merged or split: no longer in the map.
+    retired_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+
+
+class ConceptPrerequisite(InstanceOwned, Base):
+    """A concept that has to be known before another one, both current concepts of one map."""
+
+    __tablename__ = "concept_prerequisite"
+
+    concept_id: Mapped[int] = mapped_column(
+        ForeignKey("concept.id", ondelete="CASCADE"), primary_key=True
+    )
+    prerequisite_id: Mapped[int] = mapped_column(
+        ForeignKey("concept.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+
+
+# A merge has several old concepts and one new one; a split one old concept and several new ones.
+SuccessionKind = Literal["merge", "split"]
+
+
+class ConceptSuccession(InstanceOwned, Base):
+    """Where a retired concept went, so that its concept states can follow it (slice 4)."""
+
+    __tablename__ = "concept_succession"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    old_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("concept.id", ondelete="CASCADE"), index=True
+    )
+    new_concept_id: Mapped[int] = mapped_column(
+        ForeignKey("concept.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(10))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)

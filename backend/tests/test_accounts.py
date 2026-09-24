@@ -228,7 +228,8 @@ def test_every_table_is_owned_by_an_instance(settings):
     tables = [
         row[0]
         for row in db.execute("select name from sqlite_master where type = 'table'")
-        if row[0] not in {"instance", "alembic_version"}
+        # SQLite's own tables, such as the AUTOINCREMENT counters, belong to no instance.
+        if row[0] not in {"instance", "alembic_version"} and not row[0].startswith("sqlite_")
     ]
 
     assert tables

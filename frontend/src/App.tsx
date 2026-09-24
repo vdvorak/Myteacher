@@ -11,6 +11,7 @@ import {
 import { AdminPage } from './admin/AdminPage'
 import { ClassesPage } from './classes/ClassesPage'
 import { ClassPage } from './classes/ClassPage'
+import { ConceptMapPage } from './concepts/ConceptMapPage'
 import { CoursePage } from './courses/CoursePage'
 import { CoursesPage } from './courses/CoursesPage'
 import { ApiProvider, type Apis } from './api/context'
@@ -56,6 +57,7 @@ const routes = () => (
       <Route path="/classes/:classId" component={ClassPage} />
       <Route path="/courses" component={CoursesPage} />
       <Route path="/courses/:courseId" component={CoursePage} />
+      <Route path="/courses/:courseId/topics/:topicId" component={ConceptMapPage} />
       <Route path="/admin" component={AdminPage} />
     </Route>
     <Route path="*" component={() => <Navigate href="/" />} />

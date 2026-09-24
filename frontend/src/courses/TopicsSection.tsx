@@ -1,3 +1,4 @@
+import { A } from '@solidjs/router'
 import { createResource, createSignal, For, Show } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
@@ -110,7 +111,7 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
                 <For each={list}>
                   {(topic) => (
                     <li>
-                      {topic.name}
+                      <A href={`/courses/${props.courseId}/topics/${topic.id}`}>{topic.name}</A>
                       {topic.diagnostic_wanted ? ` (${t('topics.diagnosticNote')})` : ''}
                     </li>
                   )}
@@ -151,6 +152,7 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
                       {t('topics.diagnosticWanted')}
                     </label>
                     <div class="settings-actions">
+                      <A href={`/courses/${props.courseId}/topics/${topic.id}`}>{t('topics.conceptMap')}</A>
                       <button type="button" disabled={busy() || index() === 0} onClick={() => move(index(), -1)}>
                         {t('topics.moveUp')}
                       </button>

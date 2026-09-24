@@ -1,0 +1,61 @@
+.concept-list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
+.concept {
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.concept p {
+  margin: 0;
+}
+
+.concept-form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.concept-form label {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.concept-form input:not([type='checkbox']),
+.concept-form textarea {
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.concept-form textarea {
+  resize: vertical;
+}
+
+.concept-form .settings-check {
+  display: flex;
+}
+
+.concept-prerequisites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.concept-split {
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+}
