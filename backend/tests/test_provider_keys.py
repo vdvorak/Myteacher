@@ -175,7 +175,8 @@ def test_a_working_key_passes_the_test_through_the_fast_slot(app_client, teacher
         ),
         (ModelHTTPError(402, "claude-haiku-4-5"), "quota"),
         (ModelHTTPError(404, "claude-haiku-4-5", {"error": "model not found"}), "other"),
-        (ModelAPIError("claude-haiku-4-5", "connection refused"), "other"),
+        (ModelHTTPError(503, "claude-haiku-4-5", {"error": "unavailable"}), "transient"),
+        (ModelAPIError("claude-haiku-4-5", "connection refused"), "transient"),
     ],
 )
 def test_a_failing_key_reports_the_kind_of_error(app_client, teacher, models, error, kind):

@@ -37,7 +37,7 @@ export interface CredentialChange {
   fast_model?: string
 }
 
-export type KeyProblem = 'authentication' | 'quota' | 'other'
+export type KeyProblem = 'authentication' | 'quota' | 'transient' | 'other'
 
 export interface KeyTest {
   ok: boolean

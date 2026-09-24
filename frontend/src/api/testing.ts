@@ -2,6 +2,7 @@ import { fakeAdminApi } from '../admin/testing'
 import { fakeAuthApi } from '../auth/testing'
 import { fakeClassesApi } from '../classes/testing'
 import { fakeCoursesApi } from '../courses/testing'
+import { fakeJobsApi } from '../jobs/testing'
 import { fakeSettingsApi } from '../settings/testing'
 import { fakeStudentsApi } from '../students/testing'
 import type { Apis } from './context'
@@ -15,6 +16,7 @@ export function fakeApis(overrides: Partial<Apis> = {}): Apis {
     students: fakeStudentsApi(),
     classes: fakeClassesApi(),
     courses: fakeCoursesApi(),
+    jobs: fakeJobsApi(),
     ...overrides,
   }
 }

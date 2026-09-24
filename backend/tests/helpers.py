@@ -47,25 +47,63 @@ def link_token(text: str) -> str:
 
 
 class ScriptedModels:
-    """A model factory for tests: pydantic-ai's test model, or one failing as `fail_with` says."""
+    """A model factory for tests.
+
+    With `outputs` scripted, each model request answers with the next one: a dict is the
+    structured output, an exception is raised, and a callable runs during the request (to
+    change things meanwhile) and returns one of the others. Otherwise pydantic-ai's test model
+    answers "OK", or every call fails as `fail_with` says. `requests` records what each request
+    was sent.
+    """
 
     def __init__(self):
         self.calls: list[tuple[str, str, str]] = []
         self.fail_with: Exception | None = None
+        self.outputs: list[object] = []
+        self.requests: list[dict] = []
+
+    def script(self, *outputs: object) -> None:
+        self.outputs.extend(outputs)
 
     def __call__(self, provider: str, model_name: str, api_key: str):
+        from pydantic_ai.messages import ModelResponse, ToolCallPart, UserPromptPart
         from pydantic_ai.models.function import FunctionModel
         from pydantic_ai.models.test import TestModel
 
         self.calls.append((provider, model_name, api_key))
-        if self.fail_with is None:
+        if self.fail_with is not None:
+            error = self.fail_with
+
+            def fail(messages, info):
+                raise error
+
+            return FunctionModel(fail)
+        if not self.outputs:
             return TestModel(custom_output_text="OK")
-        error = self.fail_with
 
-        def fail(messages, info):
-            raise error
+        def answer(messages, info):
+            prompts = [
+                part.content
+                for message in messages
+                for part in getattr(message, "parts", [])
+                if isinstance(part, UserPromptPart)
+            ]
+            self.requests.append(
+                {
+                    "instructions": info.instructions or "",
+                    "prompt": prompts[0] if prompts else "",
+                    "settings": info.model_settings or {},
+                }
+            )
+            assert self.outputs, "the model was asked more often than scripted"
+            output = self.outputs.pop(0)
+            if callable(output):
+                output = output()
+            if isinstance(output, Exception):
+                raise output
+            return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, output)])
 
-        return FunctionModel(fail)
+        return FunctionModel(answer)
 
 
 # Teachers and students

@@ -1,0 +1,48 @@
+.job-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.job-spinner {
+  inline-size: var(--space-4);
+  block-size: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: job-spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-spinner {
+    animation: none;
+  }
+}
+
+@keyframes job-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.job-failure {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-incorrect);
+  border-radius: var(--radius);
+  background: var(--color-incorrect-surface);
+}
+
+.job-failure p {
+  margin: 0;
+}
+
+.job-raw-output {
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  font-size: var(--font-size-small);
+}

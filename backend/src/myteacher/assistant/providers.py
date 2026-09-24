@@ -13,7 +13,7 @@ from importlib import resources
 from typing import Literal
 
 from pydantic_ai import Agent
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.models import Model, infer_model
 from pydantic_ai.providers import infer_provider_class
 
@@ -53,7 +53,10 @@ def pydantic_ai_model(provider: str, model_name: str, api_key: str) -> Model:
     )
 
 
-KeyProblem = Literal["authentication", "quota", "other"]
+# What went wrong with a provider call, in terms a teacher can act on: fix the key, top up the
+# account, wait and retry, or nothing obvious.
+ProviderProblem = Literal["authentication", "quota", "transient", "other"]
+KeyProblem = ProviderProblem
 
 
 def _out_of_credit(error: ModelHTTPError) -> bool:
@@ -66,6 +69,23 @@ def _rejected_key(error: ModelHTTPError) -> bool:
     return error.status_code == 400 and "API_KEY_INVALID" in str(error.body)
 
 
+def classify(error: Exception) -> ProviderProblem:
+    """The kind of a failed provider call; shared by the key test and every assistant task."""
+    if isinstance(error, ModelHTTPError):
+        if error.status_code in (401, 403) or _rejected_key(error):
+            return "authentication"
+        if error.status_code in (402, 429) or _out_of_credit(error):
+            return "quota"
+        # 529 is Anthropic's "overloaded".
+        if error.status_code in (408, 500, 502, 503, 504, 529):
+            return "transient"
+        return "other"
+    if isinstance(error, ModelAPIError):
+        # No HTTP answer at all: connection refused, timeout.
+        return "transient"
+    return "other"
+
+
 async def test_key(
     factory: ModelFactory, provider: str, model_name: str, api_key: str
 ) -> KeyProblem | None:
@@ -75,14 +95,8 @@ async def test_key(
         # No output limit: OpenAI refuses very small ones and Gemini spends them on thinking,
         # either of which would fail a working key. A one-word reply costs next to nothing.
         await agent.run("Reply with the single word OK.", model_settings={"timeout": 30})
-    except ModelHTTPError as error:
-        if error.status_code in (401, 403) or _rejected_key(error):
-            return "authentication"
-        if error.status_code in (402, 429) or _out_of_credit(error):
-            return "quota"
-        logger.info("key test for %s failed with HTTP %s", provider, error.status_code)
-        return "other"
     except Exception as error:  # noqa: BLE001 - any failure of a test call is reported, not raised
-        logger.info("key test for %s failed: %r", provider, error)
-        return "other"
+        problem = classify(error)
+        logger.info("key test for %s failed (%s): %r", provider, problem, error)
+        return problem
     return None

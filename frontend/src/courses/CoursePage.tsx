@@ -7,6 +7,7 @@ import { TeachersOnly } from '../students/StudentsPage'
 import type { Course, CourseBasics } from './api'
 import { BriefEditor } from './BriefEditor'
 import { CourseBasicsForm } from './CourseBasicsForm'
+import { InterviewPanel } from './InterviewPanel'
 import { TopicsSection } from './TopicsSection'
 
 /** One course: its basics and its brief, each brief field edited on its own. */
@@ -24,6 +25,8 @@ function CourseDetail() {
   const params = useParams<{ courseId: string }>()
   const [course, { mutate }] = createResource(() => Number(params.courseId), (id) => api.get(id))
   const [outcome, setOutcome] = createSignal<'saved' | 'failed' | null>(null)
+  // Bumped when the brief changed elsewhere (the interview), so its editor starts afresh.
+  const [briefRevision, setBriefRevision] = createSignal(0)
   const loaded = () => (course.error ? undefined : course())
 
   const save = (current: Course) => async (basics: CourseBasics) => {
@@ -31,6 +34,15 @@ function CourseDetail() {
     try {
       mutate(await api.change(current.id, basics))
       setOutcome('saved')
+    } catch {
+      setOutcome('failed')
+    }
+  }
+
+  async function briefChanged(id: number) {
+    try {
+      mutate(await api.get(id))
+      setBriefRevision((n) => n + 1)
     } catch {
       setOutcome('failed')
     }
@@ -57,11 +69,18 @@ function CourseDetail() {
                 )
               }
             </Show>
-            <BriefEditor
-              initial={loaded()!.brief}
-              save={(change) => api.changeBrief(id, change)}
-              onSaved={(brief) => mutate((current) => current && { ...current, brief })}
-            />
+            <Show when={loaded()!.can_edit}>
+              <InterviewPanel courseId={id} onBriefChanged={() => briefChanged(id)} />
+            </Show>
+            <Show when={String(briefRevision())} keyed>
+              {(_revision) => (
+                <BriefEditor
+                  initial={loaded()!.brief}
+                  save={(change) => api.changeBrief(id, change)}
+                  onSaved={(brief) => mutate((current) => current && { ...current, brief })}
+                />
+              )}
+            </Show>
             <TopicsSection courseId={id} canEdit={loaded()!.can_edit} />
           </>
         )}

@@ -6,6 +6,7 @@ import type { Credential, KeyProblem, Provider, SettingsApi } from './api'
 const problemMessages: Record<KeyProblem, MessageKey> = {
   authentication: 'providers.test.authentication',
   quota: 'providers.test.quota',
+  transient: 'providers.test.transient',
   other: 'providers.test.other',
 }
 

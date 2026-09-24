@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, String, Text
+from sqlalchemy import JSON, ForeignKey, Index, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from myteacher.persistence import Base, InstanceOwned, UTCDateTime
@@ -59,3 +60,43 @@ class Topic(InstanceOwned, Base):
     # Whether the topic starts with a diagnostic lesson; runs in slice 4 read it.
     diagnostic_wanted: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class Interview(InstanceOwned, Base):
+    """The teacher interview of a course: its rounds of questions with the teacher's answers.
+
+    The brief, not this transcript, is what generations are based on; the transcript is kept
+    as context for later rounds and for the generation records.
+    """
+
+    __tablename__ = "interview"
+    # At most one active interview per course, even when two requests start one at once.
+    __table_args__ = (
+        Index(
+            "one_active_interview",
+            "course_id",
+            unique=True,
+            sqlite_where=text("state = 'active'"),
+            postgresql_where=text("state = 'active'"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    # "active" while rounds go on, "finished" once the brief was patched, "ended" when the
+    # teacher stopped it early.
+    state: Mapped[str] = mapped_column(String(20))
+    # [{"questions": [{"question", "recommended_answer"}], "answers": [str] | None}]
+    rounds: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    # Set when the interview finished: whether the teacher named sources, and the summary.
+    sources_offered: Mapped[bool | None]
+    summary: Mapped[str | None] = mapped_column(Text)
+    # The latest job working on the interview.
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
+    started_by_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # Checked on every write, so that of two concurrent changes (two answers, an answer and
+    # the end, the job's result and the end) the second fails instead of overwriting the first.
+    version: Mapped[int] = mapped_column(default=1)
+
+    __mapper_args__ = {"version_id_col": version}

@@ -66,6 +66,7 @@ describe('provider keys', () => {
   it.each([
     ['authentication', 'The provider rejected the key.'],
     ['quota', 'The key works, but its credit or rate limit is used up.'],
+    ['transient', 'The provider cannot be reached right now.'],
     ['other', 'The test call failed.'],
   ] as const)('explains a %s failure in plain words', async (kind, message) => {
     renderKeys(fakeSettingsApi({}, { credentials: [stored], keyProblem: kind }))

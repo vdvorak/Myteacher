@@ -13,13 +13,17 @@ from myteacher.api import (
     auth,
     classes,
     courses,
+    interview,
+    jobs,
     lessons,
     providers,
     students,
     topics,
 )
 from myteacher.assistant.providers import ModelFactory, pydantic_ai_model
+from myteacher.assistant.service import AssistantContext
 from myteacher.db import migrate
+from myteacher.jobs.runner import JobContext, fail_interrupted
 from myteacher.mail import Sender, SmtpSender
 from myteacher.persistence import Clock, make_engine, open_session, singleton_instance_id, utc_now
 from myteacher.secret_box import SecretBox
@@ -47,6 +51,17 @@ def create_app(
         app.state.model_factory = model_factory
         app.state.engine = engine
         app.state.instance_id = singleton_instance_id(engine)
+        app.state.jobs = JobContext(
+            engine=engine,
+            instance_id=app.state.instance_id,
+            assistant=AssistantContext(
+                model_factory=model_factory, secret_box=secret_box, clock=clock
+            ),
+        )
+        # One process runs every job (phase 1), so whatever it did not finish was cut off.
+        with open_session(engine, app.state.instance_id) as db:
+            fail_interrupted(db, clock())
+            db.commit()
         bootstrap_admin(engine, settings, clock)
         yield
         engine.dispose()
@@ -66,6 +81,8 @@ def create_app(
     app.include_router(classes.router, prefix="/api")
     app.include_router(courses.router, prefix="/api")
     app.include_router(topics.router, prefix="/api")
+    app.include_router(interview.router, prefix="/api")
+    app.include_router(jobs.router, prefix="/api")
 
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
     def unknown_api_route(path: str) -> None:

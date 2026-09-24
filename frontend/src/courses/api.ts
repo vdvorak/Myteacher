@@ -1,4 +1,5 @@
 import { ApiError } from '../lesson/api'
+import type { Job } from '../jobs/api'
 import type { RenderedExercise } from '../lesson/schema'
 
 /** An exercise type of the component catalog, which a brief chooses from. */
@@ -52,6 +53,55 @@ export interface Topic {
   diagnostic_wanted: boolean
 }
 
+export interface InterviewQuestion {
+  number: number
+  question: string
+  recommended_answer: string
+}
+
+export interface InterviewRound {
+  number: number
+  questions: InterviewQuestion[]
+  /** Null while the round waits for the teacher. */
+  answers: string[] | null
+}
+
+export interface Interview {
+  id: number
+  /** Finished once the brief was patched; ended when the teacher stopped it early. */
+  state: 'active' | 'finished' | 'ended'
+  rounds: InterviewRound[]
+  /** Set once finished: false means content will be generated without sources. */
+  sources_offered: boolean | null
+  summary: string | null
+  /** The latest job working on the interview. */
+  job: Job | null
+}
+
+export interface InterviewStarted {
+  interview: Interview
+  job: Job
+}
+
+export type InterviewRefusal =
+  | 'interview_active'
+  | 'no_provider_key'
+  | 'no_open_round'
+  | 'no_active_interview'
+  | 'nothing_to_retry'
+  /** Another request changed the interview first. */
+  | 'interview_changed'
+
+/** The interview is not in a state that allows the step. */
+export class InterviewConflict extends Error {
+  readonly reason: InterviewRefusal
+
+  constructor(reason: InterviewRefusal) {
+    super(reason)
+    this.reason = reason
+  }
+}
+
 export type TopicChange = Partial<Pick<Topic, 'name' | 'diagnostic_wanted'>>
 
 /** A type would be both preferred and forbidden. */
@@ -71,6 +121,13 @@ export interface CoursesApi {
   /** Refused with a 409 `ApiError` when the list no longer holds exactly these topics. */
   reorderTopics(id: number, topicIds: number[]): Promise<Topic[]>
   removeTopic(id: number, topicId: number): Promise<Topic[]>
+  /** The course's latest interview, or null when there has been none. */
+  interview(id: number): Promise<Interview | null>
+  startInterview(id: number): Promise<InterviewStarted>
+  /** One answer per question of the open round; an empty one leaves a question open. */
+  answerInterview(id: number, answers: string[]): Promise<InterviewStarted>
+  retryInterview(id: number): Promise<InterviewStarted>
+  endInterview(id: number): Promise<Interview>
 }
 
 async function json<T>(response: Response): Promise<T> {
@@ -91,6 +148,15 @@ function send(method: string, url: string, body?: unknown) {
   })
 }
 
+async function interviewStep<T>(response: Response): Promise<T> {
+  if (response.status === 409) {
+    const body = (await response.json()) as { detail: InterviewRefusal }
+    throw new InterviewConflict(body.detail)
+  }
+  return json(response)
+}
+
+const interviewUrl = (id: number) => `/api/courses/${id}/interview`
 const topicsUrl = (id: number) => `/api/courses/${id}/topics`
 
 export const httpCoursesApi: CoursesApi = {
@@ -104,4 +170,9 @@ export const httpCoursesApi: CoursesApi = {
   changeTopic: async (id, topicId, change) => json(await send('PATCH', `${topicsUrl(id)}/${topicId}`, change)),
   reorderTopics: async (id, topicIds) => json(await send('PUT', `${topicsUrl(id)}/order`, { topic_ids: topicIds })),
   removeTopic: async (id, topicId) => json(await send('DELETE', `${topicsUrl(id)}/${topicId}`)),
+  interview: async (id) => json(await fetch(interviewUrl(id))),
+  startInterview: async (id) => interviewStep(await send('POST', interviewUrl(id))),
+  answerInterview: async (id, answers) => interviewStep(await send('POST', `${interviewUrl(id)}/answers`, { answers })),
+  retryInterview: async (id) => interviewStep(await send('POST', `${interviewUrl(id)}/retry`)),
+  endInterview: async (id) => interviewStep(await send('POST', `${interviewUrl(id)}/end`)),
 }
