@@ -1,0 +1,400 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "AssessmentResult": {
+      "additionalProperties": false,
+      "properties": {
+        "exercise_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Exercise Id",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "correct": {
+          "title": "Correct",
+          "type": "boolean"
+        },
+        "solution": {
+          "$ref": "#/$defs/MultipleChoiceSolution"
+        }
+      },
+      "required": [
+        "exercise_id",
+        "score",
+        "correct",
+        "solution"
+      ],
+      "title": "AssessmentResult",
+      "type": "object"
+    },
+    "ChoiceOption": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "ChoiceOption",
+      "type": "object"
+    },
+    "ExplanationBlock": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "explanation",
+          "title": "Type",
+          "type": "string"
+        },
+        "markdown": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Markdown",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "markdown"
+      ],
+      "title": "ExplanationBlock",
+      "type": "object"
+    },
+    "FieldError": {
+      "properties": {
+        "loc": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "title": "Loc",
+          "type": "array"
+        },
+        "msg": {
+          "title": "Msg",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "loc",
+        "msg",
+        "type"
+      ],
+      "title": "FieldError",
+      "type": "object"
+    },
+    "LessonDocument": {
+      "additionalProperties": false,
+      "description": "A lesson as stored and authored: canonical, unshuffled, with its answer key.",
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "language": {
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+          "title": "Language",
+          "type": "string"
+        },
+        "blocks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "explanation": "#/$defs/ExplanationBlock",
+                "multiple_choice": "#/$defs/MultipleChoiceExercise"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ExplanationBlock"
+              },
+              {
+                "$ref": "#/$defs/MultipleChoiceExercise"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Blocks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "language",
+        "blocks"
+      ],
+      "title": "LessonDocument",
+      "type": "object"
+    },
+    "LessonPublic": {
+      "additionalProperties": false,
+      "description": "A lesson as the browser receives it: no answer key, no solutions.",
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "language": {
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+          "title": "Language",
+          "type": "string"
+        },
+        "blocks": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "explanation": "#/$defs/ExplanationBlock",
+                "multiple_choice": "#/$defs/MultipleChoiceExercisePublic"
+              },
+              "propertyName": "type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ExplanationBlock"
+              },
+              {
+                "$ref": "#/$defs/MultipleChoiceExercisePublic"
+              }
+            ]
+          },
+          "title": "Blocks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "language",
+        "blocks"
+      ],
+      "title": "LessonPublic",
+      "type": "object"
+    },
+    "MultipleChoiceAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "multiple_choice",
+          "title": "Type",
+          "type": "string"
+        },
+        "option_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Option Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "option_id"
+      ],
+      "title": "MultipleChoiceAnswer",
+      "type": "object"
+    },
+    "MultipleChoiceExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "multiple_choice",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/ChoiceOption"
+          },
+          "maxItems": 8,
+          "minItems": 2,
+          "title": "Options",
+          "type": "array"
+        },
+        "correct_option_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Correct Option Id",
+          "type": "string"
+        },
+        "solution_explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solution Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "options",
+        "correct_option_id"
+      ],
+      "title": "MultipleChoiceExercise",
+      "type": "object"
+    },
+    "MultipleChoiceExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "multiple_choice",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/ChoiceOption"
+          },
+          "title": "Options",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "options"
+      ],
+      "title": "MultipleChoiceExercisePublic",
+      "type": "object"
+    },
+    "MultipleChoiceSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "multiple_choice",
+          "title": "Type",
+          "type": "string"
+        },
+        "option_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Option Id",
+          "type": "string"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "option_id",
+        "explanation"
+      ],
+      "title": "MultipleChoiceSolution",
+      "type": "object"
+    },
+    "ValidationReport": {
+      "properties": {
+        "valid": {
+          "title": "Valid",
+          "type": "boolean"
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/$defs/FieldError"
+          },
+          "title": "Errors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "valid",
+        "errors"
+      ],
+      "title": "ValidationReport",
+      "type": "object"
+    }
+  },
+  "title": "Myteacher lesson schema"
+}

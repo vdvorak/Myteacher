@@ -1,0 +1,17 @@
+.lesson {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.lesson-title {
+  margin: 0;
+  font-size: var(--font-size-title);
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown > :last-child {
+  margin-bottom: 0;
+}

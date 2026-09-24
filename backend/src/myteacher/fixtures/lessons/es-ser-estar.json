@@ -1,0 +1,24 @@
+{
+  "id": "es-ser-estar",
+  "title": "Ser, or estar?",
+  "language": "es",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "Spanish has two verbs for *to be*.\n\n- **ser** describes what something *is*: identity, origin, profession, lasting traits. *Soy de Praga.*\n- **estar** describes how or where something *is right now*: location, mood, temporary states. *Estoy cansado.*\n\nA quick test: if the answer to \"where?\" or \"how is it at the moment?\" fits, reach for **estar**."
+    },
+    {
+      "type": "multiple_choice",
+      "id": "location",
+      "prompt": "Madrid ___ en el centro de España.",
+      "options": [
+        { "id": "es", "text": "es" },
+        { "id": "esta", "text": "está" },
+        { "id": "son", "text": "son" },
+        { "id": "estan", "text": "están" }
+      ],
+      "correct_option_id": "esta",
+      "solution_explanation": "Location takes **estar**, even for a city that never moves: *Madrid está en el centro.*"
+    }
+  ]
+}

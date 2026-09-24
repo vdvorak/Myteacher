@@ -1,0 +1,75 @@
+/*
+ * The token layer: the only place colours, fonts and spacing are defined.
+ * Components reference these custom properties and nothing else (enforced by tokens.test.ts).
+ * A teacher's theme (slice 6) will override these values and only these.
+ */
+:root {
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-size-small: 0.875rem;
+  --font-size-body: 1rem;
+  --font-size-title: 1.5rem;
+  --line-height-body: 1.55;
+  --letter-spacing-caption: 0.05em;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius: 0.5rem;
+  --border-width: 1px;
+  --content-width: 42rem;
+
+  --color-background: #fbfaf7;
+  --color-surface: #ffffff;
+  --color-text: #1d1f23;
+  --color-text-muted: #5b6069;
+  --color-border: #d9d6cf;
+  --color-accent: #2f5fd0;
+  --color-accent-text: #ffffff;
+  --color-focus: #2f5fd0;
+  --color-correct: #1f7a45;
+  --color-correct-surface: #e6f4ec;
+  --color-incorrect: #b3261e;
+  --color-incorrect-surface: #fbeaea;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-background: #16181c;
+    --color-surface: #1f2227;
+    --color-text: #e8e6e1;
+    --color-text-muted: #a3a8b0;
+    --color-border: #3a3e45;
+    --color-accent: #8fb0ff;
+    --color-accent-text: #0f1a33;
+    --color-focus: #8fb0ff;
+    --color-correct: #7fd3a1;
+    --color-correct-surface: #1c3326;
+    --color-incorrect: #f2a39d;
+    --color-incorrect-surface: #3a1f1d;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-background: #16181c;
+  --color-surface: #1f2227;
+  --color-text: #e8e6e1;
+  --color-text-muted: #a3a8b0;
+  --color-border: #3a3e45;
+  --color-accent: #8fb0ff;
+  --color-accent-text: #0f1a33;
+  --color-focus: #8fb0ff;
+  --color-correct: #7fd3a1;
+  --color-correct-surface: #1c3326;
+  --color-incorrect: #f2a39d;
+  --color-incorrect-surface: #3a1f1d;
+
+  color-scheme: dark;
+}
