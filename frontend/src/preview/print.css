@@ -96,6 +96,11 @@
     content: '○';
   }
 
+  .passage,
+  .footnotes li {
+    break-inside: avoid;
+  }
+
   .answer-key {
     break-before: page;
     border-top: none;

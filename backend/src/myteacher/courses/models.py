@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from sqlalchemy import JSON, ForeignKey, Index, LargeBinary, String, Text, text
+from sqlalchemy import JSON, ForeignKey, Index, LargeBinary, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from myteacher.persistence import Base, InstanceOwned, UTCDateTime
@@ -250,4 +250,50 @@ class ConceptSuccession(InstanceOwned, Base):
         ForeignKey("concept.id", ondelete="CASCADE"), index=True
     )
     kind: Mapped[str] = mapped_column(String(10))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+# The kinds of reference document the assistant writes.
+ReferenceKind = Literal["vocabulary", "grammar", "glossary"]
+
+
+class ReferenceDocument(InstanceOwned, Base):
+    """A printable summary of a topic, such as a vocabulary sheet, generated from its approved
+    concept map and the course sources. Its text lives in versions; each edit adds one."""
+
+    __tablename__ = "reference_document"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("topic.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    # The generation that wrote the first version, which the teacher's reactions are about.
+    generation_id: Mapped[int | None] = mapped_column(ForeignKey("generation_record.id"))
+    # The latest generation job; only its result lands.
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # Set when the teacher discarded it; it is then gone from the topic.
+    discarded_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+
+
+class ReferenceDocumentVersion(InstanceOwned, Base):
+    """One version of a reference document's text: the generated one, then each edit."""
+
+    __tablename__ = "reference_document_version"
+    __table_args__ = (UniqueConstraint("document_id", "number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("reference_document.id", ondelete="CASCADE"), index=True
+    )
+    # 1 for the generated text, then one more per edit.
+    number: Mapped[int]
+    title: Mapped[str] = mapped_column(String(200))
+    # [{"markdown": str, "citations": [{"source_id": int, "location": str}]}]; a passage with
+    # no citation is unsourced.
+    passages: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    # The generation that wrote it; None for the teacher's edits.
+    generation_id: Mapped[int | None] = mapped_column(ForeignKey("generation_record.id"))
+    author_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)

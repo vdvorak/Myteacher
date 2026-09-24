@@ -11,6 +11,10 @@ import type { LessonPublic } from '../generated/lesson'
 import { LessonPlayer } from '../lesson/LessonPlayer'
 import { fakeApi, sampleLesson, withI18n } from '../lesson/testing'
 import { PreviewPage } from './PreviewPage'
+import { createMemoryHistory } from '@solidjs/router'
+import { App } from '../App'
+import { fakeApis } from '../api/testing'
+import { cheatSheet, fakeDocumentsApi } from '../documents/testing'
 
 interface Rule {
   selector: string
@@ -225,5 +229,24 @@ describe('the answer key page', () => {
     arrive(Response.json(answerKey))
     await screen.findByRole('region', { name: 'Answer key' })
     expect(screen.getByRole('button', { name: 'Print' })).toBeEnabled()
+  })
+})
+
+describe('printing a reference document', () => {
+  it('hides the controls and keeps the footnotes and the unsourced marks', async () => {
+    const history = createMemoryHistory()
+    history.set({ value: '/preview/courses/1/topics/2/documents/31' })
+    const apis = fakeApis({ documents: fakeDocumentsApi({ documents: { 2: [cheatSheet] } }) })
+    render(withI18n(() => <App apis={apis} history={history} />, 'en'))
+
+    await screen.findByRole('heading', { level: 1, name: 'Pretérito indefinido' })
+
+    const controls = [...screen.getAllByRole('button'), ...screen.queryAllByRole('combobox')]
+    expect(controls.length).toBeGreaterThan(0)
+    for (const control of controls) expect(hiddenInPrint(control)).toBe(true)
+    expect(hiddenInPrint(screen.getByText('Unsourced'))).toBe(false)
+    expect(hiddenInPrint(screen.getByText(/rests on no source/))).toBe(false)
+    expect(hiddenInPrint(screen.getByRole('list', { name: 'Sources' }))).toBe(false)
+    for (const passage of screen.getAllByRole('article')) expect(hiddenInPrint(passage)).toBe(false)
   })
 })

@@ -2,5 +2,6 @@
   "_comment": "The current prompt version of each task kind. A new version is a new file next to the old one; the old file stays so that generation records keep pointing at what produced them.",
   "concept_map": "v1",
   "course_interview": "v1",
+  "reference_document": "v1",
   "source_ocr": "v1"
 }

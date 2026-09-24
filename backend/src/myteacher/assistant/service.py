@@ -98,7 +98,33 @@ async def generate[Out: BaseModel](
     course_id: int | None = None,
     attachments: Sequence[BinaryContent] = (),
 ) -> Out:
-    """Run `task` on the teacher's key and record it; raises `AssistantFailed`.
+    """Run `task` on the teacher's key and record it; raises `AssistantFailed`. See
+    `generate_recorded`."""
+    output, _ = await generate_recorded(
+        ctx,
+        db,
+        task,
+        teacher=teacher,
+        inputs=inputs,
+        course_id=course_id,
+        attachments=attachments,
+    )
+    return output
+
+
+async def generate_recorded[Out: BaseModel](
+    ctx: AssistantContext,
+    db: InstanceSession,
+    task: Task[Out],
+    *,
+    teacher: Account,
+    inputs: dict[str, Any],
+    course_id: int | None = None,
+    attachments: Sequence[BinaryContent] = (),
+) -> tuple[Out, int]:
+    """Run `task` on the teacher's key and record it; returns the output and the id of its
+    generation record, for content whose reception is recorded against it. Raises
+    `AssistantFailed`.
 
     `attachments` (a document or image to read) go to the model after the inputs; the record
     holds only the inputs, so a caller describes an attachment there without its bytes.
@@ -158,7 +184,7 @@ async def generate[Out: BaseModel](
                 record.input_tokens, record.output_tokens = _usage(messages)
         record.status = "succeeded"
         record.output = result.output.model_dump(mode="json", exclude_unset=True)
-        return result.output
+        output = result.output
     except AssistantFailed as failure:
         record.error_kind = failure.kind
         raise
@@ -167,3 +193,4 @@ async def generate[Out: BaseModel](
         with open_session(db.get_bind(), db.instance_id) as own:
             own.add(record)
             own.commit()
+    return output, record.id

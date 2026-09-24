@@ -2,6 +2,7 @@ import { A, useParams } from '@solidjs/router'
 import { createResource, createSignal, For, Index, Show } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
+import { DocumentsSection } from '../documents/DocumentsSection'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
@@ -241,6 +242,14 @@ function ConceptMapDetail() {
           }}
         </Show>
       </section>
+      <Show when={loaded() && course()}>
+        <DocumentsSection
+          courseId={courseId()}
+          topicId={topicId()}
+          canEdit={canEdit()}
+          mapApproved={map()?.state === 'approved'}
+        />
+      </Show>
     </section>
   )
 }

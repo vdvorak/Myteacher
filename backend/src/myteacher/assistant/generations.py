@@ -1,7 +1,7 @@
 """The generation record: one row per assistant call, whatever its outcome (ADR 0010)."""
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import JSON, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -40,4 +40,26 @@ class GenerationRecord(InstanceOwned, Base):
     input_tokens: Mapped[int] = mapped_column(default=0)
     output_tokens: Mapped[int] = mapped_column(default=0)
     duration_ms: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+# What a teacher did with generated content: kept it as it was, edited it, or discarded it.
+ReactionKind = Literal["kept", "edited", "discarded"]
+
+
+class GenerationReaction(InstanceOwned, Base):
+    """A teacher's reaction to what one generation produced: the quality signal of ADR 0010.
+
+    One row per reaction, so the history of a generation's reception is kept; it must outlive
+    any later pruning of generation records' inputs and outputs.
+    """
+
+    __tablename__ = "generation_reaction"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    generation_id: Mapped[int] = mapped_column(ForeignKey("generation_record.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
+    # What the reaction concerned, such as the version an edit produced.
+    detail: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)

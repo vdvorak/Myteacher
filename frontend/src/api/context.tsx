@@ -3,6 +3,7 @@ import { httpAdminApi, type AdminApi } from '../admin/api'
 import { httpClassesApi, type ClassesApi } from '../classes/api'
 import { httpConceptsApi, type ConceptsApi } from '../concepts/api'
 import { httpCoursesApi, type CoursesApi } from '../courses/api'
+import { httpDocumentsApi, type DocumentsApi } from '../documents/api'
 import { httpJobsApi, type JobsApi } from '../jobs/api'
 import { httpAuthApi, type AuthApi } from '../auth/api'
 import { httpSettingsApi, type SettingsApi } from '../settings/api'
@@ -19,6 +20,7 @@ export interface Apis {
   courses: CoursesApi
   sources: SourcesApi
   concepts: ConceptsApi
+  documents: DocumentsApi
   jobs: JobsApi
 }
 
@@ -31,6 +33,7 @@ export const httpApis: Apis = {
   courses: httpCoursesApi,
   sources: httpSourcesApi,
   concepts: httpConceptsApi,
+  documents: httpDocumentsApi,
   jobs: httpJobsApi,
 }
 

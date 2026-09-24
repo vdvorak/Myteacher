@@ -19,6 +19,7 @@ from myteacher.api import (
     jobs,
     lessons,
     providers,
+    reference_documents,
     sources,
     students,
     topics,
@@ -88,6 +89,7 @@ def create_app(
     app.include_router(courses.router, prefix="/api")
     app.include_router(topics.router, prefix="/api")
     app.include_router(concept_maps.router, prefix="/api")
+    app.include_router(reference_documents.router, prefix="/api")
     app.include_router(access.router, prefix="/api")
     app.include_router(sources.router, prefix="/api")
     app.include_router(interview.router, prefix="/api")
