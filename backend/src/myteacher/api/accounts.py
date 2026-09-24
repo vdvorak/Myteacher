@@ -8,7 +8,7 @@ from myteacher.accounts.models import Account
 from myteacher.api.deps import Actor, Db, ensure
 from myteacher.mail.templates import Language
 from myteacher.persistence import Instance, InstanceSession
-from myteacher.policy import is_account_itself
+from myteacher.policy import is_account_itself, is_teacher
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -17,7 +17,8 @@ DigestTime = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", examples
 
 class AccountSettings(BaseModel):
     language: Language | None
-    digest_time: DigestTime
+    # None for students, who get no digest.
+    digest_time: DigestTime | None
     digest_time_is_default: bool
 
 
@@ -47,6 +48,10 @@ def _own_account(db: InstanceSession, actor: Account, account_id: int) -> Accoun
 
 
 def _settings_of(db: InstanceSession, account: Account) -> AccountSettings:
+    if not is_teacher(account):
+        return AccountSettings(
+            language=account.language, digest_time=None, digest_time_is_default=False
+        )
     default = db.get_one(Instance, db.instance_id).default_digest_time
     return AccountSettings(
         language=account.language,
@@ -65,6 +70,9 @@ def change_settings(
     account_id: int, change: AccountSettingsChange, db: Db, actor: Actor
 ) -> AccountSettings:
     account = _own_account(db, actor, account_id)
+    if "digest_time" in change.model_fields_set:
+        # The digest tells a teacher what waits for review; students have none.
+        ensure(is_teacher(account))
     if "language" in change.model_fields_set:
         account.language = change.language
     if "digest_time" in change.model_fields_set:

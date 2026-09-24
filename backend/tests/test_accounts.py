@@ -119,7 +119,7 @@ def test_who_am_i_returns_the_signed_in_account(app_client):
 
     assert me.status_code == 200
     assert me.json() == signed_in
-    assert set(me.json()) == {"id", "email", "kind", "roles", "language"}
+    assert set(me.json()) == {"id", "email", "name", "kind", "roles", "language"}
 
 
 def test_who_am_i_refuses_anonymous_requests(app_client):

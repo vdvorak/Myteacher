@@ -17,6 +17,8 @@ class Account(InstanceOwned, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(320))
+    # The student's name as their teachers know it; None for teachers.
+    name: Mapped[str | None] = mapped_column(String(200))
     kind: Mapped[str] = mapped_column(String(20))
     # None until the account's invitation is accepted.
     password_hash: Mapped[str | None]

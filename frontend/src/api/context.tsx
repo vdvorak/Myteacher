@@ -2,15 +2,22 @@ import { createContext, useContext, type ParentProps } from 'solid-js'
 import { httpAdminApi, type AdminApi } from '../admin/api'
 import { httpAuthApi, type AuthApi } from '../auth/api'
 import { httpSettingsApi, type SettingsApi } from '../settings/api'
+import { httpStudentsApi, type StudentsApi } from '../students/api'
 
 /** Every backend the pages talk to; tests replace them with fakes. */
 export interface Apis {
   auth: AuthApi
   admin: AdminApi
   settings: SettingsApi
+  students: StudentsApi
 }
 
-export const httpApis: Apis = { auth: httpAuthApi, admin: httpAdminApi, settings: httpSettingsApi }
+export const httpApis: Apis = {
+  auth: httpAuthApi,
+  admin: httpAdminApi,
+  settings: httpSettingsApi,
+  students: httpStudentsApi,
+}
 
 const ApiContext = createContext<Apis>(httpApis)
 

@@ -3,16 +3,15 @@ import { render, screen } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '../App'
-import { fakeAdminApi } from '../admin/testing'
+import { fakeApis } from '../api/testing'
 import type { Locale } from '../i18n/messages'
 import { withI18n } from '../lesson/testing'
-import { fakeSettingsApi } from '../settings/testing'
 import { fakeAuthApi } from './testing'
 
 function renderApp(path: string, auth = fakeAuthApi(), locale: Locale = 'en') {
   const history = createMemoryHistory()
   history.set({ value: path })
-  render(withI18n(() => <App apis={{ auth, admin: fakeAdminApi(), settings: fakeSettingsApi() }} history={history} />, locale))
+  render(withI18n(() => <App apis={fakeApis({ auth })} history={history} />, locale))
   return { auth, history }
 }
 

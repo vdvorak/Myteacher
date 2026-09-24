@@ -3,7 +3,7 @@ import { render, screen } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '../App'
-import { fakeAdminApi } from '../admin/testing'
+import { fakeApis } from '../api/testing'
 import type { Account } from '../auth/api'
 import { admin, fakeAuthApi } from '../auth/testing'
 import { withI18n } from '../lesson/testing'
@@ -14,7 +14,7 @@ function renderApp(path: string, options: { signedIn?: Account; settings?: Retur
   history.set({ value: path })
   const settings = options.settings ?? fakeSettingsApi()
   const auth = fakeAuthApi({ signedIn: options.signedIn })
-  render(withI18n(() => <App apis={{ auth, admin: fakeAdminApi(), settings }} history={history} />, 'en'))
+  render(withI18n(() => <App apis={fakeApis({ auth, settings })} history={history} />, 'en'))
   return { settings, auth }
 }
 

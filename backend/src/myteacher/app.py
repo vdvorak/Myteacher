@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine
 
 from myteacher.accounts import service
-from myteacher.api import accounts, admin, auth, lessons, providers
+from myteacher.api import accounts, admin, auth, lessons, providers, students
 from myteacher.assistant.providers import ModelFactory, pydantic_ai_model
 from myteacher.db import migrate
 from myteacher.mail import Sender, SmtpSender
@@ -52,6 +52,7 @@ def create_app(
     app.include_router(admin.router, prefix="/api")
     app.include_router(accounts.router, prefix="/api")
     app.include_router(providers.router, prefix="/api")
+    app.include_router(students.router, prefix="/api")
 
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
     def unknown_api_route(path: str) -> None:

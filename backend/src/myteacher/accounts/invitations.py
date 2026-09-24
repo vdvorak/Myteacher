@@ -43,8 +43,9 @@ def issue(db: InstanceSession, account: Account, *, now: datetime, lifetime: tim
     return token
 
 
-def revoke_open(db: InstanceSession, account: Account, *, now: datetime) -> None:
-    db.execute(
+def revoke_open(db: InstanceSession, account: Account, *, now: datetime) -> int:
+    """Void the account's open invitation links; returns how many there were."""
+    revoked = db.execute(
         update(Invitation)
         .where(
             Invitation.account_id == account.id,
@@ -53,6 +54,7 @@ def revoke_open(db: InstanceSession, account: Account, *, now: datetime) -> None
         )
         .values(revoked_at=now)
     )
+    return revoked.rowcount  # type: ignore[attr-defined]
 
 
 def inspect(

@@ -18,6 +18,8 @@ import { PreviewPage } from './preview/PreviewPage'
 import { HomePage } from './shell/HomePage'
 import { Shell } from './shell/Shell'
 import { SettingsPage } from './settings/SettingsPage'
+import { StudentPage } from './students/StudentPage'
+import { StudentsPage } from './students/StudentsPage'
 
 function decodeSegment(segment: string): string {
   try {
@@ -44,6 +46,8 @@ const routes = () => (
     <Route path="/" component={Shell}>
       <Route path="/" component={HomePage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/students" component={StudentsPage} />
+      <Route path="/students/:studentId" component={StudentPage} />
       <Route path="/admin" component={AdminPage} />
     </Route>
     <Route path="*" component={() => <Navigate href="/" />} />

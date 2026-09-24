@@ -4,6 +4,7 @@ import type { AcceptResult, Account, AuthApi, InvitationState, SignInResult } fr
 export const admin: Account = {
   id: 1,
   email: 'admin@skola.example',
+  name: null,
   kind: 'teacher',
   roles: ['teacher', 'admin'],
   language: null,
@@ -12,15 +13,29 @@ export const admin: Account = {
 export const invitedTeacher: Account = {
   id: 2,
   email: 'novak@skola.example',
+  name: null,
   kind: 'teacher',
   roles: ['teacher'],
   language: 'cs',
+}
+
+export const student: Account = {
+  id: 10,
+  email: 'jana@skola.example',
+  name: 'Jana Veselá',
+  kind: 'student',
+  roles: ['student'],
+  language: 'en',
 }
 
 /** A stand-in for the auth endpoints with one account and its password. */
 export function fakeAuthApi(
   options: {
     signedIn?: Account
+    /** The account the password signs in to; the admin unless given. */
+    account?: Account
+    /** The account the invitation behind 'the-token' belongs to; a teacher unless given. */
+    invited?: Account
     password?: string
     inactive?: boolean
     meFails?: boolean
@@ -31,6 +46,8 @@ export function fakeAuthApi(
   } = {},
 ) {
   let current: Account | null = options.signedIn ?? null
+  const account = options.account ?? admin
+  const invited = options.invited ?? invitedTeacher
   const password = options.password ?? 'correct horse battery'
   let used = false
   let resetUsed = false
@@ -48,17 +65,17 @@ export function fakeAuthApi(
       return current
     }),
     signIn: vi.fn(async (email: string, given: string): Promise<SignInResult> => {
-      if (email.trim().toLowerCase() !== admin.email || given !== password) return 'invalid'
+      if (email.trim().toLowerCase() !== account.email || given !== password) return 'invalid'
       if (options.inactive) return 'inactive'
-      current = admin
-      return admin
+      current = account
+      return account
     }),
     signOut: vi.fn(async () => {
       current = null
     }),
     checkInvitation: vi.fn(async (token: string) => {
       const state = invitationState(token)
-      return { state, email: state === 'valid' ? invitedTeacher.email : null }
+      return { state, email: state === 'valid' ? invited.email : null }
     }),
     requestReset: vi.fn(async (_email: string) => {}),
     checkReset: vi.fn(async (token: string) => ({ state: resetState(token), email: null })),
@@ -75,8 +92,8 @@ export function fakeAuthApi(
       if (state !== 'valid') return state
       if (options.inactive) return 'inactive'
       used = true
-      current = invitedTeacher
-      return invitedTeacher
+      current = invited
+      return invited
     }),
   } satisfies AuthApi
 }

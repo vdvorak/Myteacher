@@ -158,6 +158,14 @@ def list_teachers(db: InstanceSession) -> list[Account]:
     )
 
 
+def list_students(db: InstanceSession) -> list[Account]:
+    return list(
+        db.scalars(
+            select(Account).where(Account.kind == "student").order_by(Account.name, Account.email)
+        )
+    )
+
+
 def create_invited_account(
     db: InstanceSession,
     *,
@@ -166,11 +174,13 @@ def create_invited_account(
     language: str,
     now: datetime,
     actor: Account,
+    name: str | None = None,
 ) -> Account:
     if find_account_by_email(db, email) is not None:
         raise EmailTaken()
     account = create_account(db, email=email, kind=kind, now=now)
     account.language = language
+    account.name = name
     record_event(db, "account_created", at=now, actor=actor, subject=account)
     return account
 
@@ -204,12 +214,46 @@ def change_teacher(
         teacher.is_admin = is_admin
         kind = "admin_granted" if is_admin else "admin_revoked"
         record_event(db, kind, at=now, actor=actor, subject=teacher)
-    if active != teacher.active:
-        teacher.active = active
-        if not active:
-            close_all_auth_sessions(db, teacher)
-        kind = "account_activated" if active else "account_deactivated"
-        record_event(db, kind, at=now, actor=actor, subject=teacher)
+    set_active(db, teacher, active, actor=actor, now=now)
+
+
+def set_active(
+    db: InstanceSession, account: Account, active: bool, *, actor: Account, now: datetime
+) -> None:
+    """Deactivate or reactivate; deactivation ends the account's sessions and keeps its data."""
+    if active == account.active:
+        return
+    account.active = active
+    if not active:
+        close_all_auth_sessions(db, account)
+    kind = "account_activated" if active else "account_deactivated"
+    record_event(db, kind, at=now, actor=actor, subject=account)
+
+
+def change_basics(
+    db: InstanceSession,
+    account: Account,
+    *,
+    actor: Account,
+    now: datetime,
+    name: str | None = None,
+    email: str | None = None,
+    language: str | None = None,
+) -> None:
+    """Change the name, email or language others know the account by; None keeps a field."""
+    if email is not None:
+        email = check_email(email)
+        holder = find_account_by_email(db, email)
+        if holder is not None and holder.id != account.id:
+            raise EmailTaken()
+    changes = {"name": name, "email": email, "language": language}
+    changed = False
+    for field, value in changes.items():
+        if value is not None and value != getattr(account, field):
+            setattr(account, field, value)
+            changed = True
+    if changed:
+        record_event(db, "account_changed", at=now, actor=actor, subject=account)
 
 
 def close_all_auth_sessions(db: InstanceSession, account: Account) -> None:

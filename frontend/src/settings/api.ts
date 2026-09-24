@@ -3,7 +3,8 @@ import { ApiError } from '../lesson/api'
 
 export interface AccountSettings {
   language: Locale | null
-  digest_time: string
+  /** Null for students, who get no digest. */
+  digest_time: string | null
   digest_time_is_default: boolean
 }
 

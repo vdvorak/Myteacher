@@ -1,7 +1,6 @@
 """Email templates in every interface language, chosen by the recipient's language.
 
 Each template is a subject and a plain-text body per language, with `{name}` placeholders.
-Later tickets add invitation and password reset templates here.
 """
 
 from typing import Literal
@@ -43,6 +42,26 @@ TEMPLATES: dict[str, dict[Language, tuple[str, str]]] = {
             "a teacher account has been created for you in Myteacher. Set your password here:\n\n"
             "{link}\n\n"
             "The link works for {days} days and only once.\n",
+        ),
+    },
+    "student_invitation": {
+        "cs": (
+            "Myteacher: pozvánka pro studenta",
+            "Dobrý den,\n\n"
+            "učitel vám založil studentský účet v Myteacher. Heslo si nastavíte na tomto odkazu, "
+            "klidně i z telefonu:\n\n"
+            "{link}\n\n"
+            "Odkaz platí {days} dní a lze ho použít jen jednou. Pokud nefunguje, požádejte "
+            "učitele o nový.\n",
+        ),
+        "en": (
+            "Myteacher: your student invitation",
+            "Hello,\n\n"
+            "your teacher has created a student account for you in Myteacher. Set your password "
+            "here, on your phone if you like:\n\n"
+            "{link}\n\n"
+            "The link works for {days} days and only once. If it does not work, ask your teacher "
+            "for a new one.\n",
         ),
     },
     "test_email": {

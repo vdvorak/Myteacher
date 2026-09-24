@@ -381,3 +381,15 @@ def test_account_events_are_in_the_audit_log(admin, sender):
         ("account_deactivated", admin_id, tid),
         ("account_activated", admin_id, tid),
     ]
+
+
+def test_no_invitation_is_sent_to_a_deactivated_teacher(admin, sender):
+    teacher = create_teacher(admin).json()
+    admin.patch(f"/api/admin/teachers/{teacher['id']}", json={"active": False})
+    sent = len(sender.sent)
+
+    response = admin.post(f"/api/admin/teachers/{teacher['id']}/invitation")
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "account_inactive"}
+    assert len(sender.sent) == sent

@@ -9,7 +9,7 @@ import { ProviderKeys } from './ProviderKeys'
 
 type Outcome = 'saved' | 'failed' | null
 
-/** The signed-in account's own settings: interface language and daily digest time. */
+/** The signed-in account's own settings: interface language, and a teacher's digest time. */
 export function SettingsPage() {
   const { t, locale } = useI18n()
   const session = useSession()
@@ -23,7 +23,7 @@ export function SettingsPage() {
 
   createEffect(() => {
     const loaded = settings()
-    if (loaded) setDigestTime(loaded.digest_time)
+    if (loaded) setDigestTime(loaded.digest_time ?? '')
   })
 
   async function run(action: () => Promise<void>) {
@@ -66,40 +66,42 @@ export function SettingsPage() {
                 </select>
               </label>
             </div>
-            <form
-              class="settings-form"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void changeDigestTime(digestTime())
-              }}
-            >
-              <label>
-                {t('settings.digestTime')}
-                <input
-                  type="time"
-                  required
-                  value={digestTime()}
-                  aria-describedby="digest-time-note"
-                  onInput={(event) => setDigestTime(event.currentTarget.value)}
-                />
-              </label>
-              <div id="digest-time-note" class="settings-note">
-                <p>{t('settings.digestTimeNote')}</p>
-                <Show when={loaded().digest_time_is_default}>
-                  <p>{t('settings.digestTimeIsDefault')}</p>
-                </Show>
-              </div>
-              <div class="settings-actions">
-                <button type="submit" disabled={busy()}>
-                  {t('settings.saveDigestTime')}
-                </button>
-                <Show when={!loaded().digest_time_is_default}>
-                  <button type="button" disabled={busy()} onClick={() => changeDigestTime(null)}>
-                    {t('settings.useDefaultDigestTime')}
+            <Show when={loaded().digest_time !== null}>
+              <form
+                class="settings-form"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void changeDigestTime(digestTime())
+                }}
+              >
+                <label>
+                  {t('settings.digestTime')}
+                  <input
+                    type="time"
+                    required
+                    value={digestTime()}
+                    aria-describedby="digest-time-note"
+                    onInput={(event) => setDigestTime(event.currentTarget.value)}
+                  />
+                </label>
+                <div id="digest-time-note" class="settings-note">
+                  <p>{t('settings.digestTimeNote')}</p>
+                  <Show when={loaded().digest_time_is_default}>
+                    <p>{t('settings.digestTimeIsDefault')}</p>
+                  </Show>
+                </div>
+                <div class="settings-actions">
+                  <button type="submit" disabled={busy()}>
+                    {t('settings.saveDigestTime')}
                   </button>
-                </Show>
-              </div>
-            </form>
+                  <Show when={!loaded().digest_time_is_default}>
+                    <button type="button" disabled={busy()} onClick={() => changeDigestTime(null)}>
+                      {t('settings.useDefaultDigestTime')}
+                    </button>
+                  </Show>
+                </div>
+              </form>
+            </Show>
           </>
         )}
       </Show>

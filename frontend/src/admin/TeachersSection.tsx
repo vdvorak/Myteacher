@@ -13,6 +13,7 @@ type Outcome =
 const conflictMessages: Record<Conflict['reason'], MessageKey> = {
   email_taken: 'teachers.emailTaken',
   last_active_admin: 'teachers.lastAdmin',
+  account_inactive: 'accounts.inactiveNotInvited',
   already_accepted: 'teachers.alreadyAccepted',
 }
 

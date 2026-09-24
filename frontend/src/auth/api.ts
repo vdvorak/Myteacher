@@ -4,6 +4,8 @@ import { ApiError } from '../lesson/api'
 export interface Account {
   id: number
   email: string
+  /** The student's name; null for teachers. */
+  name: string | null
   kind: 'teacher' | 'student'
   roles: string[]
   /** Chosen interface language; null until chosen. */

@@ -31,6 +31,8 @@ class SignIn(BaseModel):
 class Me(BaseModel):
     id: int
     email: str
+    # The student's name; None for teachers.
+    name: str | None
     kind: Literal["teacher", "student"]
     roles: list[str]
     language: Language | None
@@ -40,6 +42,7 @@ class Me(BaseModel):
         return cls(
             id=account.id,
             email=account.email,
+            name=account.name,
             kind=account.kind,
             roles=roles(account),
             language=account.language,
