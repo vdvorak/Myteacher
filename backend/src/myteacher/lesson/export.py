@@ -31,6 +31,7 @@ from myteacher.lesson.schema import (
     SpanHighlightAnswer,
     TableFillAnswer,
     TokenOrderingAnswer,
+    TokenSelectionAnswer,
     TranslationAnswer,
 )
 
@@ -42,6 +43,7 @@ MODELS = [
     (ClozeAnswer, "validation"),
     (MatchingAnswer, "validation"),
     (TokenOrderingAnswer, "validation"),
+    (TokenSelectionAnswer, "validation"),
     (FreeTextAnswer, "validation"),
     (TranslationAnswer, "validation"),
     (SpanHighlightAnswer, "validation"),

@@ -264,3 +264,48 @@
 .exercise-result[data-verdict='pending'] .exercise-verdict {
   color: var(--color-text-muted);
 }
+
+.selection-text {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: var(--space-2);
+}
+
+.selection-solution {
+  margin: 0;
+}
+
+.selection-space {
+  width: var(--space-3);
+}
+
+/* Large enough for a finger, even for a single letter. */
+.selection-token {
+  min-width: calc(var(--space-8) + var(--space-3));
+  min-height: calc(var(--space-8) + var(--space-3));
+  padding: var(--space-1) var(--space-2);
+  margin-right: var(--border-width);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.selection-token[aria-pressed='true'] {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.selection-token[data-state='correct'] {
+  border-color: var(--color-correct);
+  background: var(--color-correct-surface);
+  color: var(--color-text);
+}
+
+.selection-token[data-state='incorrect'] {
+  border-color: var(--color-incorrect);
+  background: var(--color-incorrect-surface);
+  color: var(--color-text);
+}

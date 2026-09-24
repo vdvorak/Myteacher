@@ -29,7 +29,15 @@ export interface AnswerKeyEntry {
    * Null for open types and for types without an assessor in this phase.
    */
   solution:
-    (MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution | MatchingSolution | TokenOrderingSolution) | null
+    | (
+        | TokenSelectionSolution
+        | MultipleChoiceSolution
+        | ShortAnswerSolution
+        | ClozeSolution
+        | MatchingSolution
+        | TokenOrderingSolution
+      )
+    | null
   /**
    * The rubric of an open exercise.
    */
@@ -38,6 +46,16 @@ export interface AnswerKeyEntry {
    * A translation's reference.
    */
   model_answer?: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TokenSelectionSolution".
+ */
+export interface TokenSelectionSolution {
+  type: 'token_selection'
+  item_id: string
+  selected: number[]
+  explanation: string | null
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -153,7 +171,15 @@ export interface AssessmentResult {
    * Withheld (null) for a wrong answer the student may still retry.
    */
   solution:
-    (MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution | MatchingSolution | TokenOrderingSolution) | null
+    | (
+        | TokenSelectionSolution
+        | MultipleChoiceSolution
+        | ShortAnswerSolution
+        | ClozeSolution
+        | MatchingSolution
+        | TokenOrderingSolution
+      )
+    | null
 }
 /**
  * Whether one part of an exercise was right: a cloze gap, a matched left item, or a token
@@ -481,6 +507,7 @@ export interface LessonDocument {
       | ClozeExercise
       | MatchingExercise
       | TokenOrderingExercise
+      | TokenSelectionExercise
       | FreeTextExercise
       | TranslationExercise
       | SpanHighlightExercise
@@ -497,6 +524,7 @@ export interface LessonDocument {
       | ClozeExercise
       | MatchingExercise
       | TokenOrderingExercise
+      | TokenSelectionExercise
       | FreeTextExercise
       | TranslationExercise
       | SpanHighlightExercise
@@ -674,6 +702,61 @@ export interface OrderToken {
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TokenSelectionExercise".
+ */
+export interface TokenSelectionExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
+  type: 'token_selection'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  granularity: 'letter' | 'syllable' | 'word'
+  /**
+   * The item set; the second round asks another.
+   *
+   * @minItems 1
+   * @maxItems 20
+   */
+  items: [SelectionItem, ...SelectionItem[]]
+  /**
+   * The item asked now; the first when not set.
+   */
+  active_item?: string | null
+  max_selections?: number | null
+  /**
+   * Score the overlap of the selected and expected sets.
+   */
+  partial_credit?: boolean
+  hint?: string | null
+  solution_explanation?: string | null
+}
+/**
+ * One text of the item set, with the tokens the student should select.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "SelectionItem".
+ */
+export interface SelectionItem {
+  id: string
+  text: string
+  /**
+   * Explicit boundaries; required for syllables, derived otherwise.
+   */
+  tokens?: string[] | null
+  /**
+   * Indices of the tokens to select.
+   *
+   * @minItems 1
+   */
+  expected: [number, ...number[]]
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "TranslationExercise".
  */
 export interface TranslationExercise {
@@ -825,6 +908,7 @@ export interface LessonPublic {
     | ClozeExercisePublic
     | MatchingExercisePublic
     | TokenOrderingExercisePublic
+    | TokenSelectionExercisePublic
     | FreeTextExercisePublic
     | TranslationExercisePublic
     | SpanHighlightExercisePublic
@@ -908,6 +992,35 @@ export interface TokenOrderingExercisePublic {
    */
   tokens: MatchItem[]
   hint: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TokenSelectionExercisePublic".
+ */
+export interface TokenSelectionExercisePublic {
+  passage_id?: string | null
+  type: 'token_selection'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  granularity: 'letter' | 'syllable' | 'word'
+  item_id: string
+  tokens: SelectionToken[]
+  max_selections: number | null
+  hint: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "SelectionToken".
+ */
+export interface SelectionToken {
+  text: string
+  /**
+   * Whether whitespace follows in the text.
+   */
+  space_after: boolean
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -1040,6 +1153,7 @@ export interface SecondRound {
     | ClozeExercisePublic
     | MatchingExercisePublic
     | TokenOrderingExercisePublic
+    | TokenSelectionExercisePublic
     | FreeTextExercisePublic
     | TranslationExercisePublic
     | SpanHighlightExercisePublic
@@ -1103,6 +1217,20 @@ export interface TokenOrderingAnswer {
    * @maxItems 30
    */
   order: string[]
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TokenSelectionAnswer".
+ */
+export interface TokenSelectionAnswer {
+  type: 'token_selection'
+  item_id: string
+  /**
+   * Selected token indices.
+   *
+   * @maxItems 200
+   */
+  selected: number[]
 }
 /**
  * How strictly a typed answer is compared with the accepted answers.

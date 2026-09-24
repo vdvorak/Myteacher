@@ -59,6 +59,8 @@ const en = {
   'answerKey.rubric': 'Assessed against:',
   'answerKey.modelAnswer': 'Model answer',
   'answerKey.points': '{points} pt',
+  'selection.tokens': 'Tap to select',
+  'selection.limit': 'Select up to {max}.',
 }
 
 export type MessageKey = keyof typeof en
@@ -121,6 +123,8 @@ const cs: Record<MessageKey, string> = {
   'answerKey.rubric': 'Hodnotí se:',
   'answerKey.modelAnswer': 'Vzorová odpověď',
   'answerKey.points': '{points} b.',
+  'selection.tokens': 'Klepnutím vyberte',
+  'selection.limit': 'Vyberte nejvýše {max}.',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }

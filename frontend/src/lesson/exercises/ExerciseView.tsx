@@ -7,6 +7,7 @@ import type {
   MultipleChoiceAnswer,
   ShortAnswerAnswer,
   TokenOrderingAnswer,
+  TokenSelectionAnswer,
 } from '../../generated/lesson'
 import type { RenderedAnswer, RenderedExercise } from '../schema'
 import { Cloze } from './Cloze'
@@ -15,6 +16,7 @@ import { OpenText } from './OpenText'
 import { layoutOf, MultipleChoice } from './MultipleChoice'
 import { ShortAnswer } from './ShortAnswer'
 import { TokenOrdering, tokenLayout } from './TokenOrdering'
+import { TokenSelection } from './TokenSelection'
 import type { ExerciseViewProps } from './types'
 
 /** The seeded order of an exercise's shuffled items, for types that shuffle. */
@@ -56,6 +58,11 @@ export function ExerciseView(props: ExerciseViewProps<RenderedExercise, Rendered
       <Match when={props.exercise.type === 'token_ordering' && props.exercise}>
         {(exercise) => (
           <TokenOrdering {...props} exercise={exercise()} draft={draftOf<TokenOrderingAnswer>('token_ordering')} />
+        )}
+      </Match>
+      <Match when={props.exercise.type === 'token_selection' && props.exercise}>
+        {(exercise) => (
+          <TokenSelection {...props} exercise={exercise()} draft={draftOf<TokenSelectionAnswer>('token_selection')} />
         )}
       </Match>
       <Match when={(props.exercise.type === 'free_text' || props.exercise.type === 'translation') && props.exercise}>

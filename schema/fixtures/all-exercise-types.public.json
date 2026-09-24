@@ -115,6 +115,26 @@
       "hint": null
     },
     {
+      "passage_id": null,
+      "type": "token_selection",
+      "id": "select",
+      "prompt": "Tap the stressed syllable.",
+      "granularity": "syllable",
+      "item_id": "cancion",
+      "tokens": [
+        {
+          "text": "can",
+          "space_after": false
+        },
+        {
+          "text": "ción",
+          "space_after": false
+        }
+      ],
+      "max_selections": 1,
+      "hint": null
+    },
+    {
       "type": "passage",
       "id": "text",
       "title": null,

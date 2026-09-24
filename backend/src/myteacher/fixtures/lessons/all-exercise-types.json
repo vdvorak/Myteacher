@@ -117,6 +117,26 @@
       ]
     },
     {
+      "type": "token_selection",
+      "id": "select",
+      "prompt": "Tap the stressed syllable.",
+      "granularity": "syllable",
+      "items": [
+        {
+          "id": "cancion",
+          "text": "canción",
+          "tokens": [
+            "can",
+            "ción"
+          ],
+          "expected": [
+            1
+          ]
+        }
+      ],
+      "max_selections": 1
+    },
+    {
       "type": "passage",
       "id": "text",
       "markdown": "Soy Ana. Vivo en Madrid."

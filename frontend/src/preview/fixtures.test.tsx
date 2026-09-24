@@ -7,6 +7,7 @@ import vocabulary from '../../../schema/fixtures/es-vocabulario.public.json'
 import laCasa from '../../../schema/fixtures/es-la-casa.public.json'
 import wordOrder from '../../../schema/fixtures/en-word-order.public.json'
 import reading from '../../../schema/fixtures/es-lectura.public.json'
+import accents from '../../../schema/fixtures/es-acentos.public.json'
 import atTheEnd from '../../../schema/fixtures/en-present-perfect.public.json'
 import immediate from '../../../schema/fixtures/es-ser-estar.public.json'
 import type { LessonPublic } from '../generated/lesson'
@@ -14,7 +15,7 @@ import { LessonPlayer } from '../lesson/LessonPlayer'
 import { isRendered } from '../lesson/schema'
 import { fakeApi, withI18n } from '../lesson/testing'
 
-const fixtures = [allTypes, atTheEnd, immediate, irregularVerbs, vocabulary, laCasa, wordOrder, reading] as LessonPublic[]
+const fixtures = [allTypes, atTheEnd, immediate, irregularVerbs, vocabulary, laCasa, wordOrder, reading, accents] as LessonPublic[]
 
 function preview(lesson: LessonPublic, locale: 'en' | 'cs' = 'en') {
   return render(withI18n(() => <LessonPlayer lesson={lesson} seed="1" api={fakeApi(lesson)} />, locale))

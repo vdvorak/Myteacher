@@ -37,6 +37,7 @@ export function triedAlready(
     if (answer.type === 'short_answer') return JSON.stringify({ ...answer, text: answer.text.trim() })
     if (answer.type === 'matching') return JSON.stringify(Object.entries(answer.pairs).sort())
     if (answer.type === 'cloze') return JSON.stringify(Object.entries(answer.gaps).sort())
+    if (answer.type === 'token_selection') return JSON.stringify([answer.item_id, [...answer.selected].sort((a, b) => a - b)])
     return JSON.stringify(answer)
   }
   return tries.some((attempt) => key(attempt.answer) === key(draft))

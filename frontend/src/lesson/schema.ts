@@ -9,6 +9,8 @@ import type {
   PassageBlock,
   TranslationAnswer,
   TranslationExercisePublic,
+  TokenSelectionAnswer,
+  TokenSelectionExercisePublic,
   ClozeAnswer,
   ClozeExercisePublic,
   ExplanationBlock,
@@ -37,6 +39,7 @@ export type RenderedExercise =
   | ClozeExercisePublic
   | MatchingExercisePublic
   | TokenOrderingExercisePublic
+  | TokenSelectionExercisePublic
   | FreeTextExercisePublic
   | TranslationExercisePublic
 export type OpenExercise = FreeTextExercisePublic | TranslationExercisePublic
@@ -46,6 +49,7 @@ export type RenderedAnswer =
   | ClozeAnswer
   | MatchingAnswer
   | TokenOrderingAnswer
+  | TokenSelectionAnswer
   | FreeTextAnswer
   | TranslationAnswer
 
@@ -55,6 +59,7 @@ const renderedTypes: ReadonlySet<string> = new Set<RenderedExercise['type']>([
   'cloze',
   'matching',
   'token_ordering',
+  'token_selection',
   'free_text',
   'translation',
 ])

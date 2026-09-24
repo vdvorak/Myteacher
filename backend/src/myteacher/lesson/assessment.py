@@ -26,12 +26,16 @@ from myteacher.lesson.schema import (
     MultipleChoiceExercise,
     MultipleChoiceSolution,
     OpenExercise,
+    SelectionItem,
     ShortAnswerAnswer,
     ShortAnswerExercise,
     ShortAnswerSolution,
     TokenOrderingAnswer,
     TokenOrderingExercise,
     TokenOrderingSolution,
+    TokenSelectionAnswer,
+    TokenSelectionExercise,
+    TokenSelectionSolution,
     TranslationAnswer,
     TranslationExercise,
 )
@@ -70,6 +74,8 @@ def assess(exercise: Exercise, answer: ExerciseAnswer, *, reveal: bool = True) -
             result = _assess_matching(exercise, answer)
         case TokenOrderingExercise(), TokenOrderingAnswer():
             result = _assess_token_ordering(exercise, answer)
+        case TokenSelectionExercise(), TokenSelectionAnswer():
+            result = _assess_token_selection(exercise, answer)
         case _:
             return AssessmentUnavailable(
                 status="unavailable", exercise_id=exercise.id, reason="no_assessor_in_this_phase"
@@ -204,6 +210,50 @@ def _assess_token_ordering(
     )
 
 
+def _assess_token_selection(
+    exercise: TokenSelectionExercise, answer: TokenSelectionAnswer
+) -> AssessmentResult:
+    # Stateless for now: the answer names its item, which may be a second-round item.
+    item = exercise.item(answer.item_id)
+    if item is None:
+        raise AnswerMismatch(f"{answer.item_id!r} is not an item of this exercise")
+    count = len(item.laid_out(exercise.granularity))
+    selected = set(answer.selected)
+    if len(selected) != len(answer.selected) or any(not 0 <= i < count for i in selected):
+        raise AnswerMismatch("a selection must name distinct tokens of the item")
+    if exercise.max_selections is not None and len(selected) > exercise.max_selections:
+        raise AnswerMismatch(f"at most {exercise.max_selections} tokens may be selected")
+    expected = set(item.expected)
+    correct = selected == expected
+    if correct:
+        score = 1.0
+    elif exercise.partial_credit:
+        # Overlap of the sets, so selecting everything does not pay.
+        score = len(selected & expected) / len(selected | expected)
+    else:
+        score = 0.0
+    return AssessmentResult(
+        status="assessed",
+        exercise_id=exercise.id,
+        score=score,
+        correct=correct,
+        # Only selected tokens are judged, so a withheld solution reveals no missed token.
+        items=[ItemCorrectness(id=str(i), correct=i in expected) for i in sorted(selected)],
+        solution=_selection_solution(exercise, item),
+    )
+
+
+def _selection_solution(
+    exercise: TokenSelectionExercise, item: SelectionItem
+) -> TokenSelectionSolution:
+    return TokenSelectionSolution(
+        type="token_selection",
+        item_id=item.id,
+        selected=sorted(item.expected),
+        explanation=exercise.solution_explanation,
+    )
+
+
 def solution_of(exercise: Exercise) -> ExerciseSolution | None:
     """The canonical solution, or None for a type without an assessor in this phase."""
     match exercise:
@@ -219,6 +269,8 @@ def solution_of(exercise: Exercise) -> ExerciseSolution | None:
                 answer=exercise.accepted_answers[0],
                 explanation=exercise.solution_explanation,
             )
+        case TokenSelectionExercise():
+            return _selection_solution(exercise, exercise.item())
         case MatchingExercise():
             rights = exercise.right_ids()
             return MatchingSolution(

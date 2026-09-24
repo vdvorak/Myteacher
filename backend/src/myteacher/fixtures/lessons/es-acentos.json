@@ -1,0 +1,53 @@
+{
+  "id": "es-acentos",
+  "title": "¿Dónde está el acento?",
+  "language": "es",
+  "feedback_mode": "immediate",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "Every Spanish word has one stressed syllable. A written accent (*tilde*) marks it when the usual rules would put the stress elsewhere: *can-**ción***, *te-**lé**-fo-no*. Without a tilde, words ending in a vowel, *n* or *s* stress the second-to-last syllable: *ca-**mi**-no*."
+    },
+    {
+      "type": "token_selection",
+      "id": "stress",
+      "prompt": "Tap the stressed syllable.",
+      "granularity": "syllable",
+      "items": [
+        { "id": "cancion", "text": "canción", "tokens": ["can", "ción"], "expected": [1] },
+        { "id": "telefono", "text": "teléfono", "tokens": ["te", "lé", "fo", "no"], "expected": [1] },
+        { "id": "arbol", "text": "árbol", "tokens": ["ár", "bol"], "expected": [0] },
+        { "id": "camino", "text": "camino", "tokens": ["ca", "mi", "no"], "expected": [1] },
+        { "id": "ordenador", "text": "ordenador", "tokens": ["or", "de", "na", "dor"], "expected": [3] }
+      ],
+      "max_selections": 1,
+      "hint": "A tilde, if there is one, sits on the stressed syllable.",
+      "solution_explanation": "The tilde marks the stress; without one, the ending decides."
+    },
+    {
+      "type": "token_selection",
+      "id": "verbs",
+      "prompt": "Tap every verb in the sentence.",
+      "granularity": "word",
+      "items": [
+        { "id": "comida", "text": "Yo como pan y bebo agua.", "expected": [1, 4] },
+        { "id": "tarde", "text": "Ella lee un libro y escucha música.", "expected": [1, 5] }
+      ],
+      "partial_credit": true,
+      "hint": "Verbs say what someone does.",
+      "solution_explanation": "*como* and *bebo* (or *lee* and *escucha*) are what the person does."
+    },
+    {
+      "type": "token_selection",
+      "id": "enye",
+      "prompt": "Tap the letter that English does not have.",
+      "granularity": "letter",
+      "items": [
+        { "id": "espana", "text": "España", "expected": [4] },
+        { "id": "manana", "text": "mañana", "expected": [2] }
+      ],
+      "max_selections": 1,
+      "solution_explanation": "**ñ** is a letter of its own in Spanish."
+    }
+  ]
+}

@@ -72,6 +72,18 @@ export const orderKey: Record<string, { orders: string[][]; texts: string[] }> =
     texts: ['I', 'visited', 'my', 'grandmother', 'yesterday'],
   },
 }
+/** Expected token indices per item id. */
+export const selectionKey: Record<string, number[]> = {
+  cancion: [1],
+  telefono: [1],
+  arbol: [0],
+  camino: [1],
+  ordenador: [3],
+  comida: [1, 4],
+  tarde: [1, 5],
+  espana: [4],
+  manana: [2],
+}
 export const clozeKey: Record<string, Record<string, string>> = {
   tomorrow: { w2: 'vamos', w4: 'hermano' },
   yesterday: { v1: 'went', v3: 'saw' },
@@ -135,6 +147,19 @@ function grade(exerciseId: string, answer: RenderedAnswer): Omit<AssessmentResul
           pairs: Object.entries(key).map(([left_id, right_id]) => ({ left_id, right_id })),
           explanation,
         },
+      }
+    }
+    case 'token_selection': {
+      const expected = selectionKey[answer.item_id] ?? []
+      const items = answer.selected.map((i) => ({ id: String(i), correct: expected.includes(i) }))
+      const correct =
+        answer.selected.length === expected.length && items.every((item) => item.correct)
+      return {
+        ...base,
+        score: correct ? 1 : 0,
+        correct,
+        items,
+        solution: { type: 'token_selection', item_id: answer.item_id, selected: expected, explanation },
       }
     }
     case 'free_text':

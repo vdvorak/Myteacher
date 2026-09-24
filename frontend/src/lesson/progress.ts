@@ -56,6 +56,13 @@ export function isComplete(exercise: Exercise, draft: RenderedAnswer | undefined
       return exercise.type === 'matching' && exercise.left.every((item) => draft.pairs[item.id] !== undefined)
     case 'token_ordering':
       return exercise.type === 'token_ordering' && draft.order.length === exercise.tokens.length
+    case 'token_selection':
+      return (
+        exercise.type === 'token_selection' &&
+        draft.item_id === exercise.item_id &&
+        draft.selected.length > 0 &&
+        (exercise.max_selections === null || draft.selected.length <= exercise.max_selections)
+      )
     case 'free_text':
     case 'translation':
       return (

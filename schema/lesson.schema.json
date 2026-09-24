@@ -44,11 +44,15 @@
                   "matching": "#/$defs/MatchingSolution",
                   "multiple_choice": "#/$defs/MultipleChoiceSolution",
                   "short_answer": "#/$defs/ShortAnswerSolution",
-                  "token_ordering": "#/$defs/TokenOrderingSolution"
+                  "token_ordering": "#/$defs/TokenOrderingSolution",
+                  "token_selection": "#/$defs/TokenSelectionSolution"
                 },
                 "propertyName": "type"
               },
               "oneOf": [
+                {
+                  "$ref": "#/$defs/TokenSelectionSolution"
+                },
                 {
                   "$ref": "#/$defs/MultipleChoiceSolution"
                 },
@@ -177,11 +181,15 @@
                   "matching": "#/$defs/MatchingSolution",
                   "multiple_choice": "#/$defs/MultipleChoiceSolution",
                   "short_answer": "#/$defs/ShortAnswerSolution",
-                  "token_ordering": "#/$defs/TokenOrderingSolution"
+                  "token_ordering": "#/$defs/TokenOrderingSolution",
+                  "token_selection": "#/$defs/TokenSelectionSolution"
                 },
                 "propertyName": "type"
               },
               "oneOf": [
+                {
+                  "$ref": "#/$defs/TokenSelectionSolution"
+                },
                 {
                   "$ref": "#/$defs/MultipleChoiceSolution"
                 },
@@ -1221,6 +1229,7 @@
                 "span_highlight": "#/$defs/SpanHighlightExercise",
                 "table_fill": "#/$defs/TableFillExercise",
                 "token_ordering": "#/$defs/TokenOrderingExercise",
+                "token_selection": "#/$defs/TokenSelectionExercise",
                 "translation": "#/$defs/TranslationExercise"
               },
               "propertyName": "type"
@@ -1246,6 +1255,9 @@
               },
               {
                 "$ref": "#/$defs/TokenOrderingExercise"
+              },
+              {
+                "$ref": "#/$defs/TokenSelectionExercise"
               },
               {
                 "$ref": "#/$defs/FreeTextExercise"
@@ -1330,6 +1342,7 @@
                 "span_highlight": "#/$defs/SpanHighlightExercisePublic",
                 "table_fill": "#/$defs/TableFillExercisePublic",
                 "token_ordering": "#/$defs/TokenOrderingExercisePublic",
+                "token_selection": "#/$defs/TokenSelectionExercisePublic",
                 "translation": "#/$defs/TranslationExercisePublic"
               },
               "propertyName": "type"
@@ -1355,6 +1368,9 @@
               },
               {
                 "$ref": "#/$defs/TokenOrderingExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/TokenSelectionExercisePublic"
               },
               {
                 "$ref": "#/$defs/FreeTextExercisePublic"
@@ -2414,6 +2430,9 @@
                 "$ref": "#/$defs/TokenOrderingExercisePublic"
               },
               {
+                "$ref": "#/$defs/TokenSelectionExercisePublic"
+              },
+              {
                 "$ref": "#/$defs/FreeTextExercisePublic"
               },
               {
@@ -2470,6 +2489,79 @@
         "seed"
       ],
       "title": "SecondRoundRequest",
+      "type": "object"
+    },
+    "SelectionItem": {
+      "additionalProperties": false,
+      "description": "One text of the item set, with the tokens the student should select.",
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "tokens": {
+          "anyOf": [
+            {
+              "items": {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Explicit boundaries; required for syllables, derived otherwise.",
+          "title": "Tokens"
+        },
+        "expected": {
+          "description": "Indices of the tokens to select.",
+          "items": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Expected",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "expected"
+      ],
+      "title": "SelectionItem",
+      "type": "object"
+    },
+    "SelectionToken": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "space_after": {
+          "description": "Whether whitespace follows in the text.",
+          "title": "Space After",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "text",
+        "space_after"
+      ],
+      "title": "SelectionToken",
       "type": "object"
     },
     "ShortAnswerAnswer": {
@@ -3343,6 +3435,309 @@
         "explanation"
       ],
       "title": "TokenOrderingSolution",
+      "type": "object"
+    },
+    "TokenSelectionAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "token_selection",
+          "title": "Type",
+          "type": "string"
+        },
+        "item_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "selected": {
+          "description": "Selected token indices.",
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 200,
+          "title": "Selected",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "item_id",
+        "selected"
+      ],
+      "title": "TokenSelectionAnswer",
+      "type": "object"
+    },
+    "TokenSelectionExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
+        "type": {
+          "const": "token_selection",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "granularity": {
+          "enum": [
+            "letter",
+            "syllable",
+            "word"
+          ],
+          "title": "Granularity",
+          "type": "string"
+        },
+        "items": {
+          "description": "The item set; the second round asks another.",
+          "items": {
+            "$ref": "#/$defs/SelectionItem"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Items",
+          "type": "array"
+        },
+        "active_item": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The item asked now; the first when not set.",
+          "title": "Active Item"
+        },
+        "max_selections": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Selections"
+        },
+        "partial_credit": {
+          "default": false,
+          "description": "Score the overlap of the selected and expected sets.",
+          "title": "Partial Credit",
+          "type": "boolean"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
+        "solution_explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solution Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "granularity",
+        "items"
+      ],
+      "title": "TokenSelectionExercise",
+      "type": "object"
+    },
+    "TokenSelectionExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
+        "type": {
+          "const": "token_selection",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "granularity": {
+          "enum": [
+            "letter",
+            "syllable",
+            "word"
+          ],
+          "title": "Granularity",
+          "type": "string"
+        },
+        "item_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "tokens": {
+          "items": {
+            "$ref": "#/$defs/SelectionToken"
+          },
+          "title": "Tokens",
+          "type": "array"
+        },
+        "max_selections": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Max Selections"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "granularity",
+        "item_id",
+        "tokens",
+        "max_selections",
+        "hint"
+      ],
+      "title": "TokenSelectionExercisePublic",
+      "type": "object"
+    },
+    "TokenSelectionSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "token_selection",
+          "title": "Type",
+          "type": "string"
+        },
+        "item_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "selected": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Selected",
+          "type": "array"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "item_id",
+        "selected",
+        "explanation"
+      ],
+      "title": "TokenSelectionSolution",
       "type": "object"
     },
     "ToleranceRules": {

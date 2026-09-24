@@ -375,6 +375,117 @@ class TokenOrderingExercise(_Exercise):
         )
 
 
+Granularity = Literal["letter", "syllable", "word"]
+
+
+class SelectionToken(_Model):
+    text: str
+    space_after: Annotated[bool, Field(description="Whether whitespace follows in the text.")]
+
+
+def _lay_out(text: str, tokens: list[str]) -> list[SelectionToken]:
+    """Place tokens along the text, which they must spell out apart from whitespace."""
+    laid: list[SelectionToken] = []
+    position = 0
+    for token in tokens:
+        while position < len(text) and text[position].isspace():
+            position += 1
+        if not token or not text.startswith(token, position):
+            raise ValueError("tokens must spell out the text in order, apart from whitespace")
+        position += len(token)
+        laid.append(
+            SelectionToken(
+                text=token, space_after=position < len(text) and text[position].isspace()
+            )
+        )
+    if text[position:].strip():
+        raise ValueError("tokens must cover the whole text")
+    return laid
+
+
+class SelectionItem(_Model):
+    """One text of the item set, with the tokens the student should select."""
+
+    id: Identifier
+    text: Annotated[str, StringConstraints(min_length=1, max_length=1_000)]
+    tokens: Annotated[
+        list[Annotated[str, StringConstraints(min_length=1, max_length=100)]] | None,
+        Field(description="Explicit boundaries; required for syllables, derived otherwise."),
+    ] = None
+    expected: Annotated[
+        list[Annotated[int, Field(ge=0)]],
+        Field(min_length=1, description="Indices of the tokens to select."),
+    ]
+
+    def token_texts(self, granularity: str) -> list[str]:
+        if self.tokens is not None:
+            return self.tokens
+        if granularity == "word":
+            return self.text.split()
+        return [char for char in unicodedata.normalize("NFC", self.text) if not char.isspace()]
+
+    def laid_out(self, granularity: str) -> list[SelectionToken]:
+        text = self.text if self.tokens is not None else unicodedata.normalize("NFC", self.text)
+        return _lay_out(text, self.token_texts(granularity))
+
+
+class TokenSelectionExercise(_Exercise):
+    type: Literal["token_selection"]
+    id: Identifier
+    prompt: Markdown
+    granularity: Granularity
+    items: Annotated[
+        list[SelectionItem],
+        Field(
+            min_length=1, max_length=20, description="The item set; the second round asks another."
+        ),
+    ]
+    active_item: Annotated[
+        Identifier | None, Field(description="The item asked now; the first when not set.")
+    ] = None
+    max_selections: Annotated[int, Field(ge=1)] | None = None
+    partial_credit: Annotated[
+        bool, Field(description="Score the overlap of the selected and expected sets.")
+    ] = False
+    hint: Markdown | None = None
+    solution_explanation: Markdown | None = None
+
+    @model_validator(mode="after")
+    def _items_are_consistent(self) -> Self:
+        ids = [item.id for item in self.items]
+        if len(set(ids)) != len(ids):
+            raise ValueError("item ids must be unique")
+        if self.active_item is not None and self.active_item not in ids:
+            raise ValueError("active_item must name one of the items")
+        for item in self.items:
+            if self.granularity == "syllable" and item.tokens is None:
+                raise ValueError(f"item {item.id!r}: syllables need explicit token boundaries")
+            count = len(item.laid_out(self.granularity))
+            if len(set(item.expected)) != len(item.expected) or max(item.expected) >= count:
+                raise ValueError(f"item {item.id!r}: expected must name distinct tokens")
+            if self.max_selections is not None and len(item.expected) > self.max_selections:
+                raise ValueError(f"item {item.id!r}: max_selections leaves no room for expected")
+        return self
+
+    def item(self, item_id: str | None = None) -> SelectionItem | None:
+        wanted = item_id or self.active_item or self.items[0].id
+        return next((item for item in self.items if item.id == wanted), None)
+
+    def public(self) -> "TokenSelectionExercisePublic":
+        item = self.item()
+        assert item is not None
+        return TokenSelectionExercisePublic(
+            type=self.type,
+            id=self.id,
+            prompt=self.prompt,
+            granularity=self.granularity,
+            item_id=item.id,
+            tokens=item.laid_out(self.granularity),
+            max_selections=self.max_selections,
+            hint=self.hint,
+        )
+
+
 class RubricCriterion(_Model):
     id: Identifier
     description: PlainText
@@ -630,6 +741,7 @@ Exercise = (
     | ClozeExercise
     | MatchingExercise
     | TokenOrderingExercise
+    | TokenSelectionExercise
     | FreeTextExercise
     | TranslationExercise
     | SpanHighlightExercise
@@ -732,6 +844,17 @@ class TokenOrderingExercisePublic(_ExercisePublic):
     hint: Markdown | None
 
 
+class TokenSelectionExercisePublic(_ExercisePublic):
+    type: Literal["token_selection"]
+    id: Identifier
+    prompt: Markdown
+    granularity: Granularity
+    item_id: Identifier
+    tokens: list[SelectionToken]
+    max_selections: int | None
+    hint: Markdown | None
+
+
 class FreeTextExercisePublic(_ExercisePublic):
     type: Literal["free_text"]
     id: Identifier
@@ -807,6 +930,7 @@ ExercisePublic = (
     | ClozeExercisePublic
     | MatchingExercisePublic
     | TokenOrderingExercisePublic
+    | TokenSelectionExercisePublic
     | FreeTextExercisePublic
     | TranslationExercisePublic
     | SpanHighlightExercisePublic
@@ -861,6 +985,12 @@ class TokenOrderingAnswer(_Model):
     order: Annotated[list[Identifier], Field(max_length=30)]
 
 
+class TokenSelectionAnswer(_Model):
+    type: Literal["token_selection"]
+    item_id: Identifier
+    selected: Annotated[list[int], Field(max_length=200, description="Selected token indices.")]
+
+
 class FreeTextAnswer(_Model):
     type: Literal["free_text"]
     text: Annotated[str, StringConstraints(max_length=5_000)]
@@ -913,6 +1043,7 @@ ExerciseAnswer = Annotated[
     | ClozeAnswer
     | MatchingAnswer
     | TokenOrderingAnswer
+    | TokenSelectionAnswer
     | FreeTextAnswer
     | TranslationAnswer
     | SpanHighlightAnswer
@@ -964,8 +1095,16 @@ class TokenOrderingSolution(_Model):
     explanation: Markdown | None
 
 
+class TokenSelectionSolution(_Model):
+    type: Literal["token_selection"]
+    item_id: Identifier
+    selected: list[int]
+    explanation: Markdown | None
+
+
 ExerciseSolution = Annotated[
-    MultipleChoiceSolution
+    TokenSelectionSolution
+    | MultipleChoiceSolution
     | ShortAnswerSolution
     | ClozeSolution
     | MatchingSolution

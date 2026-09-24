@@ -3,6 +3,7 @@ import type { ExerciseSolution, ExercisePublic } from '../schema'
 import { ClozeSolutionText } from './Cloze'
 import { MatchingSolutionText } from './Matching'
 import { TokenOrderingSolutionText } from './TokenOrdering'
+import { TokenSelectionSolutionText } from './TokenSelection'
 import { optionText } from './MultipleChoice'
 
 /** The canonical answer of an exercise as text, for its solution section and the answer key. */
@@ -33,6 +34,16 @@ export function SolutionText(props: { exercise: ExercisePublic | undefined; solu
         {(solution) => (
           <MatchingSolutionText
             exercise={props.exercise as Extract<ExercisePublic, { type: 'matching' }>}
+            solution={solution()}
+          />
+        )}
+      </Match>
+      <Match
+        when={props.solution.type === 'token_selection' && props.exercise?.type === 'token_selection' && props.solution}
+      >
+        {(solution) => (
+          <TokenSelectionSolutionText
+            exercise={props.exercise as Extract<ExercisePublic, { type: 'token_selection' }>}
             solution={solution()}
           />
         )}

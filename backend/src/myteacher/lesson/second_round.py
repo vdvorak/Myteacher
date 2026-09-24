@@ -15,6 +15,7 @@ from myteacher.lesson.schema import (
     MultipleChoiceExercise,
     ShortAnswerExercise,
     TokenOrderingExercise,
+    TokenSelectionExercise,
 )
 
 
@@ -49,6 +50,15 @@ def vary(exercise: Exercise, seed: str) -> Exercise | None:
             # by the renderer from the second round's seed.
             return exercise.model_copy(
                 update={"pairs": _different_order(exercise.pairs, f"{seed}:{exercise.id}")}
+            )
+        case TokenSelectionExercise():
+            # The same skill on another item of the set, where the set has another.
+            current = exercise.item()
+            others = [item.id for item in exercise.items if current and item.id != current.id]
+            if not others:
+                return exercise
+            return exercise.model_copy(
+                update={"active_item": random.Random(f"{seed}:{exercise.id}").choice(others)}
             )
         case TokenOrderingExercise():
             # Tokens are served in a fixed order; the renderer re-orders them for the repeat.
