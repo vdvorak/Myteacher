@@ -83,3 +83,67 @@
 .exercise-unsupported-title {
   margin: 0;
 }
+
+.exercise-text-input,
+.cloze-gap-input {
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.exercise-text-input {
+  width: 100%;
+}
+
+.cloze-gap-input {
+  padding: var(--space-1) var(--space-2);
+  max-width: 100%;
+}
+
+.cloze-text {
+  margin: 0;
+  line-height: calc(var(--line-height-body) * 1.4);
+}
+
+.cloze-gap {
+  min-width: calc(var(--space-8) * 2);
+  padding: var(--space-1) var(--space-3);
+  border-style: dashed;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.cloze-bank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cloze-word {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.cloze-word[aria-pressed='true'] {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.exercise-text-input[data-state='correct'],
+.cloze-gap-input[data-state='correct'],
+.cloze-gap[data-state='correct'] {
+  border-color: var(--color-correct);
+  background: var(--color-correct-surface);
+}
+
+.exercise-text-input[data-state='incorrect'],
+.cloze-gap-input[data-state='incorrect'],
+.cloze-gap[data-state='incorrect'] {
+  border-color: var(--color-incorrect);
+  background: var(--color-incorrect-surface);
+}

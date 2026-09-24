@@ -2,12 +2,18 @@
 
 A pure function of (lesson, failed exercise ids, seed). Types without a renderer or an
 assessor in this phase are not repeated. Repeats keep their exercise id
-and option ids, so they are assessed exactly like the original exercise.
+and option or candidate ids, so they are assessed like the original exercise.
 """
 
 import random
 
-from myteacher.lesson.schema import Exercise, LessonDocument, MultipleChoiceExercise
+from myteacher.lesson.schema import (
+    ClozeExercise,
+    Exercise,
+    LessonDocument,
+    MultipleChoiceExercise,
+    ShortAnswerExercise,
+)
 
 
 class UnknownExercise(ValueError):
@@ -33,8 +39,27 @@ def vary(exercise: Exercise, seed: str) -> Exercise | None:
             return exercise.model_copy(
                 update={"options": _different_order(exercise.options, f"{seed}:{exercise.id}")}
             )
+        case ShortAnswerExercise():
+            # Re-asked with the hint up front: recall with support rather than a copy of the answer.
+            return exercise.model_copy(update={"show_hint": True})
+        case ClozeExercise():
+            return exercise.model_copy(
+                update={"blanked": _other_blanks(exercise, f"{seed}:{exercise.id}")}
+            )
         case _:
             return None
+
+
+def _other_blanks(exercise: ClozeExercise, seed: str) -> list[str]:
+    """As many gaps as before, over different words where the candidate set allows."""
+    rng = random.Random(seed)
+    blanked = set(exercise.blanked)
+    others = [c.id for c in exercise.candidates() if c.id not in blanked]
+    chosen = rng.sample(others, min(len(blanked), len(others)))
+    if len(chosen) < len(blanked):
+        chosen += rng.sample(sorted(blanked), len(blanked) - len(chosen))
+    order = [c.id for c in exercise.candidates()]
+    return sorted(chosen, key=order.index)
 
 
 def _different_order[T](items: list[T], seed: str) -> list[T]:

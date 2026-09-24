@@ -124,6 +124,7 @@ def test_correct_answer_scores_one_and_returns_the_solution(client, spanish_less
         "exercise_id": exercise["id"],
         "score": 1.0,
         "correct": True,
+        "items": [],
         "solution": {
             "type": "multiple_choice",
             "option_id": exercise["correct_option_id"],

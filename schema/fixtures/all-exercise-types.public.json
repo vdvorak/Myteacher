@@ -25,6 +25,45 @@
       "hint": "Location."
     },
     {
+      "type": "short_answer",
+      "id": "short",
+      "prompt": "Write the Spanish word for *song*.",
+      "hint": "*-ción*.",
+      "show_hint": false
+    },
+    {
+      "type": "cloze",
+      "id": "gaps",
+      "prompt": "Fill the gap.",
+      "segments": [
+        {
+          "kind": "text",
+          "text": "Yo "
+        },
+        {
+          "kind": "gap",
+          "id": "g1"
+        },
+        {
+          "kind": "text",
+          "text": " de "
+        },
+        {
+          "kind": "text",
+          "text": "Praga"
+        },
+        {
+          "kind": "text",
+          "text": "."
+        }
+      ],
+      "word_bank": [
+        "estoy",
+        "soy"
+      ],
+      "hint": null
+    },
+    {
       "type": "span_highlight",
       "id": "highlight",
       "prompt": "Highlight every form of *estar*.",

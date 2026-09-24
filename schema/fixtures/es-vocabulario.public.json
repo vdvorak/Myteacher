@@ -1,0 +1,87 @@
+{
+  "id": "es-vocabulario",
+  "title": "Palabras con ñ y tildes",
+  "language": "es",
+  "feedback_mode": "immediate",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "In Spanish, **ñ** is a letter of its own, not an *n* with decoration: *año* (year) and *ano* are different words.\n\nAccents (*tildes*) mark the stressed syllable: *canción*, *está*. Questions and exclamations open with **¿** and **¡**: *¿Dónde está?* *¡Qué bien!*"
+    },
+    {
+      "type": "short_answer",
+      "id": "song",
+      "prompt": "Write the Spanish word for *song*.",
+      "hint": "It ends in *-ción*, and the accent sits on the last syllable.",
+      "show_hint": false
+    },
+    {
+      "type": "short_answer",
+      "id": "year",
+      "prompt": "Write the Spanish word for *year*. Accents are not checked here.",
+      "hint": "The letter in the middle is not a plain *n*.",
+      "show_hint": false
+    },
+    {
+      "type": "short_answer",
+      "id": "where",
+      "prompt": "Ask in Spanish: *Where is the station?*",
+      "hint": "*Dónde* + *estar* + *la estación*.",
+      "show_hint": false
+    },
+    {
+      "type": "cloze",
+      "id": "tomorrow",
+      "prompt": "Complete the sentence with words from the bank.",
+      "segments": [
+        {
+          "kind": "text",
+          "text": "Mañana"
+        },
+        {
+          "kind": "text",
+          "text": " "
+        },
+        {
+          "kind": "gap",
+          "id": "w2"
+        },
+        {
+          "kind": "text",
+          "text": " a "
+        },
+        {
+          "kind": "text",
+          "text": "Madrid"
+        },
+        {
+          "kind": "text",
+          "text": " con mi "
+        },
+        {
+          "kind": "gap",
+          "id": "w4"
+        },
+        {
+          "kind": "text",
+          "text": " "
+        },
+        {
+          "kind": "text",
+          "text": "pequeño"
+        },
+        {
+          "kind": "text",
+          "text": "."
+        }
+      ],
+      "word_bank": [
+        "hermana",
+        "hermano",
+        "vamos",
+        "voy"
+      ],
+      "hint": "*Nosotros* goes to Madrid, and the brother is a boy."
+    }
+  ]
+}

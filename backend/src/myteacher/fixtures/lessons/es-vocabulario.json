@@ -1,0 +1,113 @@
+{
+  "id": "es-vocabulario",
+  "title": "Palabras con ñ y tildes",
+  "language": "es",
+  "feedback_mode": "immediate",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "In Spanish, **ñ** is a letter of its own, not an *n* with decoration: *año* (year) and *ano* are different words.\n\nAccents (*tildes*) mark the stressed syllable: *canción*, *está*. Questions and exclamations open with **¿** and **¡**: *¿Dónde está?* *¡Qué bien!*"
+    },
+    {
+      "type": "short_answer",
+      "id": "song",
+      "prompt": "Write the Spanish word for *song*.",
+      "accepted_answers": [
+        "canción"
+      ],
+      "hint": "It ends in *-ción*, and the accent sits on the last syllable.",
+      "solution_explanation": "*Canción* carries an accent on the *o*: can-**ción**."
+    },
+    {
+      "type": "short_answer",
+      "id": "year",
+      "prompt": "Write the Spanish word for *year*. Accents are not checked here.",
+      "accepted_answers": [
+        "año"
+      ],
+      "tolerance": {
+        "ignore_diacritics": true
+      },
+      "hint": "The letter in the middle is not a plain *n*.",
+      "solution_explanation": "*Año*, with **ñ**: ignoring accents never turns ñ into n."
+    },
+    {
+      "type": "short_answer",
+      "id": "where",
+      "prompt": "Ask in Spanish: *Where is the station?*",
+      "accepted_answers": [
+        "¿Dónde está la estación?"
+      ],
+      "tolerance": {
+        "ignore_diacritics": true,
+        "ignore_punctuation": true
+      },
+      "hint": "*Dónde* + *estar* + *la estación*.",
+      "solution_explanation": "*¿Dónde está la estación?* Location takes **estar**, and the question opens with **¿**."
+    },
+    {
+      "type": "cloze",
+      "id": "tomorrow",
+      "prompt": "Complete the sentence with words from the bank.",
+      "segments": [
+        {
+          "kind": "candidate",
+          "id": "w1",
+          "answer": "Mañana"
+        },
+        {
+          "kind": "text",
+          "text": " "
+        },
+        {
+          "kind": "candidate",
+          "id": "w2",
+          "answer": "vamos"
+        },
+        {
+          "kind": "text",
+          "text": " a "
+        },
+        {
+          "kind": "candidate",
+          "id": "w3",
+          "answer": "Madrid"
+        },
+        {
+          "kind": "text",
+          "text": " con mi "
+        },
+        {
+          "kind": "candidate",
+          "id": "w4",
+          "answer": "hermano"
+        },
+        {
+          "kind": "text",
+          "text": " "
+        },
+        {
+          "kind": "candidate",
+          "id": "w5",
+          "answer": "pequeño"
+        },
+        {
+          "kind": "text",
+          "text": "."
+        }
+      ],
+      "blanked": [
+        "w2",
+        "w4"
+      ],
+      "word_bank": {
+        "distractors": [
+          "voy",
+          "hermana"
+        ]
+      },
+      "hint": "*Nosotros* goes to Madrid, and the brother is a boy.",
+      "solution_explanation": "*Mañana **vamos** a Madrid con mi **hermano** pequeño.*"
+    }
+  ]
+}

@@ -1,23 +1,20 @@
 // A student's progress through one lesson in the browser: the answers and assessments of the
 // first pass and of the second round. Kept in local storage so a reload resumes the lesson;
 // cleared when the lesson is finished. Server-side attempts replace this in slice 4.
-import type {
-  AssessmentResult,
-  LessonPublic,
-  MultipleChoiceExercisePublic,
-} from '../generated/lesson'
-import type { ExercisePublic } from './schema'
+import type { AssessmentResult, LessonPublic } from '../generated/lesson'
+import { isRendered, type RenderedAnswer, type RenderedExercise } from './schema'
 
 export type FeedbackMode = LessonPublic['feedback_mode']
-export type Exercise = MultipleChoiceExercisePublic
+export type Exercise = RenderedExercise
 
 export interface Try {
-  optionId: string
+  answer: RenderedAnswer
   result: AssessmentResult
 }
 
 export interface ExerciseProgress {
-  selected?: string
+  /** The answer being composed, in the schema's answer shape. */
+  draft?: RenderedAnswer
   tries: Try[]
 }
 
@@ -28,7 +25,7 @@ export interface RoundProgress {
 }
 
 export interface LessonProgress {
-  version: 1
+  version: 2
   lessonId: string
   seed: string
   first: RoundProgress
@@ -38,13 +35,24 @@ export interface LessonProgress {
 /** In immediate mode a wrong first try earns exactly one retry. */
 export const MAX_TRIES = 2
 
-export function isMultipleChoice(block: LessonPublic['blocks'][number] | ExercisePublic): block is Exercise {
-  return block.type === 'multiple_choice'
-}
-
 /** The exercises the player runs; types without a renderer in this phase are left out. */
 export function lessonExercises(lesson: LessonPublic): Exercise[] {
-  return lesson.blocks.filter(isMultipleChoice)
+  return lesson.blocks.filter(isRendered)
+}
+
+/** Whether a draft is a whole answer: an option picked, text typed, every gap filled. */
+export function isComplete(exercise: Exercise, draft: RenderedAnswer | undefined): boolean {
+  if (!draft || draft.type !== exercise.type) return false
+  switch (draft.type) {
+    case 'multiple_choice':
+      return true
+    case 'short_answer':
+      return draft.text.trim() !== ''
+    case 'cloze':
+      return exercise.type === 'cloze' && exercise.segments.every(
+        (segment) => segment.kind !== 'gap' || (draft.gaps[segment.id] ?? '').trim() !== '',
+      )
+  }
 }
 
 export function newRound(exercises: Exercise[]): RoundProgress {
@@ -52,7 +60,7 @@ export function newRound(exercises: Exercise[]): RoundProgress {
 }
 
 export function newProgress(lesson: LessonPublic, seed: string): LessonProgress {
-  return { version: 1, lessonId: lesson.id, seed, first: newRound(lessonExercises(lesson)), second: null }
+  return { version: 2, lessonId: lesson.id, seed, first: newRound(lessonExercises(lesson)), second: null }
 }
 
 export function exerciseProgress(round: RoundProgress, exerciseId: string): ExerciseProgress {
@@ -85,8 +93,9 @@ export function failedExercises(round: RoundProgress): string[] {
 }
 
 export function unanswered(round: RoundProgress): number {
-  return round.exercises.filter((exercise) => exerciseProgress(round, exercise.id).selected === undefined)
-    .length
+  return round.exercises.filter(
+    (exercise) => !isComplete(exercise, exerciseProgress(round, exercise.id).draft),
+  ).length
 }
 
 export function lessonFinished(mode: FeedbackMode, progress: LessonProgress): boolean {
@@ -95,9 +104,9 @@ export function lessonFinished(mode: FeedbackMode, progress: LessonProgress): bo
   return progress.second !== null && roundComplete(mode, progress.second)
 }
 
-export function select(round: RoundProgress, exerciseId: string, optionId: string): RoundProgress {
+export function setDraft(round: RoundProgress, exerciseId: string, draft: RenderedAnswer): RoundProgress {
   const current = exerciseProgress(round, exerciseId)
-  return { ...round, answers: { ...round.answers, [exerciseId]: { ...current, selected: optionId } } }
+  return { ...round, answers: { ...round.answers, [exerciseId]: { ...current, draft } } }
 }
 
 export function recordTry(round: RoundProgress, exerciseId: string, attempt: Try): RoundProgress {
@@ -106,11 +115,6 @@ export function recordTry(round: RoundProgress, exerciseId: string, attempt: Try
     ...round,
     answers: { ...round.answers, [exerciseId]: { ...current, tries: [...current.tries, attempt] } },
   }
-}
-
-/** The shape answers depend on: exercise ids and their option ids, in lesson order. */
-function exerciseShape(exercises: Exercise[]): string {
-  return JSON.stringify(exercises.map((exercise) => [exercise.id, exercise.options.map((option) => option.id).sort()]))
 }
 
 const storageKey = (lessonId: string) => `myteacher.lesson-progress.${lessonId}`
@@ -122,10 +126,10 @@ export function loadProgress(lesson: LessonPublic, seed: string): LessonProgress
     const progress = JSON.parse(stored) as LessonProgress
     // Progress saved against an earlier shape of the lesson could strand the student
     // (an exercise that no longer exists can never be answered), so it is discarded.
-    return progress.version === 1 &&
+    return progress.version === 2 &&
       progress.lessonId === lesson.id &&
       progress.seed === seed &&
-      exerciseShape(progress.first.exercises) === exerciseShape(lessonExercises(lesson))
+      JSON.stringify(progress.first.exercises) === JSON.stringify(lessonExercises(lesson))
       ? progress
       : null
   } catch {

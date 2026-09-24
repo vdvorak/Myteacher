@@ -1,20 +1,18 @@
 import { createEffect, createSignal, createUniqueId, For, Match, Show, Switch } from 'solid-js'
-import type {
-  AssessmentResult,
-  LessonPublic,
-  MultipleChoiceAnswer,
-  SecondRound,
-} from '../generated/lesson'
+import type { AssessmentResult, LessonPublic, SecondRound } from '../generated/lesson'
 import { useI18n } from '../i18n/i18n'
+import type { Verdict } from './exercises/ExerciseFrame'
+import { ExerciseView } from './exercises/ExerciseView'
+import { layoutOf } from './exercises/MultipleChoice'
 import { Markdown } from './Markdown'
-import { layoutOf, MultipleChoice, type Verdict } from './MultipleChoice'
+import { isRendered, type RenderedAnswer } from './schema'
 import { UnsupportedExercise, type UnrenderedExercise } from './UnsupportedExercise'
 import {
   clearProgress,
   exerciseProgress,
   exerciseStatus,
   failedExercises,
-  isMultipleChoice,
+  isComplete,
   lessonExercises,
   lessonFinished,
   loadProgress,
@@ -24,7 +22,7 @@ import {
   recordTry,
   roundComplete,
   saveProgress,
-  select,
+  setDraft,
   unanswered,
   type Exercise,
   type LessonProgress,
@@ -37,7 +35,7 @@ export interface LessonApi {
   /** `reveal: false` marks a try the student may still retry: a wrong answer comes back without its solution. */
   assess: (
     exerciseId: string,
-    answer: MultipleChoiceAnswer,
+    answer: RenderedAnswer,
     options: { reveal: boolean },
   ) => Promise<AssessmentResult>
   secondRound: (failedExerciseIds: string[], seed: string) => Promise<SecondRound>
@@ -94,18 +92,13 @@ export function LessonPlayer(props: LessonPlayerProps) {
   const updateRound = (key: RoundKey, change: (round: RoundProgress) => RoundProgress) =>
     setProgress((current) => ({ ...current, [key]: change(current[key]!) }))
 
-  const answerOf = (optionId: string): MultipleChoiceAnswer => ({
-    type: 'multiple_choice',
-    option_id: optionId,
-  })
-
   function confirm(key: RoundKey, exercise: Exercise) {
-    const { selected, tries } = exerciseProgress(round(key)!, exercise.id)
-    if (selected === undefined) return
+    const { draft, tries } = exerciseProgress(round(key)!, exercise.id)
+    if (!draft || !isComplete(exercise, draft)) return
     const reveal = tries.length + 1 >= MAX_TRIES
     void track(`${key}:${exercise.id}`, async () => {
-      const result = await props.api.assess(exercise.id, answerOf(selected), { reveal })
-      updateRound(key, (r) => recordTry(r, exercise.id, { optionId: selected, result }))
+      const result = await props.api.assess(exercise.id, draft, { reveal })
+      updateRound(key, (r) => recordTry(r, exercise.id, { answer: draft, result }))
     })
   }
 
@@ -114,9 +107,9 @@ export function LessonPlayer(props: LessonPlayerProps) {
     void track(`${key}:submit`, async () => {
       const tries = await Promise.all(
         current.exercises.map(async (exercise): Promise<[string, Try]> => {
-          const optionId = exerciseProgress(current, exercise.id).selected!
-          const result = await props.api.assess(exercise.id, answerOf(optionId), { reveal: true })
-          return [exercise.id, { optionId, result }]
+          const answer = exerciseProgress(current, exercise.id).draft!
+          const result = await props.api.assess(exercise.id, answer, { reveal: true })
+          return [exercise.id, { answer, result }]
         }),
       )
       updateRound(key, (r) => ({
@@ -131,13 +124,17 @@ export function LessonPlayer(props: LessonPlayerProps) {
       const repeats = await props.api.secondRound(failedExercises(progress().first), props.seed)
       setProgress((current) => ({
         ...current,
-        second: newRound(repeats.exercises.filter(isMultipleChoice)),
+        second: newRound(repeats.exercises.filter(isRendered)),
       }))
     })
   }
 
   const firstLayouts = () =>
-    new Map(lessonExercises(props.lesson).map((exercise) => [exercise.id, layoutOf(exercise, props.seed)]))
+    new Map(
+      lessonExercises(props.lesson).flatMap((exercise): [string, string[]][] =>
+        exercise.type === 'multiple_choice' ? [[exercise.id, layoutOf(exercise, props.seed)]] : [],
+      ),
+    )
 
   function renderExercise(key: RoundKey, exercise: Exercise) {
     const state = () => exerciseProgress(round(key)!, exercise.id)
@@ -149,18 +146,17 @@ export function LessonPlayer(props: LessonPlayerProps) {
       return lastTry()?.result.correct ? 'correct' : 'incorrect'
     }
     return (
-      <MultipleChoice
+      <ExerciseView
         exercise={exercise}
         seed={key === 'first' ? props.seed : `${props.seed}:second-round`}
         previousLayout={key === 'second' ? firstLayouts().get(exercise.id) : undefined}
-        selected={state().selected}
-        onSelect={(optionId) => updateRound(key, (r) => select(r, exercise.id, optionId))}
+        draft={state().draft}
+        onDraft={(draft) => updateRound(key, (r) => setDraft(r, exercise.id, draft))}
+        tries={state().tries}
         locked={status() === 'locked'}
-        triedOptions={state()
-          .tries.filter((attempt) => !attempt.result.correct)
-          .map((attempt) => attempt.optionId)}
         verdict={verdict()}
         solution={status() === 'locked' ? lastTry()?.result.solution : null}
+        items={verdict() ? (lastTry()?.result.items ?? []) : []}
         onConfirm={mode() === 'immediate' ? () => confirm(key, exercise) : undefined}
         checking={busy().has(`${key}:${exercise.id}`) || busy().has(`${key}:submit`)}
         failed={failures().has(`${key}:${exercise.id}`)}
@@ -207,10 +203,10 @@ export function LessonPlayer(props: LessonPlayerProps) {
             <Match when={block.type === 'explanation' && block}>
               {(explanation) => <Markdown source={explanation().markdown} />}
             </Match>
-            <Match when={block.type === 'multiple_choice' && block}>
+            <Match when={isRendered(block) && block}>
               {(exercise) => renderExercise('first', exercise())}
             </Match>
-            <Match when={block.type !== 'explanation' && block.type !== 'multiple_choice' && block}>
+            <Match when={block.type !== 'explanation' && !isRendered(block) && block}>
               {(exercise) => <UnsupportedExercise exercise={exercise() as UnrenderedExercise} />}
             </Match>
           </Switch>

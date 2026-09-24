@@ -6,6 +6,8 @@ browser; they never carry an answer key.
 """
 
 import json
+import re
+import unicodedata
 from typing import Annotated, Literal, Self
 
 from pydantic import (
@@ -86,15 +88,159 @@ class MultipleChoiceExercise(_Model):
         )
 
 
-# Exercise types below are in the schema so that adding a renderer later is not a schema
-# change. Phase 1 has no renderer and no assessor for them (see `assessment.py`).
-
-
 PlainText = Annotated[str, StringConstraints(min_length=1, max_length=5_000)]
 AcceptedAnswers = Annotated[
     list[Annotated[str, StringConstraints(min_length=1, max_length=500)]],
     Field(min_length=1, max_length=20),
 ]
+
+
+class ToleranceRules(_Model):
+    """How strictly a typed answer is compared with the accepted answers."""
+
+    ignore_case: bool = True
+    normalise_whitespace: Annotated[
+        bool, Field(description="Collapse runs of whitespace; leading and trailing never count.")
+    ] = True
+    ignore_diacritics: Annotated[
+        bool, Field(description="Accents do not count; ñ stays a letter distinct from n.")
+    ] = False
+    ignore_punctuation: Annotated[
+        bool, Field(description="Punctuation, including ¿ and ¡, does not count.")
+    ] = False
+
+
+class ShortAnswerExercise(_Model):
+    type: Literal["short_answer"]
+    id: Identifier
+    prompt: Markdown
+    accepted_answers: Annotated[
+        AcceptedAnswers, Field(description="The first is the canonical answer shown as solution.")
+    ]
+    tolerance: ToleranceRules = ToleranceRules()
+    hint: Markdown | None = None
+    show_hint: Annotated[
+        bool, Field(description="Show the hint before the first try (used by the second round).")
+    ] = False
+    solution_explanation: Markdown | None = None
+
+    def public(self) -> "ShortAnswerExercisePublic":
+        return ShortAnswerExercisePublic(
+            type=self.type,
+            id=self.id,
+            prompt=self.prompt,
+            hint=self.hint,
+            show_hint=self.show_hint and self.hint is not None,
+        )
+
+
+def _slug(text: str) -> str:
+    decomposed = unicodedata.normalize("NFD", text.casefold())
+    letters = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]+", "-", letters).strip("-")
+
+
+def _id_gives_away(identifier: str, answers: list[str]) -> bool:
+    """Whether an id spells out one of the answers: whole, as a part, or (from 3 letters) inside."""
+    parts = {part for part in re.split(r"[-0-9]+", identifier) if part}
+    for answer in answers:
+        slug = _slug(answer)
+        if slug and (
+            slug == identifier or slug in parts or (len(slug) >= 3 and slug in identifier)
+        ):
+            return True
+    return False
+
+
+class ClozeText(_Model):
+    kind: Literal["text"]
+    text: Annotated[str, StringConstraints(min_length=1, max_length=2_000)]
+
+
+class ClozeCandidate(_Model):
+    """A word that may be blanked; `blanked` on the exercise says which are gaps now."""
+
+    kind: Literal["candidate"]
+    id: Annotated[
+        Identifier, Field(description="Reaches the browser as the gap id: must not be the answer.")
+    ]
+    answer: Annotated[str, StringConstraints(min_length=1, max_length=200)]
+    alternatives: list[Annotated[str, StringConstraints(min_length=1, max_length=200)]] = []
+
+
+ClozeSegment = Annotated[ClozeText | ClozeCandidate, Field(discriminator="kind")]
+
+
+class WordBank(_Model):
+    distractors: Annotated[
+        list[Annotated[str, StringConstraints(min_length=1, max_length=200)]],
+        Field(max_length=20),
+    ] = []
+
+
+class ClozeExercise(_Model):
+    type: Literal["cloze"]
+    id: Identifier
+    prompt: Markdown
+    segments: Annotated[list[ClozeSegment], Field(min_length=1, max_length=200)]
+    blanked: Annotated[list[Identifier], Field(min_length=1, max_length=50)]
+    word_bank: WordBank | None = None
+    tolerance: ToleranceRules = ToleranceRules()
+    hint: Markdown | None = None
+    solution_explanation: Markdown | None = None
+
+    @model_validator(mode="after")
+    def _blanks_are_candidates(self) -> Self:
+        ids = [candidate.id for candidate in self.candidates()]
+        if len(set(ids)) != len(ids):
+            raise ValueError("candidate ids must be unique")
+        if len(set(self.blanked)) != len(self.blanked):
+            raise ValueError("blanked must not repeat a candidate")
+        if not set(self.blanked) <= set(ids):
+            raise ValueError("blanked must name candidates of the text")
+        for candidate in self.candidates():
+            if _id_gives_away(candidate.id, [candidate.answer, *candidate.alternatives]):
+                raise ValueError(
+                    f"candidate id {candidate.id!r} gives its answer away (gap ids are public)"
+                )
+        return self
+
+    def candidates(self) -> list[ClozeCandidate]:
+        return [segment for segment in self.segments if isinstance(segment, ClozeCandidate)]
+
+    def gaps(self) -> list[ClozeCandidate]:
+        """The blanked candidates, in text order."""
+        blanked = set(self.blanked)
+        return [candidate for candidate in self.candidates() if candidate.id in blanked]
+
+    def public(self) -> "ClozeExercisePublic":
+        blanked = set(self.blanked)
+        segments: list[ClozeText | ClozeGapPublic] = [
+            ClozeText(kind="text", text=segment.text)
+            if isinstance(segment, ClozeText)
+            else ClozeGapPublic(kind="gap", id=segment.id)
+            if segment.id in blanked
+            else ClozeText(kind="text", text=segment.answer)
+            for segment in self.segments
+        ]
+        bank = (
+            # Sorted, so that the bank's order says nothing about the gaps' order.
+            sorted([gap.answer for gap in self.gaps()] + self.word_bank.distractors)
+            if self.word_bank is not None
+            else None
+        )
+        return ClozeExercisePublic(
+            type=self.type,
+            id=self.id,
+            prompt=self.prompt,
+            segments=segments,
+            word_bank=bank,
+            hint=self.hint,
+        )
+
+
+# Exercise types below are in the schema so that adding a renderer later is not a schema
+# change. Phase 1 has no renderer and no assessor for them (see `assessment.py`).
 
 
 class TextSpan(_Model):
@@ -259,6 +405,8 @@ class CustomExercise(_Model):
 
 Exercise = (
     MultipleChoiceExercise
+    | ShortAnswerExercise
+    | ClozeExercise
     | SpanHighlightExercise
     | TableFillExercise
     | NumericExercise
@@ -306,6 +454,34 @@ class MultipleChoiceExercisePublic(_Model):
     id: Identifier
     prompt: Markdown
     options: list[ChoiceOption]
+    hint: Markdown | None
+
+
+class ShortAnswerExercisePublic(_Model):
+    type: Literal["short_answer"]
+    id: Identifier
+    prompt: Markdown
+    hint: Markdown | None
+    show_hint: bool
+
+
+class ClozeGapPublic(_Model):
+    kind: Literal["gap"]
+    id: Identifier
+
+
+ClozeSegmentPublic = Annotated[ClozeText | ClozeGapPublic, Field(discriminator="kind")]
+
+
+class ClozeExercisePublic(_Model):
+    type: Literal["cloze"]
+    id: Identifier
+    prompt: Markdown
+    segments: list[ClozeSegmentPublic]
+    word_bank: Annotated[
+        list[str] | None,
+        Field(description="Words to place into the gaps, or null when the student types."),
+    ]
     hint: Markdown | None
 
 
@@ -359,6 +535,8 @@ class CustomExercisePublic(_Model):
 
 ExercisePublic = (
     MultipleChoiceExercisePublic
+    | ShortAnswerExercisePublic
+    | ClozeExercisePublic
     | SpanHighlightExercisePublic
     | TableFillExercisePublic
     | NumericExercisePublic
@@ -381,6 +559,19 @@ class LessonPublic(_Model):
 class MultipleChoiceAnswer(_Model):
     type: Literal["multiple_choice"]
     option_id: Identifier
+
+
+class ShortAnswerAnswer(_Model):
+    type: Literal["short_answer"]
+    text: Annotated[str, StringConstraints(max_length=500)]
+
+
+class ClozeAnswer(_Model):
+    type: Literal["cloze"]
+    gaps: Annotated[
+        dict[Identifier, Annotated[str, StringConstraints(max_length=200)]],
+        Field(min_length=1, max_length=50, description="The typed or placed word per gap id."),
+    ]
 
 
 class SpanHighlightAnswer(_Model):
@@ -421,6 +612,8 @@ class CustomAnswer(_Model):
 
 ExerciseAnswer = Annotated[
     MultipleChoiceAnswer
+    | ShortAnswerAnswer
+    | ClozeAnswer
     | SpanHighlightAnswer
     | TableFillAnswer
     | NumericAnswer
@@ -436,7 +629,33 @@ class MultipleChoiceSolution(_Model):
     explanation: Markdown | None
 
 
-ExerciseSolution = MultipleChoiceSolution
+class ShortAnswerSolution(_Model):
+    type: Literal["short_answer"]
+    answer: str
+    explanation: Markdown | None
+
+
+class ClozeGapSolution(_Model):
+    id: Identifier
+    answer: str
+
+
+class ClozeSolution(_Model):
+    type: Literal["cloze"]
+    gaps: list[ClozeGapSolution]
+    explanation: Markdown | None
+
+
+ExerciseSolution = Annotated[
+    MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution, Field(discriminator="type")
+]
+
+
+class ItemCorrectness(_Model):
+    """Whether one part of an exercise (a cloze gap) was right."""
+
+    id: Identifier
+    correct: bool
 
 
 class AssessmentResult(_Model):
@@ -444,6 +663,10 @@ class AssessmentResult(_Model):
     exercise_id: Identifier
     score: Annotated[float, Field(ge=0, le=1)]
     correct: bool
+    items: Annotated[
+        list[ItemCorrectness],
+        Field(description="Per-part correctness for exercises with parts; kept when withheld."),
+    ] = []
     solution: Annotated[
         ExerciseSolution | None,
         Field(description="Withheld (null) for a wrong answer the student may still retry."),

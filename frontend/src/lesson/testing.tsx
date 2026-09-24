@@ -2,13 +2,8 @@ import { vi } from 'vitest'
 import type { JSX } from 'solid-js'
 import { I18nProvider } from '../i18n/i18n'
 import type { Locale } from '../i18n/messages'
-import type {
-  AssessmentResult,
-  LessonPublic,
-  MultipleChoiceAnswer,
-  MultipleChoiceExercisePublic,
-} from '../generated/lesson'
-import type { ExercisePublic } from './schema'
+import type { AssessmentResult, LessonPublic, MultipleChoiceExercisePublic } from '../generated/lesson'
+import { isRendered, type ExercisePublic, type RenderedAnswer, type RenderedExercise } from './schema'
 import type { LessonApi } from './LessonPlayer'
 
 export function withI18n(ui: () => JSX.Element, locale: Locale = 'en') {
@@ -60,37 +55,78 @@ export const atTheEndLesson: LessonPublic = {
 
 /** The answer key the fake backend grades against; the player itself never sees it. */
 export const answerKey: Record<string, string> = { location: 'esta', origin: 'somos' }
+export const typedKey: Record<string, string> = { song: 'canción', contraction: "don't" }
+export const clozeKey: Record<string, Record<string, string>> = {
+  tomorrow: { w2: 'vamos', w4: 'hermano' },
+  yesterday: { v1: 'went', v3: 'saw' },
+}
 
-/** A stand-in for the backend: grades with `answerKey` and repeats exercises reversed. */
-export function fakeApi(lesson: LessonPublic = sampleLesson) {
-  const assess = vi.fn(
-    async (
-      exerciseId: string,
-      answer: MultipleChoiceAnswer,
-      options: { reveal: boolean },
-    ): Promise<AssessmentResult> => {
+const same = (given: string, expected: string) => given.trim().toLowerCase() === expected.toLowerCase()
+
+function grade(exerciseId: string, answer: RenderedAnswer): Omit<AssessmentResult, 'solution'> & {
+  solution: NonNullable<AssessmentResult['solution']>
+} {
+  const explanation = `Because of **${exerciseId}**.`
+  const base = { status: 'assessed' as const, exercise_id: exerciseId }
+  switch (answer.type) {
+    case 'multiple_choice': {
       const correct = answerKey[exerciseId] === answer.option_id
       return {
-        status: 'assessed',
-        exercise_id: exerciseId,
+        ...base,
         score: correct ? 1 : 0,
         correct,
-        solution:
-          correct || options.reveal
-            ? {
-                type: 'multiple_choice',
-                option_id: answerKey[exerciseId],
-                explanation: `Because of **${exerciseId}**.`,
-              }
-            : null,
+        items: [],
+        solution: { type: 'multiple_choice', option_id: answerKey[exerciseId], explanation },
       }
+    }
+    case 'short_answer': {
+      const correct = same(answer.text, typedKey[exerciseId])
+      return {
+        ...base,
+        score: correct ? 1 : 0,
+        correct,
+        items: [],
+        solution: { type: 'short_answer', answer: typedKey[exerciseId], explanation },
+      }
+    }
+    case 'cloze': {
+      const key = clozeKey[exerciseId]
+      const items = Object.keys(answer.gaps).map((id) => ({ id, correct: same(answer.gaps[id], key[id] ?? '') }))
+      const right = items.filter((item) => item.correct).length
+      return {
+        ...base,
+        score: right / items.length,
+        correct: right === items.length,
+        items,
+        solution: {
+          type: 'cloze',
+          gaps: Object.keys(answer.gaps).map((id) => ({ id, answer: key[id] })),
+          explanation,
+        },
+      }
+    }
+  }
+}
+
+/** A stand-in for the backend: grades with the keys above and repeats exercises reversed. */
+export function fakeApi(lesson: LessonPublic = sampleLesson) {
+  const assess = vi.fn(
+    async (exerciseId: string, answer: RenderedAnswer, options: { reveal: boolean }): Promise<AssessmentResult> => {
+      const result = grade(exerciseId, answer)
+      return { ...result, solution: result.correct || options.reveal ? result.solution : null }
     },
   )
   const secondRound = vi.fn(async (failed: string[], _seed: string) => ({
     exercises: lesson.blocks
-      .filter((block): block is MultipleChoiceExercisePublic => block.type === 'multiple_choice')
+      .filter((block): block is RenderedExercise => isRendered(block))
       .filter((exercise) => failed.includes(exercise.id))
-      .map((exercise) => ({ ...exercise, options: [...exercise.options].reverse() })),
+      .map((exercise) =>
+        exercise.type === 'multiple_choice'
+          ? { ...exercise, options: [...exercise.options].reverse() }
+          : exercise.type === 'short_answer'
+            ? { ...exercise, show_hint: true }
+            : exercise,
+      ),
   }))
   return { assess, secondRound } satisfies LessonApi
 }

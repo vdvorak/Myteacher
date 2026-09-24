@@ -38,8 +38,9 @@
 @media print {
   .page-header,
   .print-toolbar,
-  button,
-  input,
+  button:not(.cloze-gap):not(.cloze-word),
+  input[type='radio'],
+  input[type='checkbox'],
   select,
   .exercise-result,
   .exercise-hint,
@@ -66,6 +67,23 @@
     padding: 0;
     border: none;
     background: none;
+  }
+
+  .exercise-text-input,
+  .cloze-gap-input,
+  .cloze-gap {
+    border: none;
+    border-bottom: var(--border-width) solid var(--color-text);
+    border-radius: 0;
+    background: none;
+  }
+
+  .cloze-word,
+  .cloze-word[aria-pressed='true'] {
+    padding: 0 var(--space-2);
+    border: var(--border-width) solid var(--color-text);
+    background: none;
+    color: var(--color-text);
   }
 
   .exercise-option::before {

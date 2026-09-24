@@ -2,7 +2,6 @@ import type {
   AnswerKey,
   AssessmentResult,
   LessonPublic,
-  MultipleChoiceAnswer,
   SecondRound,
   SecondRoundRequest,
 } from '../generated/lesson'
@@ -44,7 +43,7 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 export function lessonApi(lessonId: string): LessonApi {
   const lesson = `/api/lessons/${encodeURIComponent(lessonId)}`
   return {
-    assess: async (exerciseId, answer: MultipleChoiceAnswer, { reveal }): Promise<AssessmentResult> => {
+    assess: async (exerciseId, answer, { reveal }): Promise<AssessmentResult> => {
       const outcome = await post<AssessmentOutcome>(
         `${lesson}/exercises/${encodeURIComponent(exerciseId)}/assessment?reveal=${reveal}`,
         answer,

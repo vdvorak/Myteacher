@@ -28,7 +28,7 @@ export interface AnswerKeyEntry {
   /**
    * Null for a type without an assessor in this phase.
    */
-  solution: MultipleChoiceSolution | null
+  solution: (MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution) | null
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -41,6 +41,32 @@ export interface MultipleChoiceSolution {
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ShortAnswerSolution".
+ */
+export interface ShortAnswerSolution {
+  type: 'short_answer'
+  answer: string
+  explanation: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ClozeSolution".
+ */
+export interface ClozeSolution {
+  type: 'cloze'
+  gaps: ClozeGapSolution[]
+  explanation: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ClozeGapSolution".
+ */
+export interface ClozeGapSolution {
+  id: string
+  answer: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "AssessmentResult".
  */
 export interface AssessmentResult {
@@ -49,9 +75,23 @@ export interface AssessmentResult {
   score: number
   correct: boolean
   /**
+   * Per-part correctness for exercises with parts; kept when withheld.
+   */
+  items?: ItemCorrectness[]
+  /**
    * Withheld (null) for a wrong answer the student may still retry.
    */
-  solution: MultipleChoiceSolution | null
+  solution: (MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution) | null
+}
+/**
+ * Whether one part of an exercise (a cloze gap) was right.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ItemCorrectness".
+ */
+export interface ItemCorrectness {
+  id: string
+  correct: boolean
 }
 /**
  * The answer fits the exercise, but its type has no assessor in this phase.
@@ -101,6 +141,126 @@ export interface BlankCellPublic {
 export interface ChoiceOption {
   id: string
   text: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ClozeAnswer".
+ */
+export interface ClozeAnswer {
+  type: 'cloze'
+  /**
+   * The typed or placed word per gap id.
+   */
+  gaps: {
+    /**
+     * This interface was referenced by `undefined`'s JSON-Schema definition
+     * via the `patternProperty` "^[a-z0-9][a-z0-9-]*$".
+     */
+    [k: string]: string
+  }
+}
+/**
+ * A word that may be blanked; `blanked` on the exercise says which are gaps now.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ClozeCandidate".
+ */
+export interface ClozeCandidate {
+  kind: 'candidate'
+  /**
+   * Reaches the browser as the gap id: must not be the answer.
+   */
+  id: string
+  answer: string
+  alternatives?: string[]
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ClozeExercise".
+ */
+export interface ClozeExercise {
+  type: 'cloze'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  /**
+   * @minItems 1
+   * @maxItems 200
+   */
+  segments: [ClozeText | ClozeCandidate, ...(ClozeText | ClozeCandidate)[]]
+  /**
+   * @minItems 1
+   * @maxItems 50
+   */
+  blanked: [string, ...string[]]
+  word_bank?: WordBank | null
+  tolerance?: ToleranceRules
+  hint?: string | null
+  solution_explanation?: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ClozeText".
+ */
+export interface ClozeText {
+  kind: 'text'
+  text: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "WordBank".
+ */
+export interface WordBank {
+  /**
+   * @maxItems 20
+   */
+  distractors?: string[]
+}
+/**
+ * How strictly a typed answer is compared with the accepted answers.
+ */
+export interface ToleranceRules {
+  ignore_case?: boolean
+  /**
+   * Collapse runs of whitespace; leading and trailing never count.
+   */
+  normalise_whitespace?: boolean
+  /**
+   * Accents do not count; ñ stays a letter distinct from n.
+   */
+  ignore_diacritics?: boolean
+  /**
+   * Punctuation, including ¿ and ¡, does not count.
+   */
+  ignore_punctuation?: boolean
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ClozeExercisePublic".
+ */
+export interface ClozeExercisePublic {
+  type: 'cloze'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  segments: (ClozeText | ClozeGapPublic)[]
+  /**
+   * Words to place into the gaps, or null when the student types.
+   */
+  word_bank: string[] | null
+  hint: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ClozeGapPublic".
+ */
+export interface ClozeGapPublic {
+  kind: 'gap'
+  id: string
 }
 /**
  * Opaque JSON from a custom exercise frame, validated only for size.
@@ -189,6 +349,8 @@ export interface LessonDocument {
     (
       | ExplanationBlock
       | MultipleChoiceExercise
+      | ShortAnswerExercise
+      | ClozeExercise
       | SpanHighlightExercise
       | TableFillExercise
       | NumericExercise
@@ -198,6 +360,8 @@ export interface LessonDocument {
     ...(
       | ExplanationBlock
       | MultipleChoiceExercise
+      | ShortAnswerExercise
+      | ClozeExercise
       | SpanHighlightExercise
       | TableFillExercise
       | NumericExercise
@@ -225,6 +389,50 @@ export interface MultipleChoiceExercise {
   correct_option_id: string
   hint?: string | null
   solution_explanation?: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ShortAnswerExercise".
+ */
+export interface ShortAnswerExercise {
+  type: 'short_answer'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  /**
+   * The first is the canonical answer shown as solution.
+   *
+   * @minItems 1
+   * @maxItems 20
+   */
+  accepted_answers: [string, ...string[]]
+  tolerance?: ToleranceRules1
+  hint?: string | null
+  /**
+   * Show the hint before the first try (used by the second round).
+   */
+  show_hint?: boolean
+  solution_explanation?: string | null
+}
+/**
+ * How strictly a typed answer is compared with the accepted answers.
+ */
+export interface ToleranceRules1 {
+  ignore_case?: boolean
+  /**
+   * Collapse runs of whitespace; leading and trailing never count.
+   */
+  normalise_whitespace?: boolean
+  /**
+   * Accents do not count; ñ stays a letter distinct from n.
+   */
+  ignore_diacritics?: boolean
+  /**
+   * Punctuation, including ¿ and ¡, does not count.
+   */
+  ignore_punctuation?: boolean
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -334,6 +542,8 @@ export interface LessonPublic {
   blocks: (
     | ExplanationBlock
     | MultipleChoiceExercisePublic
+    | ShortAnswerExercisePublic
+    | ClozeExercisePublic
     | SpanHighlightExercisePublic
     | TableFillExercisePublic
     | NumericExercisePublic
@@ -354,6 +564,20 @@ export interface MultipleChoiceExercisePublic {
   prompt: string
   options: ChoiceOption[]
   hint: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ShortAnswerExercisePublic".
+ */
+export interface ShortAnswerExercisePublic {
+  type: 'short_answer'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  hint: string | null
+  show_hint: boolean
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -445,6 +669,8 @@ export interface NumericAnswer {
 export interface SecondRound {
   exercises: (
     | MultipleChoiceExercisePublic
+    | ShortAnswerExercisePublic
+    | ClozeExercisePublic
     | SpanHighlightExercisePublic
     | TableFillExercisePublic
     | NumericExercisePublic
@@ -459,6 +685,14 @@ export interface SecondRound {
 export interface SecondRoundRequest {
   failed_exercise_ids: string[]
   seed: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ShortAnswerAnswer".
+ */
+export interface ShortAnswerAnswer {
+  type: 'short_answer'
+  text: string
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -487,6 +721,27 @@ export interface TableFillAnswer {
      */
     [k: string]: string
   }
+}
+/**
+ * How strictly a typed answer is compared with the accepted answers.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "ToleranceRules".
+ */
+export interface ToleranceRules2 {
+  ignore_case?: boolean
+  /**
+   * Collapse runs of whitespace; leading and trailing never count.
+   */
+  normalise_whitespace?: boolean
+  /**
+   * Accents do not count; ñ stays a letter distinct from n.
+   */
+  ignore_diacritics?: boolean
+  /**
+   * Punctuation, including ¿ and ¡, does not count.
+   */
+  ignore_punctuation?: boolean
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema

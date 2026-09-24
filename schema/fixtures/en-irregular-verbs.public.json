@@ -1,0 +1,56 @@
+{
+  "id": "en-irregular-verbs",
+  "title": "Irregular verbs in the past",
+  "language": "en",
+  "feedback_mode": "at_the_end",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "Many common English verbs have an irregular past simple: *take → took*, *make → made*, *eat → ate*. They have to be remembered, so they are worth practising.\n\nCheck your answers before you submit."
+    },
+    {
+      "type": "cloze",
+      "id": "yesterday",
+      "prompt": "Write the past simple of the verb in brackets.",
+      "segments": [
+        {
+          "kind": "text",
+          "text": "Yesterday I "
+        },
+        {
+          "kind": "gap",
+          "id": "v1"
+        },
+        {
+          "kind": "text",
+          "text": " (go) to the market, "
+        },
+        {
+          "kind": "text",
+          "text": "bought"
+        },
+        {
+          "kind": "text",
+          "text": " (buy) some apples and "
+        },
+        {
+          "kind": "gap",
+          "id": "v3"
+        },
+        {
+          "kind": "text",
+          "text": " (see) an old friend."
+        }
+      ],
+      "word_bank": null,
+      "hint": null
+    },
+    {
+      "type": "short_answer",
+      "id": "contraction",
+      "prompt": "Write the short form of *do not*.",
+      "hint": null,
+      "show_hint": false
+    }
+  ]
+}

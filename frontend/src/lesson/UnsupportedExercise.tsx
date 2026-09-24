@@ -1,12 +1,12 @@
 import { createUniqueId, Show } from 'solid-js'
-import type { ExercisePublic } from './schema'
+import type { ExercisePublic, RenderedExercise } from './schema'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import { Markdown } from './Markdown'
 import './exercise.css'
 
 /** Exercise types the schema knows but this phase does not render. */
-export type UnrenderedExercise = Exclude<ExercisePublic, { type: 'multiple_choice' }>
+export type UnrenderedExercise = Exclude<ExercisePublic, RenderedExercise>
 
 // A new exercise type fails to compile here until it has a name in both languages.
 const typeNames: Record<UnrenderedExercise['type'], MessageKey> = {

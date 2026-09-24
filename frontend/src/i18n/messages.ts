@@ -36,6 +36,10 @@ const en = {
   'print.answerKeyFailed': 'The answer key could not be loaded.',
   'answerKey.heading': 'Answer key',
   'answerKey.unavailable': 'No answer key for this exercise type yet.',
+  'shortAnswer.label': 'Your answer',
+  'cloze.gap': 'Gap {n}',
+  'cloze.empty': 'empty',
+  'cloze.bank': 'Word bank',
 }
 
 export type MessageKey = keyof typeof en
@@ -75,6 +79,10 @@ const cs: Record<MessageKey, string> = {
   'print.answerKeyFailed': 'Klíč řešení se nepodařilo načíst.',
   'answerKey.heading': 'Klíč řešení',
   'answerKey.unavailable': 'Pro tento typ cvičení zatím klíč řešení není.',
+  'shortAnswer.label': 'Vaše odpověď',
+  'cloze.gap': 'Mezera {n}',
+  'cloze.empty': 'prázdná',
+  'cloze.bank': 'Nabídka slov',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }

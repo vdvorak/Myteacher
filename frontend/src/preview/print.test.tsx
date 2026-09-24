@@ -6,7 +6,10 @@ import { render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AnswerKey, AssessmentResult } from '../generated/lesson'
-import { sampleLesson, withI18n } from '../lesson/testing'
+import vocabulary from '../../../schema/fixtures/es-vocabulario.public.json'
+import type { LessonPublic } from '../generated/lesson'
+import { LessonPlayer } from '../lesson/LessonPlayer'
+import { fakeApi, sampleLesson, withI18n } from '../lesson/testing'
 import { PreviewPage } from './PreviewPage'
 
 interface Rule {
@@ -133,6 +136,18 @@ describe('printing the preview', () => {
     expect(hiddenInPrint(within(group).getByText(/Madrid ___/))).toBe(false)
     expect(hiddenInPrint(within(group).getByText('está'))).toBe(false)
     expect(hiddenInPrint(screen.getByText(/two verbs/))).toBe(false)
+  })
+
+  it('keeps a word bank and its gaps on paper, so the exercise can be done in print', () => {
+    const lesson = vocabulary as LessonPublic
+    render(withI18n(() => <LessonPlayer lesson={lesson} seed="1" api={fakeApi(lesson)} />))
+    const cloze = screen.getByRole('group', { name: /words from the bank/ })
+
+    const bank = within(cloze).getByRole('group', { name: 'Word bank' })
+    expect(hiddenInPrint(bank)).toBe(false)
+    expect(within(bank).getAllByRole('button').filter(hiddenInPrint)).toEqual([])
+    expect(hiddenInPrint(within(cloze).getByRole('button', { name: /^Gap 1:/ }))).toBe(false)
+    expect(hiddenInPrint(within(cloze).getByRole('button', { name: 'Confirm' }))).toBe(true)
   })
 
   it('avoids breaking a page inside an exercise', async () => {

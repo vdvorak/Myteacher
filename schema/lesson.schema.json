@@ -38,13 +38,32 @@
         "solution": {
           "anyOf": [
             {
-              "$ref": "#/$defs/MultipleChoiceSolution"
+              "discriminator": {
+                "mapping": {
+                  "cloze": "#/$defs/ClozeSolution",
+                  "multiple_choice": "#/$defs/MultipleChoiceSolution",
+                  "short_answer": "#/$defs/ShortAnswerSolution"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/MultipleChoiceSolution"
+                },
+                {
+                  "$ref": "#/$defs/ShortAnswerSolution"
+                },
+                {
+                  "$ref": "#/$defs/ClozeSolution"
+                }
+              ]
             },
             {
               "type": "null"
             }
           ],
-          "description": "Null for a type without an assessor in this phase."
+          "description": "Null for a type without an assessor in this phase.",
+          "title": "Solution"
         }
       },
       "required": [
@@ -78,16 +97,44 @@
           "title": "Correct",
           "type": "boolean"
         },
+        "items": {
+          "default": [],
+          "description": "Per-part correctness for exercises with parts; kept when withheld.",
+          "items": {
+            "$ref": "#/$defs/ItemCorrectness"
+          },
+          "title": "Items",
+          "type": "array"
+        },
         "solution": {
           "anyOf": [
             {
-              "$ref": "#/$defs/MultipleChoiceSolution"
+              "discriminator": {
+                "mapping": {
+                  "cloze": "#/$defs/ClozeSolution",
+                  "multiple_choice": "#/$defs/MultipleChoiceSolution",
+                  "short_answer": "#/$defs/ShortAnswerSolution"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/MultipleChoiceSolution"
+                },
+                {
+                  "$ref": "#/$defs/ShortAnswerSolution"
+                },
+                {
+                  "$ref": "#/$defs/ClozeSolution"
+                }
+              ]
             },
             {
               "type": "null"
             }
           ],
-          "description": "Withheld (null) for a wrong answer the student may still retry."
+          "description": "Withheld (null) for a wrong answer the student may still retry.",
+          "title": "Solution"
         }
       },
       "required": [
@@ -223,6 +270,381 @@
         "text"
       ],
       "title": "ChoiceOption",
+      "type": "object"
+    },
+    "ClozeAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "cloze",
+          "title": "Type",
+          "type": "string"
+        },
+        "gaps": {
+          "description": "The typed or placed word per gap id.",
+          "maxProperties": 50,
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z0-9][a-z0-9-]*$": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 64
+          },
+          "title": "Gaps",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "gaps"
+      ],
+      "title": "ClozeAnswer",
+      "type": "object"
+    },
+    "ClozeCandidate": {
+      "additionalProperties": false,
+      "description": "A word that may be blanked; `blanked` on the exercise says which are gaps now.",
+      "properties": {
+        "kind": {
+          "const": "candidate",
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "description": "Reaches the browser as the gap id: must not be the answer.",
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "answer": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Answer",
+          "type": "string"
+        },
+        "alternatives": {
+          "default": [],
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Alternatives",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "answer"
+      ],
+      "title": "ClozeCandidate",
+      "type": "object"
+    },
+    "ClozeExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "cloze",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "segments": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "candidate": "#/$defs/ClozeCandidate",
+                "text": "#/$defs/ClozeText"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ClozeText"
+              },
+              {
+                "$ref": "#/$defs/ClozeCandidate"
+              }
+            ]
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Segments",
+          "type": "array"
+        },
+        "blanked": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Blanked",
+          "type": "array"
+        },
+        "word_bank": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WordBank"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tolerance": {
+          "$ref": "#/$defs/ToleranceRules",
+          "default": {
+            "ignore_case": true,
+            "normalise_whitespace": true,
+            "ignore_diacritics": false,
+            "ignore_punctuation": false
+          }
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
+        "solution_explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solution Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "segments",
+        "blanked"
+      ],
+      "title": "ClozeExercise",
+      "type": "object"
+    },
+    "ClozeExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "cloze",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "segments": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "gap": "#/$defs/ClozeGapPublic",
+                "text": "#/$defs/ClozeText"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ClozeText"
+              },
+              {
+                "$ref": "#/$defs/ClozeGapPublic"
+              }
+            ]
+          },
+          "title": "Segments",
+          "type": "array"
+        },
+        "word_bank": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Words to place into the gaps, or null when the student types.",
+          "title": "Word Bank"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "segments",
+        "word_bank",
+        "hint"
+      ],
+      "title": "ClozeExercisePublic",
+      "type": "object"
+    },
+    "ClozeGapPublic": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "gap",
+          "title": "Kind",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ],
+      "title": "ClozeGapPublic",
+      "type": "object"
+    },
+    "ClozeGapSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "answer"
+      ],
+      "title": "ClozeGapSolution",
+      "type": "object"
+    },
+    "ClozeSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "cloze",
+          "title": "Type",
+          "type": "string"
+        },
+        "gaps": {
+          "items": {
+            "$ref": "#/$defs/ClozeGapSolution"
+          },
+          "title": "Gaps",
+          "type": "array"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "gaps",
+        "explanation"
+      ],
+      "title": "ClozeSolution",
+      "type": "object"
+    },
+    "ClozeText": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "text",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "ClozeText",
       "type": "object"
     },
     "CustomAnswer": {
@@ -433,6 +855,28 @@
       "title": "GivenCell",
       "type": "object"
     },
+    "ItemCorrectness": {
+      "additionalProperties": false,
+      "description": "Whether one part of an exercise (a cloze gap) was right.",
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "correct": {
+          "title": "Correct",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "correct"
+      ],
+      "title": "ItemCorrectness",
+      "type": "object"
+    },
     "JsonValue": {},
     "LessonDocument": {
       "additionalProperties": false,
@@ -468,11 +912,13 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "cloze": "#/$defs/ClozeExercise",
                 "custom": "#/$defs/CustomExercise",
                 "explanation": "#/$defs/ExplanationBlock",
                 "listening": "#/$defs/ListeningExercise",
                 "multiple_choice": "#/$defs/MultipleChoiceExercise",
                 "numeric": "#/$defs/NumericExercise",
+                "short_answer": "#/$defs/ShortAnswerExercise",
                 "span_highlight": "#/$defs/SpanHighlightExercise",
                 "table_fill": "#/$defs/TableFillExercise"
               },
@@ -484,6 +930,12 @@
               },
               {
                 "$ref": "#/$defs/MultipleChoiceExercise"
+              },
+              {
+                "$ref": "#/$defs/ShortAnswerExercise"
+              },
+              {
+                "$ref": "#/$defs/ClozeExercise"
               },
               {
                 "$ref": "#/$defs/SpanHighlightExercise"
@@ -549,11 +1001,13 @@
           "items": {
             "discriminator": {
               "mapping": {
+                "cloze": "#/$defs/ClozeExercisePublic",
                 "custom": "#/$defs/CustomExercisePublic",
                 "explanation": "#/$defs/ExplanationBlock",
                 "listening": "#/$defs/ListeningExercisePublic",
                 "multiple_choice": "#/$defs/MultipleChoiceExercisePublic",
                 "numeric": "#/$defs/NumericExercisePublic",
+                "short_answer": "#/$defs/ShortAnswerExercisePublic",
                 "span_highlight": "#/$defs/SpanHighlightExercisePublic",
                 "table_fill": "#/$defs/TableFillExercisePublic"
               },
@@ -565,6 +1019,12 @@
               },
               {
                 "$ref": "#/$defs/MultipleChoiceExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/ShortAnswerExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/ClozeExercisePublic"
               },
               {
                 "$ref": "#/$defs/SpanHighlightExercisePublic"
@@ -1090,6 +1550,12 @@
                 "$ref": "#/$defs/MultipleChoiceExercisePublic"
               },
               {
+                "$ref": "#/$defs/ShortAnswerExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/ClozeExercisePublic"
+              },
+              {
                 "$ref": "#/$defs/SpanHighlightExercisePublic"
               },
               {
@@ -1140,6 +1606,200 @@
         "seed"
       ],
       "title": "SecondRoundRequest",
+      "type": "object"
+    },
+    "ShortAnswerAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "short_answer",
+          "title": "Type",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 500,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "ShortAnswerAnswer",
+      "type": "object"
+    },
+    "ShortAnswerExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "short_answer",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "accepted_answers": {
+          "description": "The first is the canonical answer shown as solution.",
+          "items": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Accepted Answers",
+          "type": "array"
+        },
+        "tolerance": {
+          "$ref": "#/$defs/ToleranceRules",
+          "default": {
+            "ignore_case": true,
+            "normalise_whitespace": true,
+            "ignore_diacritics": false,
+            "ignore_punctuation": false
+          }
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
+        "show_hint": {
+          "default": false,
+          "description": "Show the hint before the first try (used by the second round).",
+          "title": "Show Hint",
+          "type": "boolean"
+        },
+        "solution_explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Solution Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "accepted_answers"
+      ],
+      "title": "ShortAnswerExercise",
+      "type": "object"
+    },
+    "ShortAnswerExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "short_answer",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        },
+        "show_hint": {
+          "title": "Show Hint",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "hint",
+        "show_hint"
+      ],
+      "title": "ShortAnswerExercisePublic",
+      "type": "object"
+    },
+    "ShortAnswerSolution": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "short_answer",
+          "title": "Type",
+          "type": "string"
+        },
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Explanation"
+        }
+      },
+      "required": [
+        "type",
+        "answer",
+        "explanation"
+      ],
+      "title": "ShortAnswerSolution",
       "type": "object"
     },
     "SpanHighlightAnswer": {
@@ -1494,6 +2154,37 @@
       "title": "TextSpan",
       "type": "object"
     },
+    "ToleranceRules": {
+      "additionalProperties": false,
+      "description": "How strictly a typed answer is compared with the accepted answers.",
+      "properties": {
+        "ignore_case": {
+          "default": true,
+          "title": "Ignore Case",
+          "type": "boolean"
+        },
+        "normalise_whitespace": {
+          "default": true,
+          "description": "Collapse runs of whitespace; leading and trailing never count.",
+          "title": "Normalise Whitespace",
+          "type": "boolean"
+        },
+        "ignore_diacritics": {
+          "default": false,
+          "description": "Accents do not count; ñ stays a letter distinct from n.",
+          "title": "Ignore Diacritics",
+          "type": "boolean"
+        },
+        "ignore_punctuation": {
+          "default": false,
+          "description": "Punctuation, including ¿ and ¡, does not count.",
+          "title": "Ignore Punctuation",
+          "type": "boolean"
+        }
+      },
+      "title": "ToleranceRules",
+      "type": "object"
+    },
     "ValidationReport": {
       "properties": {
         "valid": {
@@ -1513,6 +2204,24 @@
         "errors"
       ],
       "title": "ValidationReport",
+      "type": "object"
+    },
+    "WordBank": {
+      "additionalProperties": false,
+      "properties": {
+        "distractors": {
+          "default": [],
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "title": "Distractors",
+          "type": "array"
+        }
+      },
+      "title": "WordBank",
       "type": "object"
     }
   },

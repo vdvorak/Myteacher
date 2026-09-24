@@ -13,12 +13,65 @@
       "id": "choice",
       "prompt": "¿Dónde ___ la estación?",
       "options": [
-        { "id": "es", "text": "es" },
-        { "id": "esta", "text": "está" }
+        {
+          "id": "es",
+          "text": "es"
+        },
+        {
+          "id": "esta",
+          "text": "está"
+        }
       ],
       "correct_option_id": "esta",
       "hint": "Location.",
       "solution_explanation": "Location takes **estar**."
+    },
+    {
+      "type": "short_answer",
+      "id": "short",
+      "prompt": "Write the Spanish word for *song*.",
+      "accepted_answers": [
+        "canción"
+      ],
+      "hint": "*-ción*.",
+      "solution_explanation": "*Canción*."
+    },
+    {
+      "type": "cloze",
+      "id": "gaps",
+      "prompt": "Fill the gap.",
+      "segments": [
+        {
+          "kind": "text",
+          "text": "Yo "
+        },
+        {
+          "kind": "candidate",
+          "id": "g1",
+          "answer": "soy"
+        },
+        {
+          "kind": "text",
+          "text": " de "
+        },
+        {
+          "kind": "candidate",
+          "id": "g2",
+          "answer": "Praga"
+        },
+        {
+          "kind": "text",
+          "text": "."
+        }
+      ],
+      "blanked": [
+        "g1"
+      ],
+      "word_bank": {
+        "distractors": [
+          "estoy"
+        ]
+      }
     },
     {
       "type": "span_highlight",
@@ -26,19 +79,64 @@
       "prompt": "Highlight every form of *estar*.",
       "text": "Hoy estoy en casa, pero mañana estaremos en Sevilla.",
       "correct_spans": [
-        { "start": 4, "end": 9 },
-        { "start": 31, "end": 40 }
+        {
+          "start": 4,
+          "end": 9
+        },
+        {
+          "start": 31,
+          "end": 40
+        }
       ]
     },
     {
       "type": "table_fill",
       "id": "conjugation",
       "prompt": "Complete the present tense of *estar*.",
-      "columns": ["Persona", "Forma"],
+      "columns": [
+        "Persona",
+        "Forma"
+      ],
       "rows": [
-        [{ "kind": "given", "text": "yo" }, { "kind": "blank", "id": "yo", "accepted_answers": ["estoy"] }],
-        [{ "kind": "given", "text": "tú" }, { "kind": "blank", "id": "tu", "accepted_answers": ["estás"] }],
-        [{ "kind": "given", "text": "nosotros" }, { "kind": "blank", "id": "nosotros", "accepted_answers": ["estamos"] }]
+        [
+          {
+            "kind": "given",
+            "text": "yo"
+          },
+          {
+            "kind": "blank",
+            "id": "yo",
+            "accepted_answers": [
+              "estoy"
+            ]
+          }
+        ],
+        [
+          {
+            "kind": "given",
+            "text": "tú"
+          },
+          {
+            "kind": "blank",
+            "id": "tu",
+            "accepted_answers": [
+              "estás"
+            ]
+          }
+        ],
+        [
+          {
+            "kind": "given",
+            "text": "nosotros"
+          },
+          {
+            "kind": "blank",
+            "id": "nosotros",
+            "accepted_answers": [
+              "estamos"
+            ]
+          }
+        ]
       ]
     },
     {
@@ -53,9 +151,14 @@
       "type": "listening",
       "id": "dictation",
       "prompt": "Listen and write down the sentence.",
-      "audio": { "attachment_id": "dictado-01" },
+      "audio": {
+        "attachment_id": "dictado-01"
+      },
       "transcript": "¿Dónde está la estación de tren?",
-      "accepted_answers": ["¿Dónde está la estación de tren?", "Dónde está la estación de tren"]
+      "accepted_answers": [
+        "¿Dónde está la estación de tren?",
+        "Dónde está la estación de tren"
+      ]
     },
     {
       "type": "custom",
