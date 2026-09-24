@@ -1,8 +1,19 @@
-import { Show } from 'solid-js'
-import { useI18n } from './i18n/i18n'
+import {
+  MemoryRouter,
+  Navigate,
+  Route,
+  Router,
+  useParams,
+  useSearchParams,
+  type MemoryHistory,
+  type RouteSectionProps,
+} from '@solidjs/router'
+import type { AuthApi } from './auth/api'
+import { SessionProvider } from './auth/session'
+import { SignInPage } from './auth/SignInPage'
 import { PreviewPage } from './preview/PreviewPage'
-
-const SAMPLE_LESSON = 'es-ser-estar'
+import { HomePage } from './shell/HomePage'
+import { Shell } from './shell/Shell'
 
 function decodeSegment(segment: string): string {
   try {
@@ -12,22 +23,34 @@ function decodeSegment(segment: string): string {
   }
 }
 
-export function App(props: { location: Location }) {
-  const { t } = useI18n()
-  const previewMatch = () => /^\/preview\/([^/]+)\/?$/.exec(props.location.pathname)
-  const seed = () => new URLSearchParams(props.location.search).get('seed') ?? 'preview'
+function PreviewRoute() {
+  const params = useParams<{ lessonId: string }>()
+  const [search] = useSearchParams<{ seed?: string }>()
+  // The router hands over the segment still encoded; the lesson API encodes it again.
+  return <PreviewPage lessonId={decodeSegment(params.lessonId)} seed={search.seed ?? 'preview'} />
+}
 
-  return (
-    <Show
-      when={previewMatch()}
-      fallback={
-        <main class="page">
-          <h1>{t('app.title')}</h1>
-          <a href={`/preview/${SAMPLE_LESSON}`}>{t('preview.openFixture')}</a>
-        </main>
-      }
-    >
-      {(match) => <PreviewPage lessonId={decodeSegment(match()[1])} seed={seed()} />}
-    </Show>
+const routes = () => (
+  <>
+    <Route path="/sign-in" component={SignInPage} />
+    <Route path="/preview/:lessonId" component={PreviewRoute} />
+    <Route path="/" component={Shell}>
+      <Route path="/" component={HomePage} />
+    </Route>
+    <Route path="*" component={() => <Navigate href="/" />} />
+  </>
+)
+
+/** The whole app; tests pass a memory history instead of the browser's. */
+export function App(props: { auth: AuthApi; history?: MemoryHistory }) {
+  const root = (section: RouteSectionProps) => (
+    <SessionProvider api={props.auth}>{section.children}</SessionProvider>
+  )
+  return props.history ? (
+    <MemoryRouter history={props.history} root={root}>
+      {routes()}
+    </MemoryRouter>
+  ) : (
+    <Router root={root}>{routes()}</Router>
   )
 }

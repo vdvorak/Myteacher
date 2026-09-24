@@ -10,7 +10,9 @@ from myteacher.settings import Settings
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(database_url=f"sqlite:///{tmp_path / 'myteacher.db'}", static_dir=None)
+    return Settings(
+        database_url=f"sqlite:///{tmp_path / 'myteacher.db'}", static_dir=None, secure_cookies=False
+    )
 
 
 @pytest.fixture

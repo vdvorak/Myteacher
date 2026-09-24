@@ -61,6 +61,21 @@ const en = {
   'answerKey.points': '{points} pt',
   'selection.tokens': 'Tap to select',
   'selection.limit': 'Select up to {max}.',
+  'auth.signIn': 'Sign in',
+  'auth.email': 'Email',
+  'auth.password': 'Password',
+  'auth.submit': 'Sign in',
+  'auth.invalidCredentials': 'The email or password is not right.',
+  'auth.signInFailed': 'Signing in failed. Try again.',
+  'auth.inactive': 'This account is inactive. Ask your teacher or the admin to reactivate it.',
+  'auth.signOut': 'Sign out',
+  'auth.signOutFailed': 'Signing out failed. Try again.',
+  'auth.sessionFailed': 'Your account could not be loaded. Reload the page.',
+  'shell.signedInAs': 'Signed in as',
+  'shell.roles': 'Roles',
+  'role.teacher': 'Teacher',
+  'role.student': 'Student',
+  'role.admin': 'Admin',
 }
 
 export type MessageKey = keyof typeof en
@@ -125,6 +140,21 @@ const cs: Record<MessageKey, string> = {
   'answerKey.points': '{points} b.',
   'selection.tokens': 'Klepnutím vyberte',
   'selection.limit': 'Vyberte nejvýše {max}.',
+  'auth.signIn': 'Přihlášení',
+  'auth.email': 'E-mail',
+  'auth.password': 'Heslo',
+  'auth.submit': 'Přihlásit se',
+  'auth.invalidCredentials': 'E-mail nebo heslo nesedí.',
+  'auth.signInFailed': 'Přihlášení se nepodařilo. Zkuste to znovu.',
+  'auth.inactive': 'Tento účet je neaktivní. Požádejte učitele nebo admina o jeho obnovení.',
+  'auth.signOut': 'Odhlásit se',
+  'auth.signOutFailed': 'Odhlášení se nepodařilo. Zkuste to znovu.',
+  'auth.sessionFailed': 'Účet se nepodařilo načíst. Obnovte stránku.',
+  'shell.signedInAs': 'Přihlášeno jako',
+  'shell.roles': 'Role',
+  'role.teacher': 'Učitel',
+  'role.student': 'Student',
+  'role.admin': 'Admin',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }
