@@ -9,6 +9,7 @@ import type { Course, CourseBasics, CourseRight } from './api'
 import { BriefEditor } from './BriefEditor'
 import { CourseBasicsForm } from './CourseBasicsForm'
 import { InterviewPanel } from './InterviewPanel'
+import { SourcesSection } from '../sources/SourcesSection'
 import { TopicsSection } from './TopicsSection'
 
 /** One course: its basics and its brief, each brief field edited on its own. */
@@ -131,6 +132,7 @@ function CourseDetail() {
               )}
             </Show>
             <TopicsSection courseId={id} canEdit={loaded()!.can_edit} />
+            <SourcesSection courseId={id} canEdit={loaded()!.can_edit} />
           </>
         )}
       </Show>

@@ -14,6 +14,8 @@ const failureMessages: Record<JobFailure, MessageKey> = {
   invalid_output: 'jobs.failed.invalid_output',
   no_key: 'jobs.failed.no_key',
   interrupted: 'jobs.failed.interrupted',
+  no_text: 'jobs.failed.no_text',
+  unreadable_file: 'jobs.failed.unreadable_file',
 }
 
 // Failures fixed in the teacher's settings, not by trying again.
@@ -44,7 +46,12 @@ export function JobFailureMessage(props: { kind: JobFailure; rawOutput?: string 
 }
 
 /** The status of a job: polled while it runs, reported to `onFinished` once it ends. */
-export function JobStatus(props: { job: Job; onFinished: (job: Job) => void }) {
+export function JobStatus(props: {
+  job: Job
+  onFinished: (job: Job) => void
+  /** What the job is said to do while it runs; by default, the assistant working. */
+  working?: MessageKey
+}) {
   const { t } = useI18n()
   const api = useApi().jobs
   const [job, setJob] = createSignal(props.job)
@@ -81,7 +88,7 @@ export function JobStatus(props: { job: Job; onFinished: (job: Job) => void }) {
       <Show when={!finished(job())}>
         <p class="job-status" role="status">
           <span class="job-spinner" aria-hidden="true" />
-          {t('jobs.working')}
+          {t(props.working ?? 'jobs.working')}
           <Show when={pollFailed()}> {t('jobs.pollFailed')}</Show>
         </p>
       </Show>

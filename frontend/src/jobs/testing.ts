@@ -9,14 +9,14 @@ type Outcome = Pick<Job, 'state' | 'error_kind' | 'raw_output'>
  */
 export function fakeJobsApi() {
   let nextId = 500
-  const jobs = new Map<number, { job: Job; finish?: () => Outcome }>()
+  const jobs = new Map<number, { job: Job; finish?: () => Outcome; progress: Job['progress'] }>()
   const api = {
     pollMs: 0,
     get: vi.fn(async (id: number): Promise<Job> => {
       const stored = jobs.get(id)
       if (!stored) throw new Error(`no job ${id}`)
       if (stored.job.state === 'queued') {
-        stored.job = { ...stored.job, state: 'running', progress: 'asking_assistant' }
+        stored.job = { ...stored.job, state: 'running', progress: stored.progress }
       } else if (stored.finish) {
         stored.job = { ...stored.job, ...stored.finish(), progress: null }
         stored.finish = undefined
@@ -27,7 +27,7 @@ export function fakeJobsApi() {
   return {
     ...api,
     /** A queued job whose end `finish` decides, for the fakes of the endpoints that start jobs. */
-    start(kind: string, finish: () => Outcome): Job {
+    start(kind: string, finish: () => Outcome, progress: Job['progress'] = 'asking_assistant'): Job {
       const job: Job = {
         id: nextId++,
         kind,
@@ -37,12 +37,12 @@ export function fakeJobsApi() {
         error_kind: null,
         raw_output: null,
       }
-      jobs.set(job.id, { job, finish })
+      jobs.set(job.id, { job, finish, progress })
       return { ...job }
     },
     /** A job already in the given state, for pages opened while a job runs. */
     put(job: Job, finish?: () => Outcome) {
-      jobs.set(job.id, { job, finish })
+      jobs.set(job.id, { job, finish, progress: 'asking_assistant' })
     },
   }
 }

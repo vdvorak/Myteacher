@@ -21,10 +21,11 @@ class JobOut(BaseModel):
     id: int
     kind: str
     state: JobState
-    # What the job is doing now: "waiting" or "asking_assistant"; None once it ended.
+    # What the job is doing now: "waiting", "asking_assistant" or "extracting"; None once ended.
     progress: str | None
     result: dict[str, Any] | None
-    # Why it failed: a provider problem, "invalid_output", "no_key", "interrupted" or "other".
+    # Why it failed: a provider problem, "invalid_output", "no_key", "interrupted", "other", or
+    # for an extraction "no_text" or "unreadable_file".
     error_kind: str | None
     # The model's answer when it did not validate.
     raw_output: str | None

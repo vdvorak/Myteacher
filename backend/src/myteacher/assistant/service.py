@@ -9,7 +9,7 @@ validated output or raises `AssistantFailed` with a kind the teacher can act on.
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
@@ -17,7 +17,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 from pydantic_ai import Agent, capture_run_messages
 from pydantic_ai.exceptions import UnexpectedModelBehavior
-from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
+from pydantic_ai.messages import BinaryContent, ModelResponse, TextPart, ToolCallPart
 
 from myteacher.accounts.models import Account
 from myteacher.assistant import credentials, prompts
@@ -96,8 +96,12 @@ async def generate[Out: BaseModel](
     teacher: Account,
     inputs: dict[str, Any],
     course_id: int | None = None,
+    attachments: Sequence[BinaryContent] = (),
 ) -> Out:
     """Run `task` on the teacher's key and record it; raises `AssistantFailed`.
+
+    `attachments` (a document or image to read) go to the model after the inputs; the record
+    holds only the inputs, so a caller describes an attachment there without its bytes.
 
     Commits the session before the model call, so that no transaction stays open across a call
     that can take a minute. Other requests keep writing meanwhile, so a caller refreshes the
@@ -138,8 +142,9 @@ async def generate[Out: BaseModel](
         )
         with capture_run_messages() as messages:
             try:
+                user_prompt = json.dumps(inputs, ensure_ascii=False)
                 result = await agent.run(
-                    json.dumps(inputs, ensure_ascii=False),
+                    [user_prompt, *attachments] if attachments else user_prompt,
                     model_settings={"timeout": task.timeout_s},
                 )
             except UnexpectedModelBehavior:

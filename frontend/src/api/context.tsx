@@ -5,6 +5,7 @@ import { httpCoursesApi, type CoursesApi } from '../courses/api'
 import { httpJobsApi, type JobsApi } from '../jobs/api'
 import { httpAuthApi, type AuthApi } from '../auth/api'
 import { httpSettingsApi, type SettingsApi } from '../settings/api'
+import { httpSourcesApi, type SourcesApi } from '../sources/api'
 import { httpStudentsApi, type StudentsApi } from '../students/api'
 
 /** Every backend the pages talk to; tests replace them with fakes. */
@@ -15,6 +16,7 @@ export interface Apis {
   students: StudentsApi
   classes: ClassesApi
   courses: CoursesApi
+  sources: SourcesApi
   jobs: JobsApi
 }
 
@@ -25,6 +27,7 @@ export const httpApis: Apis = {
   students: httpStudentsApi,
   classes: httpClassesApi,
   courses: httpCoursesApi,
+  sources: httpSourcesApi,
   jobs: httpJobsApi,
 }
 

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from sqlalchemy import JSON, ForeignKey, Index, String, Text, text
+from sqlalchemy import JSON, ForeignKey, Index, LargeBinary, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from myteacher.persistence import Base, InstanceOwned, UTCDateTime
@@ -120,3 +120,42 @@ class Interview(InstanceOwned, Base):
     version: Mapped[int] = mapped_column(default=1)
 
     __mapper_args__ = {"version_id_col": version}
+
+
+# What a source was uploaded as, read from its content rather than from what the browser said.
+SourceKind = Literal["pdf", "text", "image"]
+
+
+class Source(InstanceOwned, Base):
+    """A document the teacher supplied as material of a course, with the text read from it:
+    what the assistant will actually read."""
+
+    __tablename__ = "source"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(10))
+    media_type: Mapped[str] = mapped_column(String(50))
+    size: Mapped[int]
+    # Whether students may later read the original behind a lesson.
+    visible_to_students: Mapped[bool] = mapped_column(default=False)
+    # None until an extraction succeeded.
+    text: Mapped[str | None] = mapped_column(Text)
+    # "file" when read from the file itself, "ocr" when the assistant read it.
+    extracted_with: Mapped[str | None] = mapped_column(String(10))
+    # The latest extraction; only its result lands.
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
+    uploaded_by_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class SourceFile(InstanceOwned, Base):
+    """The original bytes of a source, apart so that listing sources never loads them."""
+
+    __tablename__ = "source_file"
+
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("source.id", ondelete="CASCADE"), primary_key=True
+    )
+    content: Mapped[bytes] = mapped_column(LargeBinary)

@@ -10,13 +10,16 @@ export type JobFailure =
   | 'invalid_output'
   | 'no_key'
   | 'interrupted'
+  /** An extraction found no text: a scan or an image read without OCR. */
+  | 'no_text'
+  | 'unreadable_file'
 
 export interface Job {
   id: number
   kind: string
   state: JobState
   /** What the job is doing now; null once it ended. */
-  progress: 'waiting' | 'asking_assistant' | null
+  progress: 'waiting' | 'asking_assistant' | 'extracting' | null
   result: Record<string, unknown> | null
   error_kind: JobFailure | null
   /** The assistant's answer when it did not have the expected shape. */

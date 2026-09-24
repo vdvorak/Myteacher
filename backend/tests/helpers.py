@@ -66,7 +66,12 @@ class ScriptedModels:
         self.outputs.extend(outputs)
 
     def __call__(self, provider: str, model_name: str, api_key: str):
-        from pydantic_ai.messages import ModelResponse, ToolCallPart, UserPromptPart
+        from pydantic_ai.messages import (
+            BinaryContent,
+            ModelResponse,
+            ToolCallPart,
+            UserPromptPart,
+        )
         from pydantic_ai.models.function import FunctionModel
         from pydantic_ai.models.test import TestModel
 
@@ -82,16 +87,21 @@ class ScriptedModels:
             return TestModel(custom_output_text="OK")
 
         def answer(messages, info):
-            prompts = [
-                part.content
+            contents = [
+                item
                 for message in messages
                 for part in getattr(message, "parts", [])
                 if isinstance(part, UserPromptPart)
+                for item in ([part.content] if isinstance(part.content, str) else part.content)
             ]
+            prompts = [item for item in contents if isinstance(item, str)]
             self.requests.append(
                 {
                     "instructions": info.instructions or "",
                     "prompt": prompts[0] if prompts else "",
+                    "attachments": [
+                        item.media_type for item in contents if isinstance(item, BinaryContent)
+                    ],
                     "settings": info.model_settings or {},
                 }
             )

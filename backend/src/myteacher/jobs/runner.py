@@ -27,6 +27,14 @@ class JobContext:
     assistant: AssistantContext
 
 
+class JobFailed(Exception):
+    """Work that ended for a reason the teacher can act on, such as a file with no text."""
+
+    def __init__(self, kind: str):
+        super().__init__(kind)
+        self.kind = kind
+
+
 # The work of a job: given its session, the job and the context, return the job's result.
 Work = Callable[[InstanceSession, Job, JobContext], Awaitable[dict[str, Any] | None]]
 
@@ -51,14 +59,16 @@ def get_job(db: InstanceSession, job_id: int) -> Job | None:
     return db.scalars(select(Job).where(Job.id == job_id)).first()
 
 
-async def run(ctx: JobContext, job_id: int, work: Work) -> None:
+async def run(
+    ctx: JobContext, job_id: int, work: Work, *, progress: str = "asking_assistant"
+) -> None:
     """Run `work` for the job and record how it ended. Never raises."""
     with open_session(ctx.engine, ctx.instance_id) as db:
         job = get_job(db, job_id)
         if job is None:
             return
         job.state = "running"
-        job.progress = "asking_assistant"
+        job.progress = progress
         db.commit()
         try:
             job.result = await work(db, job, ctx)
@@ -69,6 +79,10 @@ async def run(ctx: JobContext, job_id: int, work: Work) -> None:
             job.state = "failed"
             job.error_kind = failure.kind
             job.raw_output = failure.raw_output
+        except JobFailed as failure:
+            db.rollback()
+            job.state = "failed"
+            job.error_kind = failure.kind
         except Exception:
             logger.exception("job %s (%s) failed", job_id, job.kind)
             db.rollback()
