@@ -1,15 +1,15 @@
 // A student's progress through one lesson in the browser: the answers and assessments of the
 // first pass and of the second round. Kept in local storage so a reload resumes the lesson;
 // cleared when the lesson is finished. Server-side attempts replace this in slice 4.
-import type { AssessmentResult, LessonPublic } from '../generated/lesson'
-import { isRendered, type RenderedAnswer, type RenderedExercise } from './schema'
+import type { LessonPublic } from '../generated/lesson'
+import { isCorrect, isOpen, isRendered, type RenderedAnswer, type RenderedExercise, type TryOutcome } from './schema'
 
 export type FeedbackMode = LessonPublic['feedback_mode']
 export type Exercise = RenderedExercise
 
 export interface Try {
   answer: RenderedAnswer
-  result: AssessmentResult
+  result: TryOutcome
 }
 
 export interface ExerciseProgress {
@@ -56,6 +56,14 @@ export function isComplete(exercise: Exercise, draft: RenderedAnswer | undefined
       return exercise.type === 'matching' && exercise.left.every((item) => draft.pairs[item.id] !== undefined)
     case 'token_ordering':
       return exercise.type === 'token_ordering' && draft.order.length === exercise.tokens.length
+    case 'free_text':
+    case 'translation':
+      return (
+        isOpen(exercise) &&
+        draft.text.trim() !== '' &&
+        draft.text.length >= exercise.min_characters &&
+        draft.text.length <= exercise.max_characters
+      )
   }
 }
 
@@ -78,6 +86,8 @@ export function exerciseStatus(mode: FeedbackMode, round: RoundProgress, exercis
   if (mode === 'at_the_end') return round.submitted ? 'locked' : 'answering'
   if (tries.length === 0) return 'answering'
   const last = tries[tries.length - 1]
+  // An open answer is sent once and then awaits assessment; there is no retry.
+  if (last.result.status === 'pending') return 'locked'
   return last.result.correct || tries.length >= MAX_TRIES ? 'locked' : 'retrying'
 }
 
@@ -86,20 +96,29 @@ export function roundComplete(mode: FeedbackMode, round: RoundProgress): boolean
   return round.exercises.every((exercise) => exerciseStatus(mode, round, exercise.id) === 'locked')
 }
 
-/** Exercises whose final assessment in the round was not correct. */
+/** Closed exercises whose final assessment in the round was not correct. Open exercises are
+ * never failed here, answered or not: they are assessed later and never repeated. */
 export function failedExercises(round: RoundProgress): string[] {
   return round.exercises
-    .filter((exercise) => {
-      const { tries } = exerciseProgress(round, exercise.id)
-      return !tries[tries.length - 1]?.result.correct
-    })
+    .filter((exercise) => !isOpen(exercise))
+    .filter((exercise) => !isCorrect(exerciseProgress(round, exercise.id).tries.at(-1)?.result))
     .map((exercise) => exercise.id)
 }
 
+/** Exercises still to answer before submitting at the end. An open exercise may be left empty,
+ * but a started one must be within its length limits. */
 export function unanswered(round: RoundProgress): number {
-  return round.exercises.filter(
-    (exercise) => !isComplete(exercise, exerciseProgress(round, exercise.id).draft),
-  ).length
+  return round.exercises.filter((exercise) => {
+    const draft = exerciseProgress(round, exercise.id).draft
+    const text = draft && 'text' in draft ? draft.text : ''
+    if (isOpen(exercise) && text.trim() === '') return false
+    return !isComplete(exercise, draft)
+  }).length
+}
+
+/** The closed exercises of a round, which carry a score. */
+export function scoredExercises(round: RoundProgress): Exercise[] {
+  return round.exercises.filter((exercise) => !isOpen(exercise))
 }
 
 export function lessonFinished(mode: FeedbackMode, progress: LessonProgress): boolean {

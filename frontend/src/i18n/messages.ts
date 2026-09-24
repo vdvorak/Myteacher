@@ -47,6 +47,18 @@ const en = {
   'ordering.pool': 'Words to place',
   'ordering.empty': 'Tap the words in order.',
   'ordering.undo': 'Undo',
+  'exercise.pending': 'Awaiting assessment',
+  'lesson.pendingCount': '{count} written answers await your teacher.',
+  'passage.untitled': 'Text',
+  'passage.reference': 'About the text: {title}',
+  'passage.referenceUntitled': 'About the text above',
+  'openText.label': 'Your answer',
+  'openText.count': '{count} / {max} characters',
+  'openText.minimum': 'at least {min}',
+  'translation.direction': 'From {source} into {target}',
+  'answerKey.rubric': 'Assessed against:',
+  'answerKey.modelAnswer': 'Model answer',
+  'answerKey.points': '{points} pt',
 }
 
 export type MessageKey = keyof typeof en
@@ -97,6 +109,18 @@ const cs: Record<MessageKey, string> = {
   'ordering.pool': 'Slova k zařazení',
   'ordering.empty': 'Klepejte na slova ve správném pořadí.',
   'ordering.undo': 'Zpět',
+  'exercise.pending': 'Čeká na hodnocení',
+  'lesson.pendingCount': 'Písemné odpovědi čekající na učitele: {count}.',
+  'passage.untitled': 'Text',
+  'passage.reference': 'K textu: {title}',
+  'passage.referenceUntitled': 'K textu výše',
+  'openText.label': 'Vaše odpověď',
+  'openText.count': '{count} / {max} znaků',
+  'openText.minimum': 'alespoň {min}',
+  'translation.direction': 'Z jazyka {source} do jazyka {target}',
+  'answerKey.rubric': 'Hodnotí se:',
+  'answerKey.modelAnswer': 'Vzorová odpověď',
+  'answerKey.points': '{points} b.',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }

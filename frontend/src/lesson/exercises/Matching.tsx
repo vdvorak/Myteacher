@@ -74,6 +74,7 @@ export function Matching(props: ExerciseViewProps<MatchingExercisePublic, Matchi
   return (
     <ExerciseFrame
       prompt={props.exercise.prompt}
+      passage={props.passage}
       hint={props.exercise.hint}
       verdict={props.verdict}
       solution={

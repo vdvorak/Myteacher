@@ -26,10 +26,18 @@ export interface AnswerKey {
 export interface AnswerKeyEntry {
   exercise_id: string
   /**
-   * Null for a type without an assessor in this phase.
+   * Null for open types and for types without an assessor in this phase.
    */
   solution:
     (MultipleChoiceSolution | ShortAnswerSolution | ClozeSolution | MatchingSolution | TokenOrderingSolution) | null
+  /**
+   * The rubric of an open exercise.
+   */
+  rubric?: Rubric | null
+  /**
+   * A translation's reference.
+   */
+  model_answer?: string | null
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -94,6 +102,39 @@ export interface TokenOrderingSolution {
    */
   tokens: string[]
   explanation: string | null
+}
+/**
+ * The criteria an open answer is assessed against, approved by the teacher.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "Rubric".
+ */
+export interface Rubric {
+  /**
+   * @minItems 1
+   * @maxItems 10
+   */
+  criteria: [RubricCriterion, ...RubricCriterion[]]
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "RubricCriterion".
+ */
+export interface RubricCriterion {
+  id: string
+  description: string
+  points?: number
+}
+/**
+ * An open answer: assessed later against its rubric (by the assistant, then the teacher).
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "AssessmentPending".
+ */
+export interface AssessmentPending {
+  status: 'pending'
+  exercise_id: string
+  reason: 'not_deterministically_assessable'
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -211,6 +252,10 @@ export interface ClozeCandidate {
  * via the `definition` "ClozeExercise".
  */
 export interface ClozeExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
   type: 'cloze'
   id: string
   /**
@@ -273,6 +318,7 @@ export interface ToleranceRules {
  * via the `definition` "ClozeExercisePublic".
  */
 export interface ClozeExercisePublic {
+  passage_id?: string | null
   type: 'cloze'
   id: string
   /**
@@ -311,6 +357,10 @@ export interface CustomAnswer {
  * via the `definition` "CustomExercise".
  */
 export interface CustomExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
   type: 'custom'
   id: string
   prompt?: string | null
@@ -327,6 +377,7 @@ export interface CustomExercise {
  * via the `definition` "CustomExercisePublic".
  */
 export interface CustomExercisePublic {
+  passage_id?: string | null
   type: 'custom'
   id: string
   prompt: string | null
@@ -351,6 +402,50 @@ export interface FieldError {
   loc: (string | number)[]
   msg: string
   type: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "FreeTextAnswer".
+ */
+export interface FreeTextAnswer {
+  type: 'free_text'
+  text: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "FreeTextExercise".
+ */
+export interface FreeTextExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
+  rubric: Rubric
+  min_characters?: number
+  max_characters?: number
+  hint?: string | null
+  type: 'free_text'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "FreeTextExercisePublic".
+ */
+export interface FreeTextExercisePublic {
+  passage_id?: string | null
+  type: 'free_text'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  min_characters: number
+  max_characters: number
+  hint: string | null
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -380,11 +475,14 @@ export interface LessonDocument {
   blocks: [
     (
       | ExplanationBlock
+      | PassageBlock
       | MultipleChoiceExercise
       | ShortAnswerExercise
       | ClozeExercise
       | MatchingExercise
       | TokenOrderingExercise
+      | FreeTextExercise
+      | TranslationExercise
       | SpanHighlightExercise
       | TableFillExercise
       | NumericExercise
@@ -393,11 +491,14 @@ export interface LessonDocument {
     ),
     ...(
       | ExplanationBlock
+      | PassageBlock
       | MultipleChoiceExercise
       | ShortAnswerExercise
       | ClozeExercise
       | MatchingExercise
       | TokenOrderingExercise
+      | FreeTextExercise
+      | TranslationExercise
       | SpanHighlightExercise
       | TableFillExercise
       | NumericExercise
@@ -407,10 +508,29 @@ export interface LessonDocument {
   ]
 }
 /**
+ * A text that the exercises after it may reference, such as a reading passage.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "PassageBlock".
+ */
+export interface PassageBlock {
+  type: 'passage'
+  id: string
+  title?: string | null
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  markdown: string
+}
+/**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "MultipleChoiceExercise".
  */
 export interface MultipleChoiceExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
   type: 'multiple_choice'
   id: string
   /**
@@ -431,6 +551,10 @@ export interface MultipleChoiceExercise {
  * via the `definition` "ShortAnswerExercise".
  */
 export interface ShortAnswerExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
   type: 'short_answer'
   id: string
   /**
@@ -475,6 +599,10 @@ export interface ToleranceRules1 {
  * via the `definition` "MatchingExercise".
  */
 export interface MatchingExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
   type: 'matching'
   id: string
   /**
@@ -507,6 +635,10 @@ export interface MatchingPair {
  * via the `definition` "TokenOrderingExercise".
  */
 export interface TokenOrderingExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
   type: 'token_ordering'
   id: string
   /**
@@ -542,9 +674,37 @@ export interface OrderToken {
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TranslationExercise".
+ */
+export interface TranslationExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
+  rubric: Rubric
+  min_characters?: number
+  max_characters?: number
+  hint?: string | null
+  type: 'translation'
+  id: string
+  prompt?: string | null
+  source_text: string
+  source_language: string
+  target_language: string
+  /**
+   * A reference translation for the teacher.
+   */
+  model_answer?: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "SpanHighlightExercise".
  */
 export interface SpanHighlightExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
   type: 'span_highlight'
   id: string
   /**
@@ -574,6 +734,10 @@ export interface TextSpan {
  * via the `definition` "TableFillExercise".
  */
 export interface TableFillExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
   type: 'table_fill'
   id: string
   /**
@@ -597,6 +761,10 @@ export interface TableFillExercise {
  * via the `definition` "NumericExercise".
  */
 export interface NumericExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
   type: 'numeric'
   id: string
   /**
@@ -616,6 +784,10 @@ export interface NumericExercise {
  * via the `definition` "ListeningExercise".
  */
 export interface ListeningExercise {
+  /**
+   * The passage block, earlier in the lesson, this exercise is about.
+   */
+  passage_id?: string | null
   type: 'listening'
   id: string
   /**
@@ -647,11 +819,14 @@ export interface LessonPublic {
   feedback_mode: 'immediate' | 'at_the_end'
   blocks: (
     | ExplanationBlock
+    | PassageBlock
     | MultipleChoiceExercisePublic
     | ShortAnswerExercisePublic
     | ClozeExercisePublic
     | MatchingExercisePublic
     | TokenOrderingExercisePublic
+    | FreeTextExercisePublic
+    | TranslationExercisePublic
     | SpanHighlightExercisePublic
     | TableFillExercisePublic
     | NumericExercisePublic
@@ -664,6 +839,7 @@ export interface LessonPublic {
  * via the `definition` "MultipleChoiceExercisePublic".
  */
 export interface MultipleChoiceExercisePublic {
+  passage_id?: string | null
   type: 'multiple_choice'
   id: string
   /**
@@ -678,6 +854,7 @@ export interface MultipleChoiceExercisePublic {
  * via the `definition` "ShortAnswerExercisePublic".
  */
 export interface ShortAnswerExercisePublic {
+  passage_id?: string | null
   type: 'short_answer'
   id: string
   /**
@@ -692,6 +869,7 @@ export interface ShortAnswerExercisePublic {
  * via the `definition` "MatchingExercisePublic".
  */
 export interface MatchingExercisePublic {
+  passage_id?: string | null
   type: 'matching'
   id: string
   /**
@@ -718,6 +896,7 @@ export interface MatchItem {
  * via the `definition` "TokenOrderingExercisePublic".
  */
 export interface TokenOrderingExercisePublic {
+  passage_id?: string | null
   type: 'token_ordering'
   id: string
   /**
@@ -732,9 +911,26 @@ export interface TokenOrderingExercisePublic {
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TranslationExercisePublic".
+ */
+export interface TranslationExercisePublic {
+  passage_id?: string | null
+  type: 'translation'
+  id: string
+  prompt: string | null
+  source_text: string
+  source_language: string
+  target_language: string
+  min_characters: number
+  max_characters: number
+  hint: string | null
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
  * via the `definition` "SpanHighlightExercisePublic".
  */
 export interface SpanHighlightExercisePublic {
+  passage_id?: string | null
   type: 'span_highlight'
   id: string
   /**
@@ -749,6 +945,7 @@ export interface SpanHighlightExercisePublic {
  * via the `definition` "TableFillExercisePublic".
  */
 export interface TableFillExercisePublic {
+  passage_id?: string | null
   type: 'table_fill'
   id: string
   /**
@@ -764,6 +961,7 @@ export interface TableFillExercisePublic {
  * via the `definition` "NumericExercisePublic".
  */
 export interface NumericExercisePublic {
+  passage_id?: string | null
   type: 'numeric'
   id: string
   /**
@@ -778,6 +976,7 @@ export interface NumericExercisePublic {
  * via the `definition` "ListeningExercisePublic".
  */
 export interface ListeningExercisePublic {
+  passage_id?: string | null
   type: 'listening'
   id: string
   /**
@@ -841,6 +1040,8 @@ export interface SecondRound {
     | ClozeExercisePublic
     | MatchingExercisePublic
     | TokenOrderingExercisePublic
+    | FreeTextExercisePublic
+    | TranslationExercisePublic
     | SpanHighlightExercisePublic
     | TableFillExercisePublic
     | NumericExercisePublic
@@ -923,6 +1124,14 @@ export interface ToleranceRules2 {
    * Punctuation, including ¿ and ¡, does not count.
    */
   ignore_punctuation?: boolean
+}
+/**
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "TranslationAnswer".
+ */
+export interface TranslationAnswer {
+  type: 'translation'
+  text: string
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema

@@ -13,6 +13,7 @@ export function ShortAnswer(props: ExerciseViewProps<ShortAnswerExercisePublic, 
   return (
     <ExerciseFrame
       prompt={props.exercise.prompt}
+      passage={props.passage}
       hint={props.exercise.hint}
       hintUpFront={props.exercise.show_hint}
       verdict={props.verdict}

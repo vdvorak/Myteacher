@@ -9,6 +9,7 @@
       "markdown": "In Spanish, **ñ** is a letter of its own, not an *n* with decoration: *año* (year) and *ano* are different words.\n\nAccents (*tildes*) mark the stressed syllable: *canción*, *está*. Questions and exclamations open with **¿** and **¡**: *¿Dónde está?* *¡Qué bien!*"
     },
     {
+      "passage_id": null,
       "type": "short_answer",
       "id": "song",
       "prompt": "Write the Spanish word for *song*.",
@@ -16,6 +17,7 @@
       "show_hint": false
     },
     {
+      "passage_id": null,
       "type": "short_answer",
       "id": "year",
       "prompt": "Write the Spanish word for *year*. Accents are not checked here.",
@@ -23,6 +25,7 @@
       "show_hint": false
     },
     {
+      "passage_id": null,
       "type": "short_answer",
       "id": "where",
       "prompt": "Ask in Spanish: *Where is the station?*",
@@ -30,6 +33,7 @@
       "show_hint": false
     },
     {
+      "passage_id": null,
       "type": "cloze",
       "id": "tomorrow",
       "prompt": "Complete the sentence with words from the bank.",

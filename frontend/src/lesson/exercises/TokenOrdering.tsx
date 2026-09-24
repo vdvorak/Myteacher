@@ -53,6 +53,7 @@ export function TokenOrdering(props: ExerciseViewProps<TokenOrderingExercisePubl
   return (
     <ExerciseFrame
       prompt={props.exercise.prompt}
+      passage={props.passage}
       hint={props.exercise.hint}
       verdict={props.verdict}
       solution={props.solution?.type === 'token_ordering' && <TokenOrderingSolutionText solution={props.solution} />}

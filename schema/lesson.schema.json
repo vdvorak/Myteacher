@@ -70,8 +70,33 @@
               "type": "null"
             }
           ],
-          "description": "Null for a type without an assessor in this phase.",
+          "description": "Null for open types and for types without an assessor in this phase.",
           "title": "Solution"
+        },
+        "rubric": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rubric"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The rubric of an open exercise."
+        },
+        "model_answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A translation's reference.",
+          "title": "Model Answer"
         }
       },
       "required": [
@@ -79,6 +104,35 @@
         "solution"
       ],
       "title": "AnswerKeyEntry",
+      "type": "object"
+    },
+    "AssessmentPending": {
+      "additionalProperties": false,
+      "description": "An open answer: assessed later against its rubric (by the assistant, then the teacher).",
+      "properties": {
+        "status": {
+          "const": "pending",
+          "title": "Status",
+          "type": "string"
+        },
+        "exercise_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Exercise Id",
+          "type": "string"
+        },
+        "reason": {
+          "const": "not_deterministically_assessable",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "exercise_id",
+        "reason"
+      ],
+      "title": "AssessmentPending",
       "type": "object"
     },
     "AssessmentResult": {
@@ -364,6 +418,21 @@
     "ClozeExercise": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
         "type": {
           "const": "cloze",
           "title": "Type",
@@ -480,6 +549,20 @@
     "ClozeExercisePublic": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
         "type": {
           "const": "cloze",
           "title": "Type",
@@ -687,6 +770,21 @@
       "additionalProperties": false,
       "description": "Assistant-written HTML run in a sandbox with a fixed result contract (ADR 0006).",
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
         "type": {
           "const": "custom",
           "title": "Type",
@@ -755,6 +853,20 @@
     "CustomExercisePublic": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
         "type": {
           "const": "custom",
           "title": "Type",
@@ -850,6 +962,174 @@
       "title": "FieldError",
       "type": "object"
     },
+    "FreeTextAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "free_text",
+          "title": "Type",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 5000,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "FreeTextAnswer",
+      "type": "object"
+    },
+    "FreeTextExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
+        "rubric": {
+          "$ref": "#/$defs/Rubric"
+        },
+        "min_characters": {
+          "default": 0,
+          "maximum": 5000,
+          "minimum": 0,
+          "title": "Min Characters",
+          "type": "integer"
+        },
+        "max_characters": {
+          "default": 1000,
+          "maximum": 5000,
+          "minimum": 1,
+          "title": "Max Characters",
+          "type": "integer"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
+        "type": {
+          "const": "free_text",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rubric",
+        "type",
+        "id",
+        "prompt"
+      ],
+      "title": "FreeTextExercise",
+      "type": "object"
+    },
+    "FreeTextExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
+        "type": {
+          "const": "free_text",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "min_characters": {
+          "title": "Min Characters",
+          "type": "integer"
+        },
+        "max_characters": {
+          "title": "Max Characters",
+          "type": "integer"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "min_characters",
+        "max_characters",
+        "hint"
+      ],
+      "title": "FreeTextExercisePublic",
+      "type": "object"
+    },
     "GivenCell": {
       "additionalProperties": false,
       "properties": {
@@ -931,20 +1211,26 @@
                 "cloze": "#/$defs/ClozeExercise",
                 "custom": "#/$defs/CustomExercise",
                 "explanation": "#/$defs/ExplanationBlock",
+                "free_text": "#/$defs/FreeTextExercise",
                 "listening": "#/$defs/ListeningExercise",
                 "matching": "#/$defs/MatchingExercise",
                 "multiple_choice": "#/$defs/MultipleChoiceExercise",
                 "numeric": "#/$defs/NumericExercise",
+                "passage": "#/$defs/PassageBlock",
                 "short_answer": "#/$defs/ShortAnswerExercise",
                 "span_highlight": "#/$defs/SpanHighlightExercise",
                 "table_fill": "#/$defs/TableFillExercise",
-                "token_ordering": "#/$defs/TokenOrderingExercise"
+                "token_ordering": "#/$defs/TokenOrderingExercise",
+                "translation": "#/$defs/TranslationExercise"
               },
               "propertyName": "type"
             },
             "oneOf": [
               {
                 "$ref": "#/$defs/ExplanationBlock"
+              },
+              {
+                "$ref": "#/$defs/PassageBlock"
               },
               {
                 "$ref": "#/$defs/MultipleChoiceExercise"
@@ -960,6 +1246,12 @@
               },
               {
                 "$ref": "#/$defs/TokenOrderingExercise"
+              },
+              {
+                "$ref": "#/$defs/FreeTextExercise"
+              },
+              {
+                "$ref": "#/$defs/TranslationExercise"
               },
               {
                 "$ref": "#/$defs/SpanHighlightExercise"
@@ -1028,20 +1320,26 @@
                 "cloze": "#/$defs/ClozeExercisePublic",
                 "custom": "#/$defs/CustomExercisePublic",
                 "explanation": "#/$defs/ExplanationBlock",
+                "free_text": "#/$defs/FreeTextExercisePublic",
                 "listening": "#/$defs/ListeningExercisePublic",
                 "matching": "#/$defs/MatchingExercisePublic",
                 "multiple_choice": "#/$defs/MultipleChoiceExercisePublic",
                 "numeric": "#/$defs/NumericExercisePublic",
+                "passage": "#/$defs/PassageBlock",
                 "short_answer": "#/$defs/ShortAnswerExercisePublic",
                 "span_highlight": "#/$defs/SpanHighlightExercisePublic",
                 "table_fill": "#/$defs/TableFillExercisePublic",
-                "token_ordering": "#/$defs/TokenOrderingExercisePublic"
+                "token_ordering": "#/$defs/TokenOrderingExercisePublic",
+                "translation": "#/$defs/TranslationExercisePublic"
               },
               "propertyName": "type"
             },
             "oneOf": [
               {
                 "$ref": "#/$defs/ExplanationBlock"
+              },
+              {
+                "$ref": "#/$defs/PassageBlock"
               },
               {
                 "$ref": "#/$defs/MultipleChoiceExercisePublic"
@@ -1057,6 +1355,12 @@
               },
               {
                 "$ref": "#/$defs/TokenOrderingExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/FreeTextExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/TranslationExercisePublic"
               },
               {
                 "$ref": "#/$defs/SpanHighlightExercisePublic"
@@ -1113,6 +1417,21 @@
     "ListeningExercise": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
         "type": {
           "const": "listening",
           "title": "Type",
@@ -1188,6 +1507,20 @@
     "ListeningExercisePublic": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
         "type": {
           "const": "listening",
           "title": "Type",
@@ -1313,6 +1646,21 @@
     "MatchingExercise": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
         "type": {
           "const": "matching",
           "title": "Type",
@@ -1389,6 +1737,20 @@
     "MatchingExercisePublic": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
         "type": {
           "const": "matching",
           "title": "Type",
@@ -1541,6 +1903,21 @@
     "MultipleChoiceExercise": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
         "type": {
           "const": "multiple_choice",
           "title": "Type",
@@ -1618,6 +1995,20 @@
     "MultipleChoiceExercisePublic": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
         "type": {
           "const": "multiple_choice",
           "title": "Type",
@@ -1728,6 +2119,21 @@
     "NumericExercise": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
         "type": {
           "const": "numeric",
           "title": "Type",
@@ -1799,6 +2205,20 @@
     "NumericExercisePublic": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
         "type": {
           "const": "numeric",
           "title": "Type",
@@ -1876,6 +2296,101 @@
       "title": "OrderToken",
       "type": "object"
     },
+    "PassageBlock": {
+      "additionalProperties": false,
+      "description": "A text that the exercises after it may reference, such as a reading passage.",
+      "properties": {
+        "type": {
+          "const": "passage",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "markdown": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Markdown",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "markdown"
+      ],
+      "title": "PassageBlock",
+      "type": "object"
+    },
+    "Rubric": {
+      "additionalProperties": false,
+      "description": "The criteria an open answer is assessed against, approved by the teacher.",
+      "properties": {
+        "criteria": {
+          "items": {
+            "$ref": "#/$defs/RubricCriterion"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "title": "Criteria",
+          "type": "array"
+        }
+      },
+      "required": [
+        "criteria"
+      ],
+      "title": "Rubric",
+      "type": "object"
+    },
+    "RubricCriterion": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 5000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "points": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Points",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "description"
+      ],
+      "title": "RubricCriterion",
+      "type": "object"
+    },
     "SecondRound": {
       "additionalProperties": false,
       "description": "Varied repeats of the failed exercises, in lesson order; empty when nothing failed.",
@@ -1897,6 +2412,12 @@
               },
               {
                 "$ref": "#/$defs/TokenOrderingExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/FreeTextExercisePublic"
+              },
+              {
+                "$ref": "#/$defs/TranslationExercisePublic"
               },
               {
                 "$ref": "#/$defs/SpanHighlightExercisePublic"
@@ -1975,6 +2496,21 @@
     "ShortAnswerExercise": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
         "type": {
           "const": "short_answer",
           "title": "Type",
@@ -2063,6 +2599,20 @@
     "ShortAnswerExercisePublic": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
         "type": {
           "const": "short_answer",
           "title": "Type",
@@ -2172,6 +2722,21 @@
     "SpanHighlightExercise": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
         "type": {
           "const": "span_highlight",
           "title": "Type",
@@ -2234,6 +2799,20 @@
     "SpanHighlightExercisePublic": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
         "type": {
           "const": "span_highlight",
           "title": "Type",
@@ -2317,6 +2896,21 @@
     "TableFillExercise": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
         "type": {
           "const": "table_fill",
           "title": "Type",
@@ -2400,6 +2994,20 @@
     "TableFillExercisePublic": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
         "type": {
           "const": "table_fill",
           "title": "Type",
@@ -2526,6 +3134,21 @@
     "TokenOrderingExercise": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
         "type": {
           "const": "token_ordering",
           "title": "Type",
@@ -2618,6 +3241,20 @@
     "TokenOrderingExercisePublic": {
       "additionalProperties": false,
       "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
         "type": {
           "const": "token_ordering",
           "title": "Type",
@@ -2737,6 +3374,239 @@
         }
       },
       "title": "ToleranceRules",
+      "type": "object"
+    },
+    "TranslationAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "translation",
+          "title": "Type",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 5000,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ],
+      "title": "TranslationAnswer",
+      "type": "object"
+    },
+    "TranslationExercise": {
+      "additionalProperties": false,
+      "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The passage block, earlier in the lesson, this exercise is about.",
+          "title": "Passage Id"
+        },
+        "rubric": {
+          "$ref": "#/$defs/Rubric"
+        },
+        "min_characters": {
+          "default": 0,
+          "maximum": 5000,
+          "minimum": 0,
+          "title": "Min Characters",
+          "type": "integer"
+        },
+        "max_characters": {
+          "default": 1000,
+          "maximum": 5000,
+          "minimum": 1,
+          "title": "Max Characters",
+          "type": "integer"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hint"
+        },
+        "type": {
+          "const": "translation",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt"
+        },
+        "source_text": {
+          "maxLength": 5000,
+          "minLength": 1,
+          "title": "Source Text",
+          "type": "string"
+        },
+        "source_language": {
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+          "title": "Source Language",
+          "type": "string"
+        },
+        "target_language": {
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+          "title": "Target Language",
+          "type": "string"
+        },
+        "model_answer": {
+          "anyOf": [
+            {
+              "maxLength": 5000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A reference translation for the teacher.",
+          "title": "Model Answer"
+        }
+      },
+      "required": [
+        "rubric",
+        "type",
+        "id",
+        "source_text",
+        "source_language",
+        "target_language"
+      ],
+      "title": "TranslationExercise",
+      "type": "object"
+    },
+    "TranslationExercisePublic": {
+      "additionalProperties": false,
+      "properties": {
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "pattern": "^[a-z0-9][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        },
+        "type": {
+          "const": "translation",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Prompt"
+        },
+        "source_text": {
+          "title": "Source Text",
+          "type": "string"
+        },
+        "source_language": {
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+          "title": "Source Language",
+          "type": "string"
+        },
+        "target_language": {
+          "pattern": "^[a-z]{2,3}(-[A-Z]{2})?$",
+          "title": "Target Language",
+          "type": "string"
+        },
+        "min_characters": {
+          "title": "Min Characters",
+          "type": "integer"
+        },
+        "max_characters": {
+          "title": "Max Characters",
+          "type": "integer"
+        },
+        "hint": {
+          "anyOf": [
+            {
+              "description": "Constrained Markdown (CommonMark without raw HTML).",
+              "maxLength": 20000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Hint"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt",
+        "source_text",
+        "source_language",
+        "target_language",
+        "min_characters",
+        "max_characters",
+        "hint"
+      ],
+      "title": "TranslationExercisePublic",
       "type": "object"
     },
     "ValidationReport": {

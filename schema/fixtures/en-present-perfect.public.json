@@ -9,6 +9,7 @@
       "markdown": "Use the **past simple** for a finished time: *I saw her yesterday.*\n\nUse the **present perfect** when the time is not finished or not named: *I have seen her this week. Have you ever been to Spain?*\n\nCheck your answers before you submit: nothing is marked until you do."
     },
     {
+      "passage_id": null,
       "type": "multiple_choice",
       "id": "yesterday",
       "prompt": "I ___ my keys yesterday.",
@@ -29,6 +30,7 @@
       "hint": null
     },
     {
+      "passage_id": null,
       "type": "multiple_choice",
       "id": "ever",
       "prompt": "___ you ever ___ sushi?",
@@ -49,6 +51,7 @@
       "hint": null
     },
     {
+      "passage_id": null,
       "type": "multiple_choice",
       "id": "this-week",
       "prompt": "She ___ three emails this week.",

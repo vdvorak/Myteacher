@@ -12,6 +12,12 @@ export function AnswerKeyPage(props: { lesson: LessonPublic; answerKey: AnswerKe
   const exercise = (id: string) =>
     props.lesson.blocks.find((block): block is ExercisePublic => block.type !== 'explanation' && block.id === id)
 
+  // A translation may have no prompt; its source text tells the teacher which one it is.
+  const sourceText = (id: string) => {
+    const found = exercise(id)
+    return found?.type === 'translation' ? found.source_text : undefined
+  }
+
   return (
     <section class="answer-key" aria-labelledby={headingId}>
       <h2 id={headingId}>{t('answerKey.heading')}</h2>
@@ -26,9 +32,36 @@ export function AnswerKeyPage(props: { lesson: LessonPublic; answerKey: AnswerKe
                   </div>
                 )}
               </Show>
+              <Show when={sourceText(entry.exercise_id)}>
+                {(source) => <blockquote class="answer-key-source">{source()}</blockquote>}
+              </Show>
               <Show
                 when={entry.solution}
-                fallback={<p class="answer-key-missing">{t('answerKey.unavailable')}</p>}
+                fallback={
+                  <Show when={entry.rubric} fallback={<p class="answer-key-missing">{t('answerKey.unavailable')}</p>}>
+                    {(rubric) => (
+                      <div class="answer-key-rubric">
+                        <Show when={entry.model_answer}>
+                          {(model) => (
+                            <p>
+                              {t('answerKey.modelAnswer')}: <strong>{model()}</strong>
+                            </p>
+                          )}
+                        </Show>
+                        <p>{t('answerKey.rubric')}</p>
+                        <ul>
+                          <For each={rubric().criteria}>
+                            {(criterion) => (
+                              <li>
+                                <Markdown source={criterion.description} inline /> ({t('answerKey.points', { points: criterion.points ?? 1 })})
+                              </li>
+                            )}
+                          </For>
+                        </ul>
+                      </div>
+                    )}
+                  </Show>
+                }
               >
                 {(solution) => (
                   <>

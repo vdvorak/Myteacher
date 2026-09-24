@@ -1,7 +1,7 @@
 import type { ItemCorrectness } from '../../generated/lesson'
 import type { Try } from '../progress'
 import type { ExerciseSolution, RenderedAnswer } from '../schema'
-import type { Verdict } from './ExerciseFrame'
+import type { PassageReference, Verdict } from './ExerciseFrame'
 
 /** What the lesson player hands every exercise renderer. Renderers are controlled. */
 export interface ExerciseViewProps<E, A extends RenderedAnswer> {
@@ -21,6 +21,7 @@ export interface ExerciseViewProps<E, A extends RenderedAnswer> {
   failed: boolean
   /** Item ids in the order the student saw them before; a repeat never looks the same. */
   previousLayout?: string[]
+  passage?: PassageReference
 }
 
 /** Whether `draft` is an answer already tried; a retry spent on it would teach nothing. */

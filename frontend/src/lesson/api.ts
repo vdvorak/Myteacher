@@ -1,11 +1,10 @@
 import type {
   AnswerKey,
-  AssessmentResult,
   LessonPublic,
   SecondRound,
   SecondRoundRequest,
 } from '../generated/lesson'
-import type { AssessmentOutcome } from './schema'
+import type { AssessmentOutcome, TryOutcome } from './schema'
 import type { LessonApi } from './LessonPlayer'
 
 export class ApiError extends Error {
@@ -43,13 +42,13 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 export function lessonApi(lessonId: string): LessonApi {
   const lesson = `/api/lessons/${encodeURIComponent(lessonId)}`
   return {
-    assess: async (exerciseId, answer, { reveal }): Promise<AssessmentResult> => {
+    assess: async (exerciseId, answer, { reveal }): Promise<TryOutcome> => {
       const outcome = await post<AssessmentOutcome>(
         `${lesson}/exercises/${encodeURIComponent(exerciseId)}/assessment?reveal=${reveal}`,
         answer,
       )
-      // The player only runs types that have an assessor, so this is a contract breach.
-      if (outcome.status !== 'assessed') throw new Error(`no assessor for exercise ${exerciseId}`)
+      // The player only runs types that are assessed or awaited, so this is a contract breach.
+      if (outcome.status === 'unavailable') throw new Error(`no assessor for exercise ${exerciseId}`)
       return outcome
     },
     secondRound: (failedExerciseIds, seed): Promise<SecondRound> =>

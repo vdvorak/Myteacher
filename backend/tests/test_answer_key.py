@@ -19,6 +19,8 @@ def test_answer_key_lists_every_exercise_with_its_canonical_solution(client, spa
                 "option_id": exercise["correct_option_id"],
                 "explanation": exercise["solution_explanation"],
             },
+            "rubric": None,
+            "model_answer": None,
         }
         for exercise in exercises(spanish_lesson)
     ]

@@ -1,0 +1,68 @@
+{
+  "id": "es-lectura",
+  "title": "Lectura: mi barrio",
+  "language": "es",
+  "feedback_mode": "immediate",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "Read the text, then answer. Some questions are checked at once; your written answers are read by your teacher."
+    },
+    {
+      "type": "passage",
+      "id": "barrio",
+      "title": "Mi barrio",
+      "markdown": "Me llamo Lucía y vivo en Triana, un barrio de Sevilla. Mi casa está cerca del río. Por la mañana voy a la panadería de la esquina; el panadero se llama Tomás y siempre está contento. Los domingos, mi familia y yo comemos en casa de mi abuela."
+    },
+    {
+      "passage_id": "barrio",
+      "type": "multiple_choice",
+      "id": "where-lives",
+      "prompt": "¿Dónde vive Lucía?",
+      "options": [
+        {
+          "id": "madrid",
+          "text": "En Madrid"
+        },
+        {
+          "id": "triana",
+          "text": "En Triana, en Sevilla"
+        },
+        {
+          "id": "rio",
+          "text": "En un barco en el río"
+        }
+      ],
+      "hint": "Look at the first sentence."
+    },
+    {
+      "passage_id": "barrio",
+      "type": "short_answer",
+      "id": "baker",
+      "prompt": "¿Cómo se llama el panadero?",
+      "hint": "He works in the bakery on the corner.",
+      "show_hint": false
+    },
+    {
+      "passage_id": "barrio",
+      "type": "free_text",
+      "id": "your-neighbourhood",
+      "prompt": "Write three or four sentences about your own neighbourhood, like Lucía does.",
+      "min_characters": 60,
+      "max_characters": 600,
+      "hint": null
+    },
+    {
+      "passage_id": "barrio",
+      "type": "translation",
+      "id": "sundays",
+      "prompt": "Translate into Czech.",
+      "source_text": "Los domingos, mi familia y yo comemos en casa de mi abuela.",
+      "source_language": "es",
+      "target_language": "cs",
+      "min_characters": 0,
+      "max_characters": 300,
+      "hint": null
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "id": "es-lectura",
+  "title": "Lectura: mi barrio",
+  "language": "es",
+  "feedback_mode": "immediate",
+  "blocks": [
+    {
+      "type": "explanation",
+      "markdown": "Read the text, then answer. Some questions are checked at once; your written answers are read by your teacher."
+    },
+    {
+      "type": "passage",
+      "id": "barrio",
+      "title": "Mi barrio",
+      "markdown": "Me llamo Lucía y vivo en Triana, un barrio de Sevilla. Mi casa está cerca del río. Por la mañana voy a la panadería de la esquina; el panadero se llama Tomás y siempre está contento. Los domingos, mi familia y yo comemos en casa de mi abuela."
+    },
+    {
+      "type": "multiple_choice",
+      "id": "where-lives",
+      "passage_id": "barrio",
+      "prompt": "¿Dónde vive Lucía?",
+      "options": [
+        { "id": "madrid", "text": "En Madrid" },
+        { "id": "triana", "text": "En Triana, en Sevilla" },
+        { "id": "rio", "text": "En un barco en el río" }
+      ],
+      "correct_option_id": "triana",
+      "hint": "Look at the first sentence.",
+      "solution_explanation": "*Vivo en Triana, un barrio de Sevilla.*"
+    },
+    {
+      "type": "short_answer",
+      "id": "baker",
+      "passage_id": "barrio",
+      "prompt": "¿Cómo se llama el panadero?",
+      "accepted_answers": ["Tomás", "Se llama Tomás"],
+      "tolerance": { "ignore_diacritics": true, "ignore_punctuation": true },
+      "hint": "He works in the bakery on the corner.",
+      "solution_explanation": "*El panadero se llama Tomás.*"
+    },
+    {
+      "type": "free_text",
+      "id": "your-neighbourhood",
+      "passage_id": "barrio",
+      "prompt": "Write three or four sentences about your own neighbourhood, like Lucía does.",
+      "rubric": {
+        "criteria": [
+          { "id": "content", "description": "Says where they live and names at least one place nearby.", "points": 2 },
+          { "id": "estar", "description": "Uses *estar* for location at least once.", "points": 1 },
+          { "id": "sentences", "description": "Three or more complete sentences.", "points": 1 }
+        ]
+      },
+      "min_characters": 60,
+      "max_characters": 600
+    },
+    {
+      "type": "translation",
+      "id": "sundays",
+      "passage_id": "barrio",
+      "prompt": "Translate into Czech.",
+      "source_text": "Los domingos, mi familia y yo comemos en casa de mi abuela.",
+      "source_language": "es",
+      "target_language": "cs",
+      "model_answer": "V neděli jíme s rodinou u babičky.",
+      "rubric": {
+        "criteria": [
+          { "id": "meaning", "description": "Keeps the meaning: every Sunday, the family, at grandmother's.", "points": 2 },
+          { "id": "natural", "description": "Reads as natural Czech rather than word for word.", "points": 1 }
+        ]
+      },
+      "max_characters": 300
+    }
+  ]
+}

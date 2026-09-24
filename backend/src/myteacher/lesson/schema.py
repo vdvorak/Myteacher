@@ -59,12 +59,32 @@ class ExplanationBlock(_Model):
     markdown: Markdown
 
 
+class PassageBlock(_Model):
+    """A text that the exercises after it may reference, such as a reading passage."""
+
+    type: Literal["passage"]
+    id: Identifier
+    title: Annotated[str, StringConstraints(min_length=1, max_length=200)] | None = None
+    markdown: Markdown
+
+
+class _Exercise(_Model):
+    passage_id: Annotated[
+        Identifier | None,
+        Field(description="The passage block, earlier in the lesson, this exercise is about."),
+    ] = None
+
+
+class _ExercisePublic(_Model):
+    passage_id: Identifier | None = None
+
+
 class ChoiceOption(_Model):
     id: Identifier
     text: Annotated[str, StringConstraints(min_length=1, max_length=500)]
 
 
-class MultipleChoiceExercise(_Model):
+class MultipleChoiceExercise(_Exercise):
     type: Literal["multiple_choice"]
     id: Identifier
     prompt: Markdown
@@ -110,7 +130,7 @@ class ToleranceRules(_Model):
     ] = False
 
 
-class ShortAnswerExercise(_Model):
+class ShortAnswerExercise(_Exercise):
     type: Literal["short_answer"]
     id: Identifier
     prompt: Markdown
@@ -178,7 +198,7 @@ class WordBank(_Model):
     ] = []
 
 
-class ClozeExercise(_Model):
+class ClozeExercise(_Exercise):
     type: Literal["cloze"]
     id: Identifier
     prompt: Markdown
@@ -262,7 +282,7 @@ class MatchingPair(_Model):
     right: ItemText
 
 
-class MatchingExercise(_Model):
+class MatchingExercise(_Exercise):
     type: Literal["matching"]
     id: Identifier
     prompt: Markdown
@@ -309,7 +329,7 @@ class OrderToken(_Model):
     text: ItemText
 
 
-class TokenOrderingExercise(_Model):
+class TokenOrderingExercise(_Exercise):
     type: Literal["token_ordering"]
     id: Identifier
     prompt: Markdown
@@ -355,6 +375,91 @@ class TokenOrderingExercise(_Model):
         )
 
 
+class RubricCriterion(_Model):
+    id: Identifier
+    description: PlainText
+    points: Annotated[int, Field(ge=1, le=10)] = 1
+
+
+class Rubric(_Model):
+    """The criteria an open answer is assessed against, approved by the teacher."""
+
+    criteria: Annotated[list[RubricCriterion], Field(min_length=1, max_length=10)]
+
+    @model_validator(mode="after")
+    def _criterion_ids_are_unique(self) -> Self:
+        ids = [criterion.id for criterion in self.criteria]
+        if len(set(ids)) != len(ids):
+            raise ValueError("rubric criterion ids must be unique")
+        return self
+
+
+MaxCharacters = Annotated[int, Field(ge=1, le=5_000)]
+
+
+class _OpenExercise(_Exercise):
+    rubric: Rubric
+    min_characters: Annotated[int, Field(ge=0, le=5_000)] = 0
+    max_characters: MaxCharacters = 1_000
+    hint: Markdown | None = None
+
+    @model_validator(mode="after")
+    def _limits_are_consistent(self) -> Self:
+        if self.min_characters > self.max_characters:
+            raise ValueError("min_characters must not exceed max_characters")
+        return self
+
+
+class FreeTextExercise(_OpenExercise):
+    type: Literal["free_text"]
+    id: Identifier
+    prompt: Markdown
+
+    def public(self) -> "FreeTextExercisePublic":
+        return FreeTextExercisePublic(
+            type=self.type,
+            id=self.id,
+            prompt=self.prompt,
+            min_characters=self.min_characters,
+            max_characters=self.max_characters,
+            hint=self.hint,
+        )
+
+
+class TranslationExercise(_OpenExercise):
+    type: Literal["translation"]
+    id: Identifier
+    prompt: Markdown | None = None
+    source_text: PlainText
+    source_language: LanguageTag
+    target_language: LanguageTag
+    model_answer: Annotated[
+        PlainText | None, Field(description="A reference translation for the teacher.")
+    ] = None
+
+    @model_validator(mode="after")
+    def _translates_between_two_languages(self) -> Self:
+        if self.source_language == self.target_language:
+            raise ValueError("a translation needs different source and target languages")
+        return self
+
+    def public(self) -> "TranslationExercisePublic":
+        return TranslationExercisePublic(
+            type=self.type,
+            id=self.id,
+            prompt=self.prompt,
+            source_text=self.source_text,
+            source_language=self.source_language,
+            target_language=self.target_language,
+            min_characters=self.min_characters,
+            max_characters=self.max_characters,
+            hint=self.hint,
+        )
+
+
+OpenExercise = FreeTextExercise | TranslationExercise
+
+
 # Exercise types below are in the schema so that adding a renderer later is not a schema
 # change. Phase 1 has no renderer and no assessor for them (see `assessment.py`).
 
@@ -372,7 +477,7 @@ class TextSpan(_Model):
         return self
 
 
-class SpanHighlightExercise(_Model):
+class SpanHighlightExercise(_Exercise):
     type: Literal["span_highlight"]
     id: Identifier
     prompt: Markdown
@@ -409,7 +514,7 @@ class BlankCell(_Model):
 TableCell = Annotated[GivenCell | BlankCell, Field(discriminator="kind")]
 
 
-class TableFillExercise(_Model):
+class TableFillExercise(_Exercise):
     type: Literal["table_fill"]
     id: Identifier
     prompt: Markdown
@@ -450,7 +555,7 @@ class TableFillExercise(_Model):
         )
 
 
-class NumericExercise(_Model):
+class NumericExercise(_Exercise):
     type: Literal["numeric"]
     id: Identifier
     prompt: Markdown
@@ -478,7 +583,7 @@ class AttachmentReference(_Model):
     attachment_id: Identifier
 
 
-class ListeningExercise(_Model):
+class ListeningExercise(_Exercise):
     type: Literal["listening"]
     id: Identifier
     prompt: Markdown
@@ -504,7 +609,7 @@ CustomAssessmentMode = Annotated[
 ]
 
 
-class CustomExercise(_Model):
+class CustomExercise(_Exercise):
     """Assistant-written HTML run in a sandbox with a fixed result contract (ADR 0006)."""
 
     type: Literal["custom"]
@@ -525,13 +630,15 @@ Exercise = (
     | ClozeExercise
     | MatchingExercise
     | TokenOrderingExercise
+    | FreeTextExercise
+    | TranslationExercise
     | SpanHighlightExercise
     | TableFillExercise
     | NumericExercise
     | ListeningExercise
     | CustomExercise
 )
-LessonBlock = Annotated[ExplanationBlock | Exercise, Field(discriminator="type")]
+LessonBlock = Annotated[ExplanationBlock | PassageBlock | Exercise, Field(discriminator="type")]
 
 
 class LessonDocument(_Model):
@@ -544,30 +651,35 @@ class LessonDocument(_Model):
     blocks: Annotated[list[LessonBlock], Field(min_length=1)]
 
     @model_validator(mode="after")
-    def _exercise_ids_are_unique(self) -> Self:
+    def _ids_are_unique_and_references_resolve(self) -> Self:
         ids = [block.id for block in self.blocks if not isinstance(block, ExplanationBlock)]
         if len(set(ids)) != len(ids):
-            raise ValueError("exercise ids must be unique within a lesson")
+            raise ValueError("exercise and passage ids must be unique within a lesson")
+        passages_so_far: set[str] = set()
+        for block in self.blocks:
+            if isinstance(block, PassageBlock):
+                passages_so_far.add(block.id)
+            elif not isinstance(block, ExplanationBlock) and block.passage_id is not None:
+                if block.passage_id not in passages_so_far:
+                    raise ValueError(
+                        f"exercise {block.id!r} references passage {block.passage_id!r}, "
+                        "which is not a passage block earlier in the lesson"
+                    )
         return self
 
     def exercises(self) -> list[Exercise]:
-        return [block for block in self.blocks if not isinstance(block, ExplanationBlock)]
+        return [
+            block for block in self.blocks if not isinstance(block, ExplanationBlock | PassageBlock)
+        ]
 
     def exercise(self, exercise_id: str) -> Exercise | None:
-        return next(
-            (
-                block
-                for block in self.blocks
-                if not isinstance(block, ExplanationBlock) and block.id == exercise_id
-            ),
-            None,
-        )
+        return next((block for block in self.exercises() if block.id == exercise_id), None)
 
 
 # What reaches the browser: every exercise without its answer key.
 
 
-class MultipleChoiceExercisePublic(_Model):
+class MultipleChoiceExercisePublic(_ExercisePublic):
     type: Literal["multiple_choice"]
     id: Identifier
     prompt: Markdown
@@ -575,7 +687,7 @@ class MultipleChoiceExercisePublic(_Model):
     hint: Markdown | None
 
 
-class ShortAnswerExercisePublic(_Model):
+class ShortAnswerExercisePublic(_ExercisePublic):
     type: Literal["short_answer"]
     id: Identifier
     prompt: Markdown
@@ -591,7 +703,7 @@ class ClozeGapPublic(_Model):
 ClozeSegmentPublic = Annotated[ClozeText | ClozeGapPublic, Field(discriminator="kind")]
 
 
-class ClozeExercisePublic(_Model):
+class ClozeExercisePublic(_ExercisePublic):
     type: Literal["cloze"]
     id: Identifier
     prompt: Markdown
@@ -603,7 +715,7 @@ class ClozeExercisePublic(_Model):
     hint: Markdown | None
 
 
-class MatchingExercisePublic(_Model):
+class MatchingExercisePublic(_ExercisePublic):
     type: Literal["matching"]
     id: Identifier
     prompt: Markdown
@@ -612,7 +724,7 @@ class MatchingExercisePublic(_Model):
     hint: Markdown | None
 
 
-class TokenOrderingExercisePublic(_Model):
+class TokenOrderingExercisePublic(_ExercisePublic):
     type: Literal["token_ordering"]
     id: Identifier
     prompt: Markdown
@@ -620,7 +732,28 @@ class TokenOrderingExercisePublic(_Model):
     hint: Markdown | None
 
 
-class SpanHighlightExercisePublic(_Model):
+class FreeTextExercisePublic(_ExercisePublic):
+    type: Literal["free_text"]
+    id: Identifier
+    prompt: Markdown
+    min_characters: int
+    max_characters: int
+    hint: Markdown | None
+
+
+class TranslationExercisePublic(_ExercisePublic):
+    type: Literal["translation"]
+    id: Identifier
+    prompt: Markdown | None
+    source_text: str
+    source_language: LanguageTag
+    target_language: LanguageTag
+    min_characters: int
+    max_characters: int
+    hint: Markdown | None
+
+
+class SpanHighlightExercisePublic(_ExercisePublic):
     type: Literal["span_highlight"]
     id: Identifier
     prompt: Markdown
@@ -636,7 +769,7 @@ class BlankCellPublic(_Model):
 TableCellPublic = Annotated[GivenCell | BlankCellPublic, Field(discriminator="kind")]
 
 
-class TableFillExercisePublic(_Model):
+class TableFillExercisePublic(_ExercisePublic):
     type: Literal["table_fill"]
     id: Identifier
     prompt: Markdown
@@ -645,7 +778,7 @@ class TableFillExercisePublic(_Model):
     hint: Markdown | None
 
 
-class NumericExercisePublic(_Model):
+class NumericExercisePublic(_ExercisePublic):
     type: Literal["numeric"]
     id: Identifier
     prompt: Markdown
@@ -653,7 +786,7 @@ class NumericExercisePublic(_Model):
     hint: Markdown | None
 
 
-class ListeningExercisePublic(_Model):
+class ListeningExercisePublic(_ExercisePublic):
     type: Literal["listening"]
     id: Identifier
     prompt: Markdown
@@ -661,7 +794,7 @@ class ListeningExercisePublic(_Model):
     hint: Markdown | None
 
 
-class CustomExercisePublic(_Model):
+class CustomExercisePublic(_ExercisePublic):
     type: Literal["custom"]
     id: Identifier
     prompt: Markdown | None
@@ -674,13 +807,17 @@ ExercisePublic = (
     | ClozeExercisePublic
     | MatchingExercisePublic
     | TokenOrderingExercisePublic
+    | FreeTextExercisePublic
+    | TranslationExercisePublic
     | SpanHighlightExercisePublic
     | TableFillExercisePublic
     | NumericExercisePublic
     | ListeningExercisePublic
     | CustomExercisePublic
 )
-LessonBlockPublic = Annotated[ExplanationBlock | ExercisePublic, Field(discriminator="type")]
+LessonBlockPublic = Annotated[
+    ExplanationBlock | PassageBlock | ExercisePublic, Field(discriminator="type")
+]
 
 
 class LessonPublic(_Model):
@@ -722,6 +859,16 @@ class MatchingAnswer(_Model):
 class TokenOrderingAnswer(_Model):
     type: Literal["token_ordering"]
     order: Annotated[list[Identifier], Field(max_length=30)]
+
+
+class FreeTextAnswer(_Model):
+    type: Literal["free_text"]
+    text: Annotated[str, StringConstraints(max_length=5_000)]
+
+
+class TranslationAnswer(_Model):
+    type: Literal["translation"]
+    text: Annotated[str, StringConstraints(max_length=5_000)]
 
 
 class SpanHighlightAnswer(_Model):
@@ -766,6 +913,8 @@ ExerciseAnswer = Annotated[
     | ClozeAnswer
     | MatchingAnswer
     | TokenOrderingAnswer
+    | FreeTextAnswer
+    | TranslationAnswer
     | SpanHighlightAnswer
     | TableFillAnswer
     | NumericAnswer
@@ -856,8 +1005,16 @@ class AssessmentUnavailable(_Model):
     reason: Literal["no_assessor_in_this_phase"]
 
 
+class AssessmentPending(_Model):
+    """An open answer: assessed later against its rubric (by the assistant, then the teacher)."""
+
+    status: Literal["pending"]
+    exercise_id: Identifier
+    reason: Literal["not_deterministically_assessable"]
+
+
 AssessmentOutcome = Annotated[
-    AssessmentResult | AssessmentUnavailable, Field(discriminator="status")
+    AssessmentResult | AssessmentPending | AssessmentUnavailable, Field(discriminator="status")
 ]
 
 
@@ -865,8 +1022,10 @@ class AnswerKeyEntry(_Model):
     exercise_id: Identifier
     solution: Annotated[
         ExerciseSolution | None,
-        Field(description="Null for a type without an assessor in this phase."),
+        Field(description="Null for open types and for types without an assessor in this phase."),
     ]
+    rubric: Annotated[Rubric | None, Field(description="The rubric of an open exercise.")] = None
+    model_answer: Annotated[str | None, Field(description="A translation's reference.")] = None
 
 
 class AnswerKey(_Model):
@@ -888,7 +1047,7 @@ class SecondRound(_Model):
 
 
 def exercise_to_public(exercise: Exercise) -> ExercisePublic:
-    return exercise.public()
+    return exercise.public().model_copy(update={"passage_id": exercise.passage_id})
 
 
 def to_public(lesson: LessonDocument) -> LessonPublic:
@@ -898,7 +1057,9 @@ def to_public(lesson: LessonDocument) -> LessonPublic:
         language=lesson.language,
         feedback_mode=lesson.feedback_mode,
         blocks=[
-            block if isinstance(block, ExplanationBlock) else exercise_to_public(block)
+            block
+            if isinstance(block, ExplanationBlock | PassageBlock)
+            else exercise_to_public(block)
             for block in lesson.blocks
         ],
     )

@@ -9,6 +9,7 @@
       "markdown": "An English sentence usually runs **subject, verb, object**. A time phrase like *yesterday* can go at the start or at the end."
     },
     {
+      "passage_id": null,
       "type": "token_ordering",
       "id": "yesterday",
       "prompt": "Put the words in order.",
@@ -37,6 +38,7 @@
       "hint": null
     },
     {
+      "passage_id": null,
       "type": "matching",
       "id": "opposites",
       "prompt": "Match each word with its opposite.",

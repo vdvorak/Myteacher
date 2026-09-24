@@ -45,11 +45,11 @@ def all_types_document() -> dict:
 def catalog_types() -> set[str]:
     schema = lesson_json_schema()
     mapping = schema["$defs"]["LessonDocument"]["properties"]["blocks"]["items"]["discriminator"]
-    return set(mapping["mapping"]) - {"explanation"}
+    return set(mapping["mapping"]) - {"explanation", "passage"}
 
 
 def test_the_all_types_fixture_holds_every_type_in_the_catalog(all_types):
-    served = {block["type"] for block in all_types["blocks"]} - {"explanation"}
+    served = {block["type"] for block in all_types["blocks"]} - {"explanation", "passage"}
 
     assert served == catalog_types()
     assert {"span_highlight", "table_fill", "numeric", "listening", "custom"} <= served

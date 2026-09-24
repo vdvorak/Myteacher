@@ -9,6 +9,7 @@
       "markdown": "Rooms of the house: *la cocina* (kitchen), *el baño* (bathroom), *el dormitorio* (bedroom), *el salón* (living room).\n\nA question in Spanish opens with **¿** and closes with **?**: *¿Dónde está la cocina?*"
     },
     {
+      "passage_id": null,
       "type": "matching",
       "id": "rooms",
       "prompt": "Match each room with its English name.",
@@ -51,6 +52,7 @@
       "hint": "*Dormir* means to sleep; *cocinar* means to cook."
     },
     {
+      "passage_id": null,
       "type": "token_ordering",
       "id": "where-bathroom",
       "prompt": "Put the words in order to ask where the bathroom is.",

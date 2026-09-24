@@ -9,6 +9,7 @@
       "markdown": "A developer fixture holding one exercise of every type in the catalog. Types without a renderer in this phase show a placeholder."
     },
     {
+      "passage_id": null,
       "type": "multiple_choice",
       "id": "choice",
       "prompt": "¿Dónde ___ la estación?",
@@ -25,6 +26,7 @@
       "hint": "Location."
     },
     {
+      "passage_id": null,
       "type": "short_answer",
       "id": "short",
       "prompt": "Write the Spanish word for *song*.",
@@ -32,6 +34,7 @@
       "show_hint": false
     },
     {
+      "passage_id": null,
       "type": "cloze",
       "id": "gaps",
       "prompt": "Fill the gap.",
@@ -64,6 +67,7 @@
       "hint": null
     },
     {
+      "passage_id": null,
       "type": "matching",
       "id": "pairs",
       "prompt": "Match.",
@@ -90,6 +94,7 @@
       "hint": null
     },
     {
+      "passage_id": null,
       "type": "token_ordering",
       "id": "order",
       "prompt": "Order the words.",
@@ -110,6 +115,34 @@
       "hint": null
     },
     {
+      "type": "passage",
+      "id": "text",
+      "title": null,
+      "markdown": "Soy Ana. Vivo en Madrid."
+    },
+    {
+      "passage_id": "text",
+      "type": "free_text",
+      "id": "write",
+      "prompt": "Write about yourself.",
+      "min_characters": 0,
+      "max_characters": 1000,
+      "hint": null
+    },
+    {
+      "passage_id": null,
+      "type": "translation",
+      "id": "translate",
+      "prompt": "Translate.",
+      "source_text": "Vivo en Madrid.",
+      "source_language": "es",
+      "target_language": "en",
+      "min_characters": 0,
+      "max_characters": 1000,
+      "hint": null
+    },
+    {
+      "passage_id": null,
       "type": "span_highlight",
       "id": "highlight",
       "prompt": "Highlight every form of *estar*.",
@@ -117,6 +150,7 @@
       "hint": null
     },
     {
+      "passage_id": null,
       "type": "table_fill",
       "id": "conjugation",
       "prompt": "Complete the present tense of *estar*.",
@@ -159,6 +193,7 @@
       "hint": null
     },
     {
+      "passage_id": null,
       "type": "numeric",
       "id": "distance",
       "prompt": "Madrid y Sevilla están a unos ___ km en tren. Estima.",
@@ -166,6 +201,7 @@
       "hint": null
     },
     {
+      "passage_id": null,
       "type": "listening",
       "id": "dictation",
       "prompt": "Listen and write down the sentence.",
@@ -175,6 +211,7 @@
       "hint": null
     },
     {
+      "passage_id": null,
       "type": "custom",
       "id": "stress",
       "prompt": "Tap the stressed syllable.",

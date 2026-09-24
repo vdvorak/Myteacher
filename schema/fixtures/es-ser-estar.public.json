@@ -9,6 +9,7 @@
       "markdown": "Spanish has two verbs for *to be*.\n\n- **ser** describes what something *is*: identity, origin, profession, lasting traits. *Soy de Praga.*\n- **estar** describes how or where something *is right now*: location, mood, temporary states. *Estoy cansado.*\n\nA quick test: if the answer to \"where?\" or \"how is it at the moment?\" fits, reach for **estar**."
     },
     {
+      "passage_id": null,
       "type": "multiple_choice",
       "id": "location",
       "prompt": "Madrid ___ en el centro de España.",
@@ -33,6 +34,7 @@
       "hint": "Ask yourself: is the sentence saying *where* Madrid is?"
     },
     {
+      "passage_id": null,
       "type": "multiple_choice",
       "id": "origin",
       "prompt": "Nosotros ___ de Brno.",
@@ -57,6 +59,7 @@
       "hint": "Where someone comes from does not change from day to day. And check the person: *nosotros*."
     },
     {
+      "passage_id": null,
       "type": "multiple_choice",
       "id": "mood",
       "prompt": "Hoy María ___ muy contenta.",

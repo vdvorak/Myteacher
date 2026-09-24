@@ -1,10 +1,10 @@
 import { createEffect, createSignal, createUniqueId, For, Match, Show, Switch } from 'solid-js'
-import type { AssessmentResult, LessonPublic, SecondRound } from '../generated/lesson'
+import type { LessonPublic, SecondRound } from '../generated/lesson'
 import { useI18n } from '../i18n/i18n'
 import type { Verdict } from './exercises/ExerciseFrame'
 import { exerciseLayout, ExerciseView } from './exercises/ExerciseView'
 import { Markdown } from './Markdown'
-import { isRendered, type RenderedAnswer } from './schema'
+import { isRendered, type RenderedAnswer, type TryOutcome } from './schema'
 import { UnsupportedExercise, type UnrenderedExercise } from './UnsupportedExercise'
 import {
   clearProgress,
@@ -21,6 +21,7 @@ import {
   recordTry,
   roundComplete,
   saveProgress,
+  scoredExercises,
   setDraft,
   unanswered,
   type Exercise,
@@ -36,7 +37,7 @@ export interface LessonApi {
     exerciseId: string,
     answer: RenderedAnswer,
     options: { reveal: boolean },
-  ) => Promise<AssessmentResult>
+  ) => Promise<TryOutcome>
   secondRound: (failedExerciseIds: string[], seed: string) => Promise<SecondRound>
 }
 
@@ -104,8 +105,12 @@ export function LessonPlayer(props: LessonPlayerProps) {
   function submit(key: RoundKey) {
     const current = round(key)!
     void track(`${key}:submit`, async () => {
+      // An open exercise left empty is not sent: it awaits nothing and is never repeated.
+      const answered = current.exercises.filter((exercise) =>
+        isComplete(exercise, exerciseProgress(current, exercise.id).draft),
+      )
       const tries = await Promise.all(
-        current.exercises.map(async (exercise): Promise<[string, Try]> => {
+        answered.map(async (exercise): Promise<[string, Try]> => {
           const answer = exerciseProgress(current, exercise.id).draft!
           const result = await props.api.assess(exercise.id, answer, { reveal: true })
           return [exercise.id, { answer, result }]
@@ -143,7 +148,14 @@ export function LessonPlayer(props: LessonPlayerProps) {
     const verdict = (): Verdict | undefined => {
       if (status() === 'retrying') return 'retry'
       if (status() !== 'locked') return undefined
-      return lastTry()?.result.correct ? 'correct' : 'incorrect'
+      const result = lastTry()?.result
+      if (!result) return undefined
+      if (result.status === 'pending') return 'pending'
+      return result.correct ? 'correct' : 'incorrect'
+    }
+    const assessed = () => {
+      const result = lastTry()?.result
+      return result?.status === 'assessed' ? result : undefined
     }
     return (
       <ExerciseView
@@ -155,8 +167,9 @@ export function LessonPlayer(props: LessonPlayerProps) {
         tries={state().tries}
         locked={status() === 'locked'}
         verdict={verdict()}
-        solution={status() === 'locked' ? lastTry()?.result.solution : null}
-        items={verdict() ? (lastTry()?.result.items ?? []) : []}
+        solution={status() === 'locked' ? assessed()?.solution : null}
+        items={verdict() ? (assessed()?.items ?? []) : []}
+        passage={exercise.passage_id ? passages().get(exercise.passage_id) : undefined}
         onConfirm={mode() === 'immediate' ? () => confirm(key, exercise) : undefined}
         checking={busy().has(`${key}:${exercise.id}`) || busy().has(`${key}:submit`)}
         failed={failures().has(`${key}:${exercise.id}`)}
@@ -190,9 +203,19 @@ export function LessonPlayer(props: LessonPlayerProps) {
   }
 
   const firstPassScore = () => {
-    const first = progress().first
-    return { correct: first.exercises.length - failedExercises(first).length, total: first.exercises.length }
+    const scored = scoredExercises(progress().first)
+    return { correct: scored.length - failedExercises(progress().first).length, total: scored.length }
   }
+  const pendingCount = () =>
+    progress().first.exercises.filter(
+      (exercise) => exerciseProgress(progress().first, exercise.id).tries.at(-1)?.result.status === 'pending',
+    ).length
+  const passages = () =>
+    new Map(
+      props.lesson.blocks.flatMap((block) =>
+        block.type === 'passage' ? [[block.id, { id: block.id, title: block.title ?? null }] as const] : [],
+      ),
+    )
 
   return (
     <article class="lesson" lang={props.lesson.language}>
@@ -203,10 +226,20 @@ export function LessonPlayer(props: LessonPlayerProps) {
             <Match when={block.type === 'explanation' && block}>
               {(explanation) => <Markdown source={explanation().markdown} />}
             </Match>
+            <Match when={block.type === 'passage' && block}>
+              {(passage) => (
+                <section class="passage" id={`passage-${passage().id}`} aria-labelledby={`passage-${passage().id}-title`}>
+                  <h2 id={`passage-${passage().id}-title`} class="passage-title">
+                    {passage().title ?? t('passage.untitled')}
+                  </h2>
+                  <Markdown source={passage().markdown} />
+                </section>
+              )}
+            </Match>
             <Match when={isRendered(block) && block}>
               {(exercise) => renderExercise('first', exercise())}
             </Match>
-            <Match when={block.type !== 'explanation' && !isRendered(block) && block}>
+            <Match when={block.type !== 'explanation' && block.type !== 'passage' && !isRendered(block) && block}>
               {(exercise) => <UnsupportedExercise exercise={exercise() as UnrenderedExercise} />}
             </Match>
           </Switch>
@@ -241,7 +274,12 @@ export function LessonPlayer(props: LessonPlayerProps) {
       <Show when={finished()}>
         <div class="lesson-finished" role="status">
           <h2>{t('lesson.finished')}</h2>
-          <p>{t('lesson.firstPassScore', firstPassScore())}</p>
+          <Show when={firstPassScore().total > 0}>
+            <p>{t('lesson.firstPassScore', firstPassScore())}</p>
+          </Show>
+          <Show when={pendingCount() > 0}>
+            <p>{t('lesson.pendingCount', { count: pendingCount() })}</p>
+          </Show>
         </div>
       </Show>
     </article>

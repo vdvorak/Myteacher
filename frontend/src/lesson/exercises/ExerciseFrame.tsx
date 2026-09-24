@@ -3,10 +3,17 @@ import { useI18n } from '../../i18n/i18n'
 import { Markdown } from '../Markdown'
 import '../exercise.css'
 
-export type Verdict = 'correct' | 'incorrect' | 'retry'
+export type Verdict = 'correct' | 'incorrect' | 'retry' | 'pending'
+
+export interface PassageReference {
+  id: string
+  title: string | null
+}
 
 export interface ExerciseFrameProps {
-  prompt: string
+  prompt: string | null
+  /** The passage this exercise is about, linked so the student can go back to it. */
+  passage?: PassageReference
   hint?: string | null
   /** Show the hint before the first try (a second-round short answer). */
   hintUpFront?: boolean
@@ -33,8 +40,15 @@ export function ExerciseFrame(props: ParentProps<ExerciseFrameProps>) {
 
   return (
     <fieldset class="exercise" aria-labelledby={promptId}>
+      <Show when={props.passage}>
+        {(passage) => (
+          <a class="exercise-passage-link" href={`#passage-${passage().id}`}>
+            {passage().title ? t('passage.reference', { title: passage().title! }) : t('passage.referenceUntitled')}
+          </a>
+        )}
+      </Show>
       <div id={promptId} class="exercise-prompt">
-        <Markdown source={props.prompt} />
+        <Show when={props.prompt}>{(prompt) => <Markdown source={prompt()} />}</Show>
       </div>
       {props.children}
       <Show when={props.onConfirm && !props.locked}>
@@ -60,7 +74,9 @@ export function ExerciseFrame(props: ParentProps<ExerciseFrameProps>) {
                   ? t('exercise.correct')
                   : verdict() === 'retry'
                     ? t('exercise.tryAgain')
-                    : t('exercise.incorrect')}
+                    : verdict() === 'pending'
+                      ? t('exercise.pending')
+                      : t('exercise.incorrect')}
               </p>
             )}
           </Show>

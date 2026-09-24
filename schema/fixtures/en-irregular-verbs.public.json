@@ -9,6 +9,7 @@
       "markdown": "Many common English verbs have an irregular past simple: *take → took*, *make → made*, *eat → ate*. They have to be remembered, so they are worth practising.\n\nCheck your answers before you submit."
     },
     {
+      "passage_id": null,
       "type": "cloze",
       "id": "yesterday",
       "prompt": "Write the past simple of the verb in brackets.",
@@ -46,6 +47,7 @@
       "hint": null
     },
     {
+      "passage_id": null,
       "type": "short_answer",
       "id": "contraction",
       "prompt": "Write the short form of *do not*.",

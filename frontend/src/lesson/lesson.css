@@ -50,3 +50,15 @@
   border-radius: var(--radius);
   background: var(--color-correct-surface);
 }
+
+.passage {
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+}
+
+.passage-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-body);
+}

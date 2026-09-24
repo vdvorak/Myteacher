@@ -1,5 +1,6 @@
 import { createUniqueId, For } from 'solid-js'
 import type { MultipleChoiceAnswer, MultipleChoiceExercisePublic } from '../../generated/lesson'
+import { isCorrect } from '../schema'
 import { reshuffle } from '../shuffle'
 import { ExerciseFrame } from './ExerciseFrame'
 import type { ExerciseViewProps } from './types'
@@ -22,7 +23,7 @@ export function MultipleChoice(props: ExerciseViewProps<MultipleChoiceExercisePu
   // Options already tried and found wrong cannot be picked again.
   const tried = () =>
     props.tries.flatMap((attempt) =>
-      attempt.answer.type === 'multiple_choice' && !attempt.result.correct ? [attempt.answer.option_id] : [],
+      attempt.answer.type === 'multiple_choice' && !isCorrect(attempt.result) ? [attempt.answer.option_id] : [],
     )
   const options = () => {
     const byId = new Map(props.exercise.options.map((option) => [option.id, option]))
@@ -39,6 +40,7 @@ export function MultipleChoice(props: ExerciseViewProps<MultipleChoiceExercisePu
   return (
     <ExerciseFrame
       prompt={props.exercise.prompt}
+      passage={props.passage}
       hint={props.exercise.hint}
       verdict={props.verdict}
       solution={solutionId() && <p>{optionText(props.exercise, solutionId()!)}</p>}

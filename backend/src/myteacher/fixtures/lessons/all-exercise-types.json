@@ -117,6 +117,43 @@
       ]
     },
     {
+      "type": "passage",
+      "id": "text",
+      "markdown": "Soy Ana. Vivo en Madrid."
+    },
+    {
+      "type": "free_text",
+      "id": "write",
+      "passage_id": "text",
+      "prompt": "Write about yourself.",
+      "rubric": {
+        "criteria": [
+          {
+            "id": "content",
+            "description": "Says who they are.",
+            "points": 1
+          }
+        ]
+      }
+    },
+    {
+      "type": "translation",
+      "id": "translate",
+      "prompt": "Translate.",
+      "source_text": "Vivo en Madrid.",
+      "source_language": "es",
+      "target_language": "en",
+      "rubric": {
+        "criteria": [
+          {
+            "id": "meaning",
+            "description": "Keeps the meaning.",
+            "points": 1
+          }
+        ]
+      }
+    },
+    {
       "type": "span_highlight",
       "id": "highlight",
       "prompt": "Highlight every form of *estar*.",

@@ -6,6 +6,7 @@ import irregularVerbs from '../../../schema/fixtures/en-irregular-verbs.public.j
 import vocabulary from '../../../schema/fixtures/es-vocabulario.public.json'
 import laCasa from '../../../schema/fixtures/es-la-casa.public.json'
 import wordOrder from '../../../schema/fixtures/en-word-order.public.json'
+import reading from '../../../schema/fixtures/es-lectura.public.json'
 import atTheEnd from '../../../schema/fixtures/en-present-perfect.public.json'
 import immediate from '../../../schema/fixtures/es-ser-estar.public.json'
 import type { LessonPublic } from '../generated/lesson'
@@ -13,7 +14,7 @@ import { LessonPlayer } from '../lesson/LessonPlayer'
 import { isRendered } from '../lesson/schema'
 import { fakeApi, withI18n } from '../lesson/testing'
 
-const fixtures = [allTypes, atTheEnd, immediate, irregularVerbs, vocabulary, laCasa, wordOrder] as LessonPublic[]
+const fixtures = [allTypes, atTheEnd, immediate, irregularVerbs, vocabulary, laCasa, wordOrder, reading] as LessonPublic[]
 
 function preview(lesson: LessonPublic, locale: 'en' | 'cs' = 'en') {
   return render(withI18n(() => <LessonPlayer lesson={lesson} seed="1" api={fakeApi(lesson)} />, locale))
@@ -24,7 +25,7 @@ describe('fixture lessons in the preview', () => {
     const { container } = preview(lesson)
 
     expect(screen.getByRole('heading', { level: 1, name: lesson.title })).toBeInTheDocument()
-    const exercises = lesson.blocks.filter((block) => block.type !== 'explanation')
+    const exercises = lesson.blocks.filter((block) => block.type !== 'explanation' && block.type !== 'passage')
     expect(container.querySelectorAll('.exercise')).toHaveLength(exercises.length)
   })
 
@@ -32,7 +33,9 @@ describe('fixture lessons in the preview', () => {
     const lesson = allTypes as LessonPublic
     preview(lesson)
 
-    const unrendered = lesson.blocks.filter((block) => block.type !== 'explanation' && !isRendered(block))
+    const unrendered = lesson.blocks.filter(
+      (block) => block.type !== 'explanation' && block.type !== 'passage' && !isRendered(block),
+    )
     expect(unrendered.length).toBeGreaterThanOrEqual(5)
     expect(screen.getAllByRole('note', { name: /: not supported yet$/ })).toHaveLength(unrendered.length)
     expect(screen.getByRole('group', { name: /estación/ })).toBeInTheDocument()

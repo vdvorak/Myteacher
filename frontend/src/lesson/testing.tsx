@@ -3,7 +3,7 @@ import type { JSX } from 'solid-js'
 import { I18nProvider } from '../i18n/i18n'
 import type { Locale } from '../i18n/messages'
 import type { AssessmentResult, LessonPublic, MultipleChoiceExercisePublic } from '../generated/lesson'
-import { isRendered, type ExercisePublic, type RenderedAnswer, type RenderedExercise } from './schema'
+import { isRendered, type ExercisePublic, type RenderedAnswer, type RenderedExercise, type TryOutcome } from './schema'
 import type { LessonApi } from './LessonPlayer'
 
 export function withI18n(ui: () => JSX.Element, locale: Locale = 'en') {
@@ -54,8 +54,8 @@ export const atTheEndLesson: LessonPublic = {
 }
 
 /** The answer key the fake backend grades against; the player itself never sees it. */
-export const answerKey: Record<string, string> = { location: 'esta', origin: 'somos' }
-export const typedKey: Record<string, string> = { song: 'canción', contraction: "don't" }
+export const answerKey: Record<string, string> = { location: 'esta', origin: 'somos', 'where-lives': 'triana' }
+export const typedKey: Record<string, string> = { song: 'canción', contraction: "don't", baker: 'Tomás' }
 /** Right item id per left item id (right ids are public ranks, see the served fixtures). */
 export const matchingKey: Record<string, Record<string, string>> = {
   rooms: { p1: 'r3', p2: 'r1', p3: 'r2', p4: 'r4' },
@@ -137,6 +137,9 @@ function grade(exerciseId: string, answer: RenderedAnswer): Omit<AssessmentResul
         },
       }
     }
+    case 'free_text':
+    case 'translation':
+      throw new Error('open answers are not graded')
     case 'token_ordering': {
       const key = orderKey[exerciseId]
       const closest = key.orders
@@ -158,7 +161,10 @@ function grade(exerciseId: string, answer: RenderedAnswer): Omit<AssessmentResul
 /** A stand-in for the backend: grades with the keys above and repeats exercises reversed. */
 export function fakeApi(lesson: LessonPublic = sampleLesson) {
   const assess = vi.fn(
-    async (exerciseId: string, answer: RenderedAnswer, options: { reveal: boolean }): Promise<AssessmentResult> => {
+    async (exerciseId: string, answer: RenderedAnswer, options: { reveal: boolean }): Promise<TryOutcome> => {
+      if (answer.type === 'free_text' || answer.type === 'translation') {
+        return { status: 'pending', exercise_id: exerciseId, reason: 'not_deterministically_assessable' }
+      }
       const result = grade(exerciseId, answer)
       return { ...result, solution: result.correct || options.reveal ? result.solution : null }
     },
@@ -173,6 +179,8 @@ export function fakeApi(lesson: LessonPublic = sampleLesson) {
           : exercise.type === 'short_answer'
             ? { ...exercise, show_hint: true }
             : exercise,
+      )
+      .filter((exercise) => exercise.type !== 'free_text' && exercise.type !== 'translation'
       ),
   }))
   return { assess, secondRound } satisfies LessonApi

@@ -4,6 +4,7 @@ from myteacher.lesson.schema import (
     AnswerKey,
     AnswerKeyEntry,
     AssessmentOutcome,
+    AssessmentPending,
     AssessmentResult,
     AssessmentUnavailable,
     ClozeAnswer,
@@ -13,6 +14,8 @@ from myteacher.lesson.schema import (
     Exercise,
     ExerciseAnswer,
     ExerciseSolution,
+    FreeTextAnswer,
+    FreeTextExercise,
     ItemCorrectness,
     LessonDocument,
     MatchedPair,
@@ -22,12 +25,15 @@ from myteacher.lesson.schema import (
     MultipleChoiceAnswer,
     MultipleChoiceExercise,
     MultipleChoiceSolution,
+    OpenExercise,
     ShortAnswerAnswer,
     ShortAnswerExercise,
     ShortAnswerSolution,
     TokenOrderingAnswer,
     TokenOrderingExercise,
     TokenOrderingSolution,
+    TranslationAnswer,
+    TranslationExercise,
 )
 from myteacher.lesson.tolerance import matches
 
@@ -42,6 +48,18 @@ def assess(exercise: Exercise, answer: ExerciseAnswer, *, reveal: bool = True) -
     if answer.type != exercise.type:
         raise AnswerMismatch(f"a {answer.type} answer cannot assess a {exercise.type} exercise")
     match exercise, answer:
+        case (FreeTextExercise(), FreeTextAnswer()) | (TranslationExercise(), TranslationAnswer()):
+            if len(answer.text) > exercise.max_characters:
+                raise AnswerMismatch(
+                    f"the answer is longer than {exercise.max_characters} characters"
+                )
+            if not answer.text.strip() or len(answer.text) < exercise.min_characters:
+                raise AnswerMismatch(
+                    f"the answer needs at least {max(exercise.min_characters, 1)} characters"
+                )
+            return AssessmentPending(
+                status="pending", exercise_id=exercise.id, reason="not_deterministically_assessable"
+            )
         case MultipleChoiceExercise(), MultipleChoiceAnswer():
             result = _assess_multiple_choice(exercise, answer)
         case ShortAnswerExercise(), ShortAnswerAnswer():
@@ -228,7 +246,14 @@ def answer_key(lesson: LessonDocument) -> AnswerKey:
     return AnswerKey(
         lesson_id=lesson.id,
         entries=[
-            AnswerKeyEntry(exercise_id=exercise.id, solution=solution_of(exercise))
+            AnswerKeyEntry(
+                exercise_id=exercise.id,
+                solution=solution_of(exercise),
+                rubric=exercise.rubric if isinstance(exercise, OpenExercise) else None,
+                model_answer=(
+                    exercise.model_answer if isinstance(exercise, TranslationExercise) else None
+                ),
+            )
             for exercise in lesson.exercises()
         ],
     )

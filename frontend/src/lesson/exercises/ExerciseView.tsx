@@ -1,6 +1,8 @@
 import { Match, Switch } from 'solid-js'
 import type {
   ClozeAnswer,
+  FreeTextAnswer,
+  TranslationAnswer,
   MatchingAnswer,
   MultipleChoiceAnswer,
   ShortAnswerAnswer,
@@ -9,6 +11,7 @@ import type {
 import type { RenderedAnswer, RenderedExercise } from '../schema'
 import { Cloze } from './Cloze'
 import { Matching, matchingLayout } from './Matching'
+import { OpenText } from './OpenText'
 import { layoutOf, MultipleChoice } from './MultipleChoice'
 import { ShortAnswer } from './ShortAnswer'
 import { TokenOrdering, tokenLayout } from './TokenOrdering'
@@ -53,6 +56,19 @@ export function ExerciseView(props: ExerciseViewProps<RenderedExercise, Rendered
       <Match when={props.exercise.type === 'token_ordering' && props.exercise}>
         {(exercise) => (
           <TokenOrdering {...props} exercise={exercise()} draft={draftOf<TokenOrderingAnswer>('token_ordering')} />
+        )}
+      </Match>
+      <Match when={(props.exercise.type === 'free_text' || props.exercise.type === 'translation') && props.exercise}>
+        {(exercise) => (
+          <OpenText
+            {...props}
+            exercise={exercise() as Extract<RenderedExercise, { type: 'free_text' | 'translation' }>}
+            draft={
+              props.draft?.type === 'free_text' || props.draft?.type === 'translation'
+                ? (props.draft as FreeTextAnswer | TranslationAnswer)
+                : undefined
+            }
+          />
         )}
       </Match>
     </Switch>

@@ -1,8 +1,14 @@
 // Names for the unions of the generated lesson schema. The generator names models, not the
 // unions between them, so they are derived here from the generated types and never restated.
 import type {
+  AssessmentPending,
   AssessmentResult,
   AssessmentUnavailable,
+  FreeTextAnswer,
+  FreeTextExercisePublic,
+  PassageBlock,
+  TranslationAnswer,
+  TranslationExercisePublic,
   ClozeAnswer,
   ClozeExercisePublic,
   ExplanationBlock,
@@ -18,8 +24,10 @@ import type {
 } from '../generated/lesson'
 
 export type LessonBlockPublic = LessonPublic['blocks'][number]
-export type ExercisePublic = Exclude<LessonBlockPublic, ExplanationBlock>
-export type AssessmentOutcome = AssessmentResult | AssessmentUnavailable
+export type ExercisePublic = Exclude<LessonBlockPublic, ExplanationBlock | PassageBlock>
+export type AssessmentOutcome = AssessmentResult | AssessmentPending | AssessmentUnavailable
+/** What the player records for a try: a score, or an open answer awaiting assessment. */
+export type TryOutcome = AssessmentResult | AssessmentPending
 export type ExerciseSolution = NonNullable<AssessmentResult['solution']>
 
 /** The exercise types this phase renders and assesses. */
@@ -29,12 +37,17 @@ export type RenderedExercise =
   | ClozeExercisePublic
   | MatchingExercisePublic
   | TokenOrderingExercisePublic
+  | FreeTextExercisePublic
+  | TranslationExercisePublic
+export type OpenExercise = FreeTextExercisePublic | TranslationExercisePublic
 export type RenderedAnswer =
   | MultipleChoiceAnswer
   | ShortAnswerAnswer
   | ClozeAnswer
   | MatchingAnswer
   | TokenOrderingAnswer
+  | FreeTextAnswer
+  | TranslationAnswer
 
 const renderedTypes: ReadonlySet<string> = new Set<RenderedExercise['type']>([
   'multiple_choice',
@@ -42,7 +55,18 @@ const renderedTypes: ReadonlySet<string> = new Set<RenderedExercise['type']>([
   'cloze',
   'matching',
   'token_ordering',
+  'free_text',
+  'translation',
 ])
+
+/** Open types are answered in free text and assessed later against a rubric, never here. */
+export function isOpen(exercise: RenderedExercise): exercise is OpenExercise {
+  return exercise.type === 'free_text' || exercise.type === 'translation'
+}
+
+export function isCorrect(outcome: TryOutcome | undefined): boolean {
+  return outcome?.status === 'assessed' && outcome.correct
+}
 
 export function isRendered(block: LessonBlockPublic): block is RenderedExercise {
   return renderedTypes.has(block.type)

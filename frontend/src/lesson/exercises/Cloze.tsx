@@ -68,6 +68,7 @@ export function Cloze(props: ExerciseViewProps<ClozeExercisePublic, ClozeAnswer>
   return (
     <ExerciseFrame
       prompt={props.exercise.prompt}
+      passage={props.passage}
       hint={props.exercise.hint}
       verdict={props.verdict}
       solution={
