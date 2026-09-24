@@ -228,7 +228,7 @@ def discard(db: InstanceSession, document: ReferenceDocument, teacher: Account, 
 # The generation job
 
 
-def _source_inputs(sources: list[Source]) -> list[dict[str, Any]]:
+def source_inputs(sources: list[Source]) -> list[dict[str, Any]]:
     readable = [s for s in sources if s.text]
     share = SOURCE_BUDGET // max(len(readable), 1)
     inputs = []
@@ -266,7 +266,7 @@ def _inputs(
             }
             for c in current
         ],
-        "sources": _source_inputs(sources),
+        "sources": source_inputs(sources),
     }
 
 
@@ -282,7 +282,7 @@ def generation(document_id: int) -> Work:
         teacher = get_account(db, job.account_id)
         assert course is not None and teacher is not None
         sources = sources_of(db, course)
-        cited = _source_inputs(sources)
+        cited = source_inputs(sources)
         task = Task(TASK_KIND, output_type({s["id"] for s in cited}), slot="strong", timeout_s=300)
         content, generation_id = await generate_recorded(
             ctx.assistant,

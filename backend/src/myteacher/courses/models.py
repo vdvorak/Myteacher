@@ -4,6 +4,7 @@ from typing import Any, Literal
 from sqlalchemy import JSON, ForeignKey, Index, LargeBinary, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from myteacher import erasure
 from myteacher.persistence import Base, InstanceOwned, UTCDateTime
 
 # What a teacher on a course's access list may do, each right including the ones before it.
@@ -12,7 +13,7 @@ CourseRight = Literal["view", "fork", "edit"]
 
 class Course(InstanceOwned, Base):
     """The reusable design of a subject, owned by one teacher and never tied to students
-    (ADR 0008). Nothing here is student data, so erasure registers no rule for it."""
+    (ADR 0008). Nothing in it is student data, so erasure registers no rule for it."""
 
     __tablename__ = "course"
 
@@ -339,3 +340,63 @@ class ReferenceDocumentVersion(InstanceOwned, Base):
     generation_id: Mapped[int | None] = mapped_column(ForeignKey("generation_record.id"))
     author_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class ClassroomMaterial(InstanceOwned, Base):
+    """Exercises for a topic to project or print in class: a lesson document bound to no
+    student, with its answer key. Its content lives in versions; each regeneration or edit adds
+    one."""
+
+    __tablename__ = "classroom_material"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    topic_id: Mapped[int] = mapped_column(ForeignKey("topic.id", ondelete="CASCADE"), index=True)
+    # The latest generation job; only its result lands, once.
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # Set when the teacher discarded it; it is then gone from the topic.
+    discarded_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+
+
+class ClassroomMaterialVersion(InstanceOwned, Base):
+    """One version of classroom material: generated, regenerated with an instruction, or
+    edited by the teacher, each linked to the version it came from."""
+
+    __tablename__ = "classroom_material_version"
+    __table_args__ = (UniqueConstraint("material_id", "number"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    material_id: Mapped[int] = mapped_column(
+        ForeignKey("classroom_material.id", ondelete="CASCADE"), index=True
+    )
+    number: Mapped[int]
+    # The lesson document as authored, with its answer key.
+    lesson: Mapped[dict[str, Any]] = mapped_column(JSON)
+    # The teacher's instruction that produced it by regeneration.
+    instruction: Mapped[str | None] = mapped_column(Text)
+    previous_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("classroom_material_version.id")
+    )
+    # The generation that wrote it; None for the teacher's edits.
+    generation_id: Mapped[int | None] = mapped_column(ForeignKey("generation_record.id"))
+    author_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class ClassroomMaterialTarget(InstanceOwned, Base):
+    """A student the teacher chose the material for. Stored for planning (slice 4); until
+    concept states exist it does not change what is generated."""
+
+    __tablename__ = "classroom_material_target"
+
+    material_id: Mapped[int] = mapped_column(
+        ForeignKey("classroom_material.id", ondelete="CASCADE"), primary_key=True
+    )
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("account.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+
+
+erasure.register(erasure.Rule(table="classroom_material_target", student_column="student_id"))

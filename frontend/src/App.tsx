@@ -15,6 +15,7 @@ import { ConceptMapPage } from './concepts/ConceptMapPage'
 import { CoursePage } from './courses/CoursePage'
 import { CoursesPage } from './courses/CoursesPage'
 import { DocumentPreviewPage } from './documents/DocumentPreviewPage'
+import { MaterialPreviewPage } from './materials/MaterialPreviewPage'
 import { ApiProvider, type Apis } from './api/context'
 import { SessionProvider } from './auth/session'
 import { ForgotPasswordPage } from './auth/ForgotPasswordPage'
@@ -49,6 +50,7 @@ const routes = () => (
     <Route path="/forgot-password" component={ForgotPasswordPage} />
     <Route path="/reset-password" component={ResetPasswordPage} />
     <Route path="/preview/courses/:courseId/topics/:topicId/documents/:documentId" component={DocumentPreviewPage} />
+    <Route path="/preview/courses/:courseId/topics/:topicId/materials/:materialId" component={MaterialPreviewPage} />
     <Route path="/preview/:lessonId" component={PreviewRoute} />
     <Route path="/" component={Shell}>
       <Route path="/" component={HomePage} />

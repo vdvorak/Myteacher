@@ -15,6 +15,7 @@ import { createMemoryHistory } from '@solidjs/router'
 import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import { cheatSheet, fakeDocumentsApi } from '../documents/testing'
+import { fakeMaterialsApi, serEstarMaterial } from '../materials/testing'
 
 interface Rule {
   selector: string
@@ -248,5 +249,29 @@ describe('printing a reference document', () => {
     expect(hiddenInPrint(screen.getByText(/rests on no source/))).toBe(false)
     expect(hiddenInPrint(screen.getByRole('list', { name: 'Sources' }))).toBe(false)
     for (const passage of screen.getAllByRole('article')) expect(hiddenInPrint(passage)).toBe(false)
+  })
+})
+
+describe('printing classroom material', () => {
+  it('puts the answer key on a page of its own and hides the controls', async () => {
+    const history = createMemoryHistory()
+    history.set({ value: '/preview/courses/1/topics/2/materials/41' })
+    const apis = fakeApis({ materials: fakeMaterialsApi({ materials: { 2: [serEstarMaterial] } }) })
+    render(withI18n(() => <App apis={apis} history={history} />, 'en'))
+
+    await screen.findByRole('heading', { level: 1, name: 'Ser, or estar?' })
+
+    const key = screen.getByRole('region', { name: 'Answer key' })
+    expect(matchesPrintRule(key, /break-before\s*:\s*page/)).toBe(true)
+    expect(hiddenInPrint(key)).toBe(false)
+    for (const control of screen.getAllByRole('button')) {
+      if (!control.matches('.cloze-gap, .cloze-word, .ordering-token, .matching-item, .selection-token')) {
+        expect(hiddenInPrint(control)).toBe(true)
+      }
+    }
+    // The exercise prints, and its prompt again in the key.
+    const prompts = screen.getAllByText('Madrid ___ en el centro de España.')
+    expect(prompts).toHaveLength(2)
+    for (const prompt of prompts) expect(hiddenInPrint(prompt)).toBe(false)
   })
 })

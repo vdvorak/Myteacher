@@ -6,6 +6,7 @@ import { DocumentsSection } from '../documents/DocumentsSection'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
+import { MaterialsSection } from '../materials/MaterialsSection'
 import { TeachersOnly } from '../students/StudentsPage'
 import '../admin/admin.css'
 import '../courses/courses.css'
@@ -273,6 +274,12 @@ function ConceptMapDetail() {
       </Show>
       <Show when={loaded() && course()}>
         <DocumentsSection
+          courseId={courseId()}
+          topicId={topicId()}
+          canEdit={canEdit()}
+          mapApproved={map()?.state === 'approved'}
+        />
+        <MaterialsSection
           courseId={courseId()}
           topicId={topicId()}
           canEdit={canEdit()}

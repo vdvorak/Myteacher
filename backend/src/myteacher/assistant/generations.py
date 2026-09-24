@@ -44,7 +44,7 @@ class GenerationRecord(InstanceOwned, Base):
 
 
 # What a teacher did with generated content: kept it as it was, edited it, or discarded it.
-ReactionKind = Literal["kept", "edited", "discarded"]
+ReactionKind = Literal["kept", "edited", "regenerated", "discarded"]
 
 
 class GenerationReaction(InstanceOwned, Base):
