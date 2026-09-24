@@ -1,4 +1,4 @@
-import { Navigate } from '@solidjs/router'
+import { A, Navigate } from '@solidjs/router'
 import { createSignal, Match, Switch } from 'solid-js'
 import { useI18n } from '../i18n/i18n'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
@@ -76,6 +76,7 @@ export function SignInPage() {
             <button type="submit" disabled={busy()}>
               {t('auth.submit')}
             </button>
+            <A href="/forgot-password">{t('auth.forgotPassword')}</A>
           </form>
         </main>
       </Match>

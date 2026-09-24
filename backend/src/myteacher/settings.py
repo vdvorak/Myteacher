@@ -13,6 +13,7 @@ class Settings(BaseModel):
     admin_password: str | None = None
     session_lifetime: timedelta = timedelta(days=7)
     invitation_lifetime: timedelta = timedelta(days=7)
+    reset_lifetime: timedelta = timedelta(hours=1)
     # The address people open the app at, for links in emails; the request's own when unset.
     public_url: str | None = None
     # Off only for plain-HTTP development and tests; browsers treat localhost as secure anyway.

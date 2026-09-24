@@ -4,45 +4,53 @@ import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import type { MessageKey } from '../i18n/messages'
-import type { AcceptResult } from './api'
+import type { AcceptResult, InvitationCheck, InvitationState } from './api'
 import { useSession } from './session'
 import './auth.css'
 
 /** Kept in step with the backend's minimum. */
 const MIN_PASSWORD_LENGTH = 12
 
+type LinkProblem = Exclude<InvitationState, 'valid'>
 type Problem = Exclude<AcceptResult, object> | 'tooShort' | 'mismatch' | 'failed'
 
-const problemMessages: Record<Problem, MessageKey> = {
-  used: 'invitation.used',
-  revoked: 'invitation.revoked',
-  expired: 'invitation.expired',
-  unknown: 'invitation.unknown',
+const formMessages: Record<Exclude<Problem, LinkProblem>, MessageKey> = {
   inactive: 'auth.inactive',
   tooShort: 'invitation.tooShort',
   mismatch: 'invitation.mismatch',
   failed: 'invitation.failed',
 }
 
-/** Where an invitation link lands: set the first password and sign in. Shared by all accounts. */
-export function InvitationPage() {
+export interface PasswordLink {
+  heading: MessageKey
+  check(token: string): Promise<InvitationCheck>
+  submit(token: string, password: string): Promise<AcceptResult>
+  /** What to say for a link that no longer works. */
+  linkMessages: Record<LinkProblem, MessageKey>
+  /** Where to go from a link that no longer works. */
+  recovery: { href: string; label: MessageKey }
+}
+
+/**
+ * Where an emailed password link lands, an invitation or a reset: set a password and sign in.
+ * The token is in the fragment, which the browser never sends to the server.
+ */
+export function PasswordLinkPage(props: PasswordLink) {
   const { t } = useI18n()
   const location = useLocation()
   const navigate = useNavigate()
-  const session = useSession()
-  const auth = useApi().auth
-  // The token is in the fragment, which the browser never sends to the server.
   const token = () => location.hash.replace(/^#/, '')
-  const [invitation] = createResource(
-    token,
-    (value) => auth.checkInvitation(value),
-  )
+  const [invitation] = createResource(token, (value) => props.check(value))
+  const message = (problem: Problem) =>
+    problem in formMessages
+      ? formMessages[problem as keyof typeof formMessages]
+      : props.linkMessages[problem as LinkProblem]
   const [password, setPassword] = createSignal('')
   const [repeated, setRepeated] = createSignal('')
   const [busy, setBusy] = createSignal(false)
   const [problem, setProblem] = createSignal<Problem | null>(null)
 
-  const linkProblem = (): Problem | null => {
+  const linkProblem = (): LinkProblem | null => {
     if (!token()) return 'unknown'
     const state = invitation()?.state
     return state && state !== 'valid' ? state : null
@@ -55,7 +63,7 @@ export function InvitationPage() {
     setBusy(true)
     setProblem(null)
     try {
-      const result = await session.acceptInvitation(token(), password())
+      const result = await props.submit(token(), password())
       if (typeof result === 'string') setProblem(result)
       else navigate('/', { replace: true })
     } catch {
@@ -72,13 +80,13 @@ export function InvitationPage() {
         <LanguageSwitch />
       </header>
       <div class="auth-form">
-        <h1>{t('invitation.heading')}</h1>
+        <h1>{t(props.heading)}</h1>
         <Switch>
           <Match when={linkProblem()}>
             {(state) => (
               <>
-                <p role="alert">{t(problemMessages[state()])}</p>
-                <A href="/sign-in">{t('invitation.toSignIn')}</A>
+                <p role="alert">{t(message(state()))}</p>
+                <A href={props.recovery.href}>{t(props.recovery.label)}</A>
               </>
             )}
           </Match>
@@ -88,13 +96,19 @@ export function InvitationPage() {
           <Match when={invitation.loading}>
             <p>{t('invitation.checking')}</p>
           </Match>
-          <Match when={invitation()?.email}>
-            {(email) => (
+          <Match when={invitation()?.state === 'valid'}>
               <form class="auth-form" onSubmit={submit}>
-                <p>
-                  {t('invitation.intro')} <strong>{email()}</strong>
-                </p>
-                <input type="email" hidden autocomplete="username" value={email()} readOnly />
+                {/* Invitations name the account; reset links do not, as the requester knows it. */}
+                <Show when={invitation()?.email}>
+                  {(address) => (
+                    <>
+                      <p>
+                        {t('invitation.intro')} <strong>{address()}</strong>
+                      </p>
+                      <input type="email" hidden autocomplete="username" value={address()} readOnly />
+                    </>
+                  )}
+                </Show>
                 <label>
                   {t('invitation.password')}
                   <input
@@ -117,17 +131,54 @@ export function InvitationPage() {
                 </label>
                 <Show when={problem()}>
                   {(current) => (
-                    <p role="alert">{t(problemMessages[current()], { min: MIN_PASSWORD_LENGTH })}</p>
+                    <p role="alert">{t(message(current()), { min: MIN_PASSWORD_LENGTH })}</p>
                   )}
                 </Show>
                 <button type="submit" disabled={busy()}>
                   {t('invitation.submit')}
                 </button>
               </form>
-            )}
           </Match>
         </Switch>
       </div>
     </main>
+  )
+}
+
+export function InvitationPage() {
+  const session = useSession()
+  const auth = useApi().auth
+  return (
+    <PasswordLinkPage
+      heading="invitation.heading"
+      check={(token) => auth.checkInvitation(token)}
+      submit={(token, password) => session.acceptInvitation(token, password)}
+      linkMessages={{
+        used: 'invitation.used',
+        revoked: 'invitation.revoked',
+        expired: 'invitation.expired',
+        unknown: 'invitation.unknown',
+      }}
+      recovery={{ href: '/sign-in', label: 'invitation.toSignIn' }}
+    />
+  )
+}
+
+export function ResetPasswordPage() {
+  const session = useSession()
+  const auth = useApi().auth
+  return (
+    <PasswordLinkPage
+      heading="reset.heading"
+      check={(token) => auth.checkReset(token)}
+      submit={(token, password) => session.completeReset(token, password)}
+      linkMessages={{
+        used: 'reset.used',
+        revoked: 'reset.revoked',
+        expired: 'reset.expired',
+        unknown: 'reset.unknown',
+      }}
+      recovery={{ href: '/forgot-password', label: 'reset.askAgain' }}
+    />
   )
 }

@@ -11,6 +11,24 @@ from myteacher.mail import Message
 Language = Literal["cs", "en"]
 
 TEMPLATES: dict[str, dict[Language, tuple[str, str]]] = {
+    "password_reset": {
+        "cs": (
+            "Myteacher: obnova hesla",
+            "Dobrý den,\n\n"
+            "někdo požádal o obnovu hesla k vašemu účtu v Myteacher. Nové heslo nastavíte zde:\n\n"
+            "{link}\n\n"
+            "Odkaz platí {minutes} minut a lze ho použít jen jednou. Pokud jste o obnovu "
+            "nežádali, e-mail ignorujte; vaše heslo zůstává beze změny.\n",
+        ),
+        "en": (
+            "Myteacher: reset your password",
+            "Hello,\n\n"
+            "someone asked to reset the password of your Myteacher account. Set a new one here:\n\n"
+            "{link}\n\n"
+            "The link works for {minutes} minutes and only once. If you did not ask for this, "
+            "ignore this email; your password stays as it is.\n",
+        ),
+    },
     "teacher_invitation": {
         "cs": (
             "Myteacher: pozvánka pro učitele",

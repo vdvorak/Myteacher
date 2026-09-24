@@ -81,6 +81,9 @@ def accept(db: InstanceSession, token: str, password: str, *, now: datetime) -> 
         raise InvitationRefused("unknown")
     if not account.active:
         raise AccountInactive()
+    if account.password_hash is not None:
+        # The account got a password another way, such as a reset; the invitation is spent.
+        raise InvitationRefused("used")
     # Conditional, so that of two concurrent acceptances only one uses the invitation up.
     used = db.execute(
         update(Invitation)

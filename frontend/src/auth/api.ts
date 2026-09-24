@@ -32,6 +32,11 @@ export interface AuthApi {
   checkInvitation(token: string): Promise<InvitationCheck>
   /** Sets the first password and signs in. */
   acceptInvitation(token: string, password: string): Promise<AcceptResult>
+  /** Emails a reset link if the address has an active account; the answer never says. */
+  requestReset(email: string): Promise<void>
+  checkReset(token: string): Promise<InvitationCheck>
+  /** Sets a new password, ends the account's other sessions and signs in. */
+  completeReset(token: string, password: string): Promise<AcceptResult>
 }
 
 async function account(response: Response): Promise<Account | null> {
@@ -42,6 +47,17 @@ async function account(response: Response): Promise<Account | null> {
 
 function post(url: string, body: unknown) {
   return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+}
+
+/** The outcome of setting a password from an emailed link: the signed-in account or why not. */
+async function passwordResult(response: Response): Promise<AcceptResult> {
+  if (response.status === 403) return 'inactive'
+  if (response.status === 404 || response.status === 410) {
+    const { detail } = (await response.json()) as { detail: string }
+    return detail.replace(/^(invitation|reset)_/, '') as AcceptResult
+  }
+  if (!response.ok) throw new ApiError(response.status)
+  return (await response.json()) as Account
 }
 
 /** The session lives in an HTTP-only cookie, so the client never handles a token. */
@@ -57,16 +73,20 @@ export const httpAuthApi: AuthApi = {
     if (!response.ok) throw new ApiError(response.status)
     return (await response.json()) as InvitationCheck
   },
-  acceptInvitation: async (token, password) => {
-    const response = await post('/api/auth/invitations/accept', { token, password })
-    if (response.status === 403) return 'inactive'
-    if (response.status === 404 || response.status === 410) {
-      const { detail } = (await response.json()) as { detail: string }
-      return detail.replace(/^invitation_/, '') as AcceptResult
-    }
+  acceptInvitation: async (token, password) =>
+    passwordResult(await post('/api/auth/invitations/accept', { token, password })),
+  requestReset: async (email) => {
+    const response = await post('/api/auth/password-reset/request', { email })
     if (!response.ok) throw new ApiError(response.status)
-    return (await response.json()) as Account
   },
+  checkReset: async (token) => {
+    const response = await post('/api/auth/password-reset/check', { token })
+    if (!response.ok) throw new ApiError(response.status)
+    const { state } = (await response.json()) as { state: InvitationState }
+    return { state, email: null }
+  },
+  completeReset: async (token, password) =>
+    passwordResult(await post('/api/auth/password-reset/complete', { token, password })),
   signOut: async () => {
     const response = await fetch('/api/auth/sign-out', { method: 'POST' })
     if (!response.ok && response.status !== 401) throw new ApiError(response.status)

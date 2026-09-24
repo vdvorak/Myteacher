@@ -151,6 +151,18 @@ const en = {
   'teachers.emailTaken': 'This email already belongs to an account.',
   'teachers.lastAdmin': 'The instance needs at least one active admin. Make another teacher an admin first.',
   'teachers.alreadyAccepted': 'This teacher has already accepted the invitation.',
+  'auth.forgotPassword': 'Forgot your password?',
+  'reset.heading': 'Reset your password',
+  'reset.intro': 'Enter the email of your account and we will send you a link to set a new password.',
+  'reset.submit': 'Send reset link',
+  'reset.requested': 'If an account uses this email, a link to set a new password is on its way. It works for an hour.',
+  'reset.requestFailed': 'The request failed. Try again.',
+  'reset.used': 'This reset link has already been used. Ask for a new one if you still need it.',
+  'reset.revoked': 'A newer reset link replaced this one. Use the latest email.',
+  'reset.expired': 'This reset link has expired. Ask for a new one.',
+  'reset.unknown': 'This link is not a valid reset link. Check that you opened the whole link from the email.',
+  'reset.askAgain': 'Ask for a new link',
+  'reset.toSignIn': 'Back to sign-in',
 }
 
 export type MessageKey = keyof typeof en
@@ -305,6 +317,18 @@ const cs: Record<MessageKey, string> = {
   'teachers.emailTaken': 'Tento e-mail už patří jinému účtu.',
   'teachers.lastAdmin': 'Instance potřebuje alespoň jednoho aktivního admina. Nejdřív udělejte adminem jiného učitele.',
   'teachers.alreadyAccepted': 'Tento učitel už pozvánku přijal.',
+  'auth.forgotPassword': 'Zapomněli jste heslo?',
+  'reset.heading': 'Obnova hesla',
+  'reset.intro': 'Zadejte e-mail svého účtu a pošleme vám odkaz pro nastavení nového hesla.',
+  'reset.submit': 'Poslat odkaz',
+  'reset.requested': 'Pokud tento e-mail patří k účtu, odkaz pro nastavení nového hesla je na cestě. Platí hodinu.',
+  'reset.requestFailed': 'Požadavek se nepodařil. Zkuste to znovu.',
+  'reset.used': 'Tento odkaz pro obnovu hesla už byl použit. Pokud heslo stále potřebujete, požádejte o nový.',
+  'reset.revoked': 'Tento odkaz nahradil novější. Použijte nejnovější e-mail.',
+  'reset.expired': 'Platnost odkazu pro obnovu hesla vypršela. Požádejte o nový.',
+  'reset.unknown': 'Tento odkaz není platný odkaz pro obnovu hesla. Zkontrolujte, že jste otevřeli celý odkaz z e-mailu.',
+  'reset.askAgain': 'Požádat o nový odkaz',
+  'reset.toSignIn': 'Zpět na přihlášení',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }

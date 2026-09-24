@@ -11,7 +11,8 @@ import {
 import { AdminPage } from './admin/AdminPage'
 import { ApiProvider, type Apis } from './api/context'
 import { SessionProvider } from './auth/session'
-import { InvitationPage } from './auth/InvitationPage'
+import { ForgotPasswordPage } from './auth/ForgotPasswordPage'
+import { InvitationPage, ResetPasswordPage } from './auth/PasswordLinkPage'
 import { SignInPage } from './auth/SignInPage'
 import { PreviewPage } from './preview/PreviewPage'
 import { HomePage } from './shell/HomePage'
@@ -37,6 +38,8 @@ const routes = () => (
   <>
     <Route path="/sign-in" component={SignInPage} />
     <Route path="/invitation" component={InvitationPage} />
+    <Route path="/forgot-password" component={ForgotPasswordPage} />
+    <Route path="/reset-password" component={ResetPasswordPage} />
     <Route path="/preview/:lessonId" component={PreviewRoute} />
     <Route path="/" component={Shell}>
       <Route path="/" component={HomePage} />

@@ -59,18 +59,19 @@ def _first_row(db: InstanceSession) -> SmtpSettings:
     return row
 
 
-def deliver(db: InstanceSession, sender: Sender, message: Message) -> None:
+def current_config(db: InstanceSession) -> SmtpConfig:
     row = stored_settings(db)
     if row is None:
         raise MailError("Email is not configured yet. An admin has to enter the SMTP settings.")
-    sender.send(
-        message,
-        SmtpConfig(
-            host=row.host,
-            port=row.port,
-            security=row.security,  # type: ignore[arg-type]
-            username=row.username,
-            password=row.password,
-            sender=row.sender,
-        ),
+    return SmtpConfig(
+        host=row.host,
+        port=row.port,
+        security=row.security,  # type: ignore[arg-type]
+        username=row.username,
+        password=row.password,
+        sender=row.sender,
     )
+
+
+def deliver(db: InstanceSession, sender: Sender, message: Message) -> None:
+    sender.send(message, current_config(db))

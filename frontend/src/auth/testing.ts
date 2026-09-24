@@ -26,11 +26,18 @@ export function fakeAuthApi(
     meFails?: boolean
     /** The state of the invitation behind 'the-token'; any other token is unknown. */
     invitation?: InvitationState
+    /** The state of the reset link behind 'reset-token'; any other token is unknown. */
+    reset?: InvitationState
   } = {},
 ) {
   let current: Account | null = options.signedIn ?? null
   const password = options.password ?? 'correct horse battery'
   let used = false
+  let resetUsed = false
+  const resetState = (token: string): InvitationState => {
+    if (token !== 'reset-token') return 'unknown'
+    return resetUsed ? 'used' : (options.reset ?? 'valid')
+  }
   const invitationState = (token: string): InvitationState => {
     if (token !== 'the-token') return 'unknown'
     return used ? 'used' : (options.invitation ?? 'valid')
@@ -52,6 +59,16 @@ export function fakeAuthApi(
     checkInvitation: vi.fn(async (token: string) => {
       const state = invitationState(token)
       return { state, email: state === 'valid' ? invitedTeacher.email : null }
+    }),
+    requestReset: vi.fn(async (_email: string) => {}),
+    checkReset: vi.fn(async (token: string) => ({ state: resetState(token), email: null })),
+    completeReset: vi.fn(async (token: string, _password: string): Promise<AcceptResult> => {
+      const state = resetState(token)
+      if (state !== 'valid') return state
+      if (options.inactive) return 'inactive'
+      resetUsed = true
+      current = admin
+      return admin
     }),
     acceptInvitation: vi.fn(async (token: string, _password: string): Promise<AcceptResult> => {
       const state = invitationState(token)

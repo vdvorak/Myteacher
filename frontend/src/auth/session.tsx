@@ -12,6 +12,8 @@ interface Session {
   signOut(): Promise<void>
   /** Set the first password through an invitation, which also signs in. */
   acceptInvitation(token: string, password: string): Promise<AcceptResult>
+  /** Set a new password through a reset link, which also signs in. */
+  completeReset(token: string, password: string): Promise<AcceptResult>
   /** Replace the signed-in account after it changed, for example its language. */
   updateAccount(account: Account): void
 }
@@ -34,6 +36,14 @@ export function SessionProvider(props: ParentProps) {
   onMount(() => {
     api.me().then(setAccount, () => setLoadFailed(true))
   })
+  const signedInBy = async (outcome: Promise<AcceptResult>) => {
+    const result = await outcome
+    if (typeof result !== 'string') {
+      setLoadFailed(false)
+      setAccount(result)
+    }
+    return result
+  }
   const session: Session = {
     account,
     loadFailed,
@@ -45,14 +55,8 @@ export function SessionProvider(props: ParentProps) {
       }
       return result
     },
-    async acceptInvitation(token, password) {
-      const result = await api.acceptInvitation(token, password)
-      if (typeof result !== 'string') {
-        setLoadFailed(false)
-        setAccount(result)
-      }
-      return result
-    },
+    acceptInvitation: (token, password) => signedInBy(api.acceptInvitation(token, password)),
+    completeReset: (token, password) => signedInBy(api.completeReset(token, password)),
     async signOut() {
       await api.signOut()
       setAccount(null)
