@@ -9,13 +9,13 @@ import {
   type RouteSectionProps,
 } from '@solidjs/router'
 import { AdminPage } from './admin/AdminPage'
-import { httpAdminApi, type AdminApi } from './admin/api'
-import type { AuthApi } from './auth/api'
+import { ApiProvider, type Apis } from './api/context'
 import { SessionProvider } from './auth/session'
 import { SignInPage } from './auth/SignInPage'
 import { PreviewPage } from './preview/PreviewPage'
 import { HomePage } from './shell/HomePage'
 import { Shell } from './shell/Shell'
+import { SettingsPage } from './settings/SettingsPage'
 
 function decodeSegment(segment: string): string {
   try {
@@ -32,29 +32,31 @@ function PreviewRoute() {
   return <PreviewPage lessonId={decodeSegment(params.lessonId)} seed={search.seed ?? 'preview'} />
 }
 
-const routes = (admin: AdminApi) => (
+const routes = () => (
   <>
     <Route path="/sign-in" component={SignInPage} />
     <Route path="/preview/:lessonId" component={PreviewRoute} />
     <Route path="/" component={Shell}>
       <Route path="/" component={HomePage} />
-      <Route path="/admin" component={() => <AdminPage api={admin} />} />
+      <Route path="/settings" component={SettingsPage} />
+      <Route path="/admin" component={AdminPage} />
     </Route>
     <Route path="*" component={() => <Navigate href="/" />} />
   </>
 )
 
 /** The whole app; tests pass a memory history instead of the browser's. */
-export function App(props: { auth: AuthApi; admin?: AdminApi; history?: MemoryHistory }) {
-  const admin = props.admin ?? httpAdminApi
+export function App(props: { apis: Apis; history?: MemoryHistory }) {
   const root = (section: RouteSectionProps) => (
-    <SessionProvider api={props.auth}>{section.children}</SessionProvider>
+    <ApiProvider apis={props.apis}>
+      <SessionProvider>{section.children}</SessionProvider>
+    </ApiProvider>
   )
   return props.history ? (
     <MemoryRouter history={props.history} root={root}>
-      {routes(admin)}
+      {routes()}
     </MemoryRouter>
   ) : (
-    <Router root={root}>{routes(admin)}</Router>
+    <Router root={root}>{routes()}</Router>
   )
 }

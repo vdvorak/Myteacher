@@ -102,6 +102,18 @@ const en = {
   'smtp.sendTest': 'Send test email',
   'smtp.testSent': 'The test email was sent to {to}.',
   'smtp.testFailed': 'The test email was not sent: {error}',
+  'nav.settings': 'Settings',
+  'settings.heading': 'Settings',
+  'settings.loadFailed': 'Your settings could not be loaded.',
+  'settings.language': 'Interface language',
+  'settings.languageFailed': 'The language could not be saved to your account. It applies only here for now.',
+  'settings.digestTime': 'Daily digest at',
+  'settings.digestTimeNote': 'The time of day your daily summary email is sent.',
+  'settings.digestTimeIsDefault': 'The instance default is used.',
+  'settings.saveDigestTime': 'Save digest time',
+  'settings.useDefaultDigestTime': 'Use the instance default',
+  'settings.saved': 'Saved.',
+  'settings.saveFailed': 'Saving failed. Try again.',
 }
 
 export type MessageKey = keyof typeof en
@@ -207,6 +219,18 @@ const cs: Record<MessageKey, string> = {
   'smtp.sendTest': 'Odeslat zkušební e-mail',
   'smtp.testSent': 'Zkušební e-mail odešel na {to}.',
   'smtp.testFailed': 'Zkušební e-mail neodešel: {error}',
+  'nav.settings': 'Nastavení',
+  'settings.heading': 'Nastavení',
+  'settings.loadFailed': 'Nastavení se nepodařilo načíst.',
+  'settings.language': 'Jazyk rozhraní',
+  'settings.languageFailed': 'Jazyk se nepodařilo uložit k účtu. Zatím platí jen tady.',
+  'settings.digestTime': 'Denní souhrn v',
+  'settings.digestTimeNote': 'Čas, kdy vám přijde denní souhrn e-mailem.',
+  'settings.digestTimeIsDefault': 'Platí výchozí čas instance.',
+  'settings.saveDigestTime': 'Uložit čas souhrnu',
+  'settings.useDefaultDigestTime': 'Použít výchozí čas instance',
+  'settings.saved': 'Uloženo.',
+  'settings.saveFailed': 'Uložení se nepodařilo. Zkuste to znovu.',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }

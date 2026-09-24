@@ -1,3 +1,4 @@
+import type { Locale } from '../i18n/messages'
 import { ApiError } from '../lesson/api'
 
 export interface Account {
@@ -5,6 +6,8 @@ export interface Account {
   email: string
   kind: 'teacher' | 'student'
   roles: string[]
+  /** Chosen interface language; null until chosen. */
+  language: Locale | null
 }
 
 /** The account on success, or why signing in was refused. */

@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine
 
 from myteacher.accounts import service
-from myteacher.api import admin, auth, lessons
+from myteacher.api import accounts, admin, auth, lessons
 from myteacher.db import migrate
 from myteacher.mail import Sender, SmtpSender
 from myteacher.persistence import Clock, make_engine, open_session, singleton_instance_id, utc_now
@@ -41,6 +41,7 @@ def create_app(
     app.include_router(lessons.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
     app.include_router(admin.router, prefix="/api")
+    app.include_router(accounts.router, prefix="/api")
 
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
     def unknown_api_route(path: str) -> None:

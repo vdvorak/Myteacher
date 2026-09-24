@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from myteacher.accounts import service
 from myteacher.accounts.models import Account
 from myteacher.api.deps import SESSION_COOKIE, Actor, AppSettings, Db, Now
+from myteacher.mail.templates import Language
 from myteacher.policy import roles
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -21,10 +22,17 @@ class Me(BaseModel):
     email: str
     kind: Literal["teacher", "student"]
     roles: list[str]
+    language: Language | None
 
     @classmethod
     def of(cls, account: Account) -> "Me":
-        return cls(id=account.id, email=account.email, kind=account.kind, roles=roles(account))
+        return cls(
+            id=account.id,
+            email=account.email,
+            kind=account.kind,
+            roles=roles(account),
+            language=account.language,
+        )
 
 
 @router.post(

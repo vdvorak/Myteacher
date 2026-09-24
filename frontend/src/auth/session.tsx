@@ -1,5 +1,7 @@
 import { createContext, createSignal, onMount, useContext, type ParentProps } from 'solid-js'
-import type { Account, AuthApi, SignInResult } from './api'
+import { useApi } from '../api/context'
+import { browserLocale, useI18n } from '../i18n/i18n'
+import type { Account, SignInResult } from './api'
 
 interface Session {
   /** The signed-in account, null when anonymous, undefined while it is being found out. */
@@ -8,21 +10,33 @@ interface Session {
   loadFailed(): boolean
   signIn(email: string, password: string): Promise<SignInResult>
   signOut(): Promise<void>
+  /** Replace the signed-in account after it changed, for example its language. */
+  updateAccount(account: Account): void
 }
 
 const SessionContext = createContext<Session>()
 
-export function SessionProvider(props: ParentProps<{ api: AuthApi }>) {
-  const [account, setAccount] = createSignal<Account | null | undefined>(undefined)
+export function SessionProvider(props: ParentProps) {
+  const api = useApi().auth
+  const { setLocale } = useI18n()
+  const [account, setSignedIn] = createSignal<Account | null | undefined>(undefined)
+  // The account's language wins over the browser's, on every device it signs in from.
+  // An account without a language, or signing out, returns a shared device to the browser's.
+  const setAccount = (next: Account | null) => {
+    const previous = account()
+    if (next?.language) setLocale(next.language)
+    else if (previous) setLocale(browserLocale())
+    setSignedIn(next)
+  }
   const [loadFailed, setLoadFailed] = createSignal(false)
   onMount(() => {
-    props.api.me().then(setAccount, () => setLoadFailed(true))
+    api.me().then(setAccount, () => setLoadFailed(true))
   })
   const session: Session = {
     account,
     loadFailed,
     async signIn(email, password) {
-      const result = await props.api.signIn(email, password)
+      const result = await api.signIn(email, password)
       if (typeof result !== 'string') {
         setLoadFailed(false)
         setAccount(result)
@@ -30,9 +44,10 @@ export function SessionProvider(props: ParentProps<{ api: AuthApi }>) {
       return result
     },
     async signOut() {
-      await props.api.signOut()
+      await api.signOut()
       setAccount(null)
     },
+    updateAccount: setAccount,
   }
   return <SessionContext.Provider value={session}>{props.children}</SessionContext.Provider>
 }

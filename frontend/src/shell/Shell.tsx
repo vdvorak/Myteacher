@@ -3,7 +3,8 @@ import { createSignal, For, Match, Show, Switch } from 'solid-js'
 import { useSession } from '../auth/session'
 import { useI18n } from '../i18n/i18n'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
-import type { MessageKey } from '../i18n/messages'
+import type { Locale, MessageKey } from '../i18n/messages'
+import { useChooseLanguage } from '../settings/language'
 import './shell.css'
 
 const roleNames: Record<string, MessageKey> = {
@@ -17,6 +18,17 @@ export function Shell(props: RouteSectionProps) {
   const { t } = useI18n()
   const session = useSession()
   const [signOutFailed, setSignOutFailed] = createSignal(false)
+  const [languageFailed, setLanguageFailed] = createSignal(false)
+  const storeLanguage = useChooseLanguage()
+
+  async function chooseLanguage(locale: Locale) {
+    setLanguageFailed(false)
+    try {
+      await storeLanguage(locale)
+    } catch {
+      setLanguageFailed(true)
+    }
+  }
 
   async function signOut() {
     setSignOutFailed(false)
@@ -51,7 +63,7 @@ export function Shell(props: RouteSectionProps) {
                     {(role) => <li>{role in roleNames ? t(roleNames[role]) : role}</li>}
                   </For>
                 </ul>
-                <LanguageSwitch />
+                <LanguageSwitch onChoose={chooseLanguage} />
                 <button type="button" onClick={signOut}>
                   {t('auth.signOut')}
                 </button>
@@ -61,10 +73,14 @@ export function Shell(props: RouteSectionProps) {
               <A href="/" end>
                 {t('nav.home')}
               </A>
+              <A href="/settings">{t('nav.settings')}</A>
               <Show when={account().roles.includes('admin')}>
                 <A href="/admin">{t('nav.admin')}</A>
               </Show>
             </nav>
+            <Show when={languageFailed()}>
+              <p role="alert">{t('settings.languageFailed')}</p>
+            </Show>
             <Show when={signOutFailed()}>
               <p role="alert">{t('auth.signOutFailed')}</p>
             </Show>

@@ -9,7 +9,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Engine, ForeignKey, create_engine, event, select
+from sqlalchemy import DateTime, Engine, ForeignKey, String, create_engine, event, select
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -53,6 +53,7 @@ class Instance(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
+    default_digest_time: Mapped[str] = mapped_column(String(5))
 
 
 class InstanceOwned:

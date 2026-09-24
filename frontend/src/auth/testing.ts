@@ -6,6 +6,7 @@ export const admin: Account = {
   email: 'admin@skola.example',
   kind: 'teacher',
   roles: ['teacher', 'admin'],
+  language: null,
 }
 
 /** A stand-in for the auth endpoints with one account and its password. */

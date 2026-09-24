@@ -6,12 +6,13 @@ import { App } from '../App'
 import { sampleLesson, withI18n } from '../lesson/testing'
 import type { Locale } from '../i18n/messages'
 import { fakeAdminApi } from '../admin/testing'
+import { fakeSettingsApi } from '../settings/testing'
 import { admin, fakeAuthApi } from './testing'
 
 function renderApp(path: string, auth = fakeAuthApi(), locale: Locale = 'en') {
   const history = createMemoryHistory()
   history.set({ value: path })
-  render(withI18n(() => <App auth={auth} admin={fakeAdminApi()} history={history} />, locale))
+  render(withI18n(() => <App apis={{ auth, admin: fakeAdminApi(), settings: fakeSettingsApi() }} history={history} />, locale))
   return { auth, history }
 }
 

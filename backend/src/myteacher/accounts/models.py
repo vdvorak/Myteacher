@@ -22,6 +22,10 @@ class Account(InstanceOwned, Base):
     password_hash: Mapped[str | None]
     is_admin: Mapped[bool] = mapped_column(default=False)
     active: Mapped[bool] = mapped_column(default=True)
+    # Interface language; None until chosen, and the interface follows the browser meanwhile.
+    language: Mapped[str | None] = mapped_column(String(2))
+    # "HH:MM" of the teacher's daily digest; None follows the instance default.
+    digest_time: Mapped[str | None] = mapped_column(String(5))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
 
