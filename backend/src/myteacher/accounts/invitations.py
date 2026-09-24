@@ -13,6 +13,7 @@ from myteacher.mail import MailError, Sender
 from myteacher.mail.store import deliver
 from myteacher.mail.templates import render
 from myteacher.persistence import InstanceSession
+from myteacher.secret_box import SecretBox
 
 InvitationState = Literal["valid", "used", "revoked", "expired", "unknown"]
 
@@ -107,6 +108,7 @@ def send(
     sender: Sender,
     account: Account,
     *,
+    secret_box: SecretBox,
     base_url: str,
     lifetime: timedelta,
     now: datetime,
@@ -126,7 +128,7 @@ def send(
         days=str(lifetime.days),
     )
     try:
-        deliver(db, sender, message)
+        deliver(db, sender, message, secret_box)
     except MailError as error:
         savepoint.rollback()
         return str(error)

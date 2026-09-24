@@ -16,6 +16,7 @@ from myteacher.mail.store import current_config
 from myteacher.mail.templates import Language, render
 from myteacher.persistence import Clock, InstanceSession, open_session
 from myteacher.policy import roles
+from myteacher.secret_box import SecretBox
 from myteacher.settings import Settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -190,6 +191,7 @@ def _reset_in_background(
     email: str,
     *,
     sender: Sender,
+    secret_box: SecretBox,
     base_url: str,
     lifetime: timedelta,
     clock: Clock,
@@ -204,7 +206,7 @@ def _reset_in_background(
         if account is None or not account.active:
             return
         try:
-            config = current_config(db)
+            config = current_config(db, secret_box)
         except MailError as error:
             logger.warning("password reset for %s cannot be emailed: %s", account.email, error)
             return
@@ -239,6 +241,7 @@ def request_password_reset(
         state.instance_id,
         body.email,
         sender=sender,
+        secret_box=state.secret_box,
         base_url=settings.public_url or str(request.base_url),
         lifetime=settings.reset_lifetime,
         clock=state.clock,

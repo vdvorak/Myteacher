@@ -7,25 +7,34 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine
 
 from myteacher.accounts import service
-from myteacher.api import accounts, admin, auth, lessons
+from myteacher.api import accounts, admin, auth, lessons, providers
+from myteacher.assistant.providers import ModelFactory, pydantic_ai_model
 from myteacher.db import migrate
 from myteacher.mail import Sender, SmtpSender
 from myteacher.persistence import Clock, make_engine, open_session, singleton_instance_id, utc_now
+from myteacher.secret_box import SecretBox
 from myteacher.settings import Settings
 
 
 def create_app(
-    settings: Settings | None = None, *, clock: Clock = utc_now, sender: Sender | None = None
+    settings: Settings | None = None,
+    *,
+    clock: Clock = utc_now,
+    sender: Sender | None = None,
+    model_factory: ModelFactory = pydantic_ai_model,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        migrate(settings.database_url)
+        secret_box = SecretBox(settings.instance_secret)
+        migrate(settings.database_url, secret_box)
         engine = make_engine(settings.database_url)
         app.state.settings = settings
         app.state.clock = clock
         app.state.sender = sender or SmtpSender()
+        app.state.secret_box = secret_box
+        app.state.model_factory = model_factory
         app.state.engine = engine
         app.state.instance_id = singleton_instance_id(engine)
         bootstrap_admin(engine, settings, clock)
@@ -42,6 +51,7 @@ def create_app(
     app.include_router(auth.router, prefix="/api")
     app.include_router(admin.router, prefix="/api")
     app.include_router(accounts.router, prefix="/api")
+    app.include_router(providers.router, prefix="/api")
 
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
     def unknown_api_route(path: str) -> None:

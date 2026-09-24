@@ -11,6 +11,7 @@ from myteacher.accounts.models import Account
 from myteacher.mail import Sender
 from myteacher.persistence import InstanceSession, open_session
 from myteacher.policy import Predicate
+from myteacher.secret_box import SecretBox
 from myteacher.settings import Settings
 
 SESSION_COOKIE = "myteacher_session"
@@ -37,10 +38,15 @@ def get_sender(request: Request) -> Sender:
     return request.app.state.sender
 
 
+def get_secret_box(request: Request) -> SecretBox:
+    return request.app.state.secret_box
+
+
 Db = Annotated[InstanceSession, Depends(get_db, scope="function")]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 Now = Annotated[datetime, Depends(get_now)]
 MailSender = Annotated[Sender, Depends(get_sender)]
+Box = Annotated[SecretBox, Depends(get_secret_box)]
 
 
 def current_account(request: Request, db: Db, now: Now) -> Account:

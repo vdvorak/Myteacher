@@ -11,6 +11,7 @@ import sys
 from myteacher.accounts import service
 from myteacher.db import migrate
 from myteacher.persistence import make_engine, open_session, utc_now
+from myteacher.secret_box import SecretBox
 from myteacher.settings import Settings
 
 
@@ -25,7 +26,7 @@ def _password() -> str:
 
 def create_admin(email: str) -> int:
     settings = Settings.from_env()
-    migrate(settings.database_url)
+    migrate(settings.database_url, SecretBox(settings.instance_secret))
     engine = make_engine(settings.database_url)
     try:
         with open_session(engine) as db:

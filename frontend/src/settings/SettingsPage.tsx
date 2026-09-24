@@ -5,6 +5,7 @@ import { useI18n } from '../i18n/i18n'
 import { localeNames, locales, type Locale } from '../i18n/messages'
 import '../admin/admin.css'
 import { useChooseLanguage } from './language'
+import { ProviderKeys } from './ProviderKeys'
 
 type Outcome = 'saved' | 'failed' | null
 
@@ -110,6 +111,9 @@ export function SettingsPage() {
           <p role="alert">{t('settings.saveFailed')}</p>
         </Match>
       </Switch>
+      <Show when={session.account()?.kind === 'teacher' && accountId()}>
+        {(id) => <ProviderKeys api={api} accountId={id()} />}
+      </Show>
     </section>
   )
 }

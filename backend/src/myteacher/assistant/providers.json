@@ -1,0 +1,18 @@
+{
+  "_comment": "The providers teachers can use, in the order they are offered. Each key is pydantic-ai's provider name (models are built as '<key>:<model>'); a new provider may need its pydantic-ai-slim extra. The model slots are recommended defaults that every teacher can change.",
+  "anthropic": {
+    "label": "Anthropic",
+    "strong_model": "claude-opus-5-5",
+    "fast_model": "claude-haiku-4-5"
+  },
+  "openai": {
+    "label": "OpenAI",
+    "strong_model": "gpt-5.5",
+    "fast_model": "gpt-5.1-mini"
+  },
+  "google": {
+    "label": "Google Gemini",
+    "strong_model": "gemini-3.1-pro-preview",
+    "fast_model": "gemini-3.5-flash"
+  }
+}

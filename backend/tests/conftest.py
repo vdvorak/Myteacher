@@ -7,13 +7,16 @@ from fastapi.testclient import TestClient
 from myteacher.app import create_app
 from myteacher.mail import RecordingSender
 from myteacher.settings import Settings
-from tests.helpers import ADMIN_EMAIL, ADMIN_PASSWORD, FakeClock
+from tests.helpers import ADMIN_EMAIL, ADMIN_PASSWORD, INSTANCE_SECRET, FakeClock, ScriptedModels
 
 
 @pytest.fixture
 def settings(tmp_path):
     return Settings(
-        database_url=f"sqlite:///{tmp_path / 'myteacher.db'}", static_dir=None, secure_cookies=False
+        database_url=f"sqlite:///{tmp_path / 'myteacher.db'}",
+        static_dir=None,
+        secure_cookies=False,
+        instance_secret=INSTANCE_SECRET,
     )
 
 
@@ -48,6 +51,12 @@ def sender() -> RecordingSender:
 
 
 @pytest.fixture
-def app_client(admin_settings, clock, sender):
-    with TestClient(create_app(admin_settings, clock=clock, sender=sender)) as client:
+def models() -> ScriptedModels:
+    return ScriptedModels()
+
+
+@pytest.fixture
+def app_client(admin_settings, clock, sender, models):
+    app = create_app(admin_settings, clock=clock, sender=sender, model_factory=models)
+    with TestClient(app) as client:
         yield client

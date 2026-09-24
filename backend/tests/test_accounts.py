@@ -64,6 +64,7 @@ def test_incomplete_or_weak_admin_configuration_fails_at_start(settings):
 def test_admin_can_be_created_by_a_one_off_command(settings, monkeypatch, capsys):
     monkeypatch.setenv("MYTEACHER_DATABASE_URL", settings.database_url)
     monkeypatch.setenv("MYTEACHER_ADMIN_PASSWORD", ADMIN_PASSWORD)
+    monkeypatch.setenv("MYTEACHER_INSTANCE_SECRET", settings.instance_secret)
 
     assert cli.main(["create-admin", "--email", ADMIN_EMAIL]) == 0
     assert "created" in capsys.readouterr().out
@@ -97,7 +98,9 @@ def test_sign_in_sets_an_http_only_same_site_session_cookie(app_client, admin_se
 
 
 def test_session_cookie_is_secure_by_default():
-    assert Settings(database_url="sqlite://", static_dir=None).secure_cookies
+    assert Settings(
+        database_url="sqlite://", static_dir=None, instance_secret="s" * 32
+    ).secure_cookies
 
 
 def test_wrong_password_and_unknown_email_get_the_same_generic_answer(app_client):

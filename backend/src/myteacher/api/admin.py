@@ -6,7 +6,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_seriali
 
 from myteacher.accounts import invitations, service
 from myteacher.accounts.models import Account
-from myteacher.api.deps import AppSettings, Db, MailSender, Now, requires
+from myteacher.api.deps import AppSettings, Box, Db, MailSender, Now, requires
 from myteacher.mail import MailError, Security, Sender, SmtpConfig
 from myteacher.mail.store import deliver, save_settings, stored_settings
 from myteacher.mail.templates import Language, render
@@ -94,7 +94,7 @@ def _settings_out(db: Db) -> SmtpSettingsOut:
         security=row.security,
         username=row.username,
         sender=row.sender,
-        password_set=row.password is not None,
+        password_set=row.password_encrypted is not None,
     )
 
 
@@ -104,7 +104,9 @@ def read_smtp_settings(db: Db, _: Admin) -> SmtpSettingsOut:
 
 
 @router.put("/smtp")
-def update_smtp_settings(body: SmtpSettingsIn, db: Db, admin: Admin, now: Now) -> SmtpSettingsOut:
+def update_smtp_settings(
+    body: SmtpSettingsIn, db: Db, admin: Admin, now: Now, box: Box
+) -> SmtpSettingsOut:
     config = SmtpConfig(
         host=body.host,
         port=body.port,
@@ -113,15 +115,17 @@ def update_smtp_settings(body: SmtpSettingsIn, db: Db, admin: Admin, now: Now) -
         password=body.password,
         sender=body.sender,
     )
-    save_settings(db, config, keep_password=body.password is None, now=now)
+    save_settings(db, config, keep_password=body.password is None, now=now, secret_box=box)
     service.record_event(db, "smtp_settings_changed", at=now, actor=admin, subject=None)
     return _settings_out(db)
 
 
 @router.post("/smtp/test")
-def send_test_email(body: TestEmail, db: Db, sender: MailSender, _: Admin) -> TestEmailResult:
+def send_test_email(
+    body: TestEmail, db: Db, sender: MailSender, box: Box, _: Admin
+) -> TestEmailResult:
     try:
-        deliver(db, sender, render("test_email", body.language, to=body.to))
+        deliver(db, sender, render("test_email", body.language, to=body.to), box)
     except MailError as error:
         return TestEmailResult(delivered=False, error=str(error))
     return TestEmailResult(delivered=True, error=None)
@@ -193,6 +197,7 @@ def _invite(
         db,
         sender,
         teacher,
+        secret_box=request.app.state.secret_box,
         base_url=_base_url(request, settings),
         lifetime=settings.invitation_lifetime,
         now=now,
