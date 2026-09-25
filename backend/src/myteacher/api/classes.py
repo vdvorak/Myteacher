@@ -46,14 +46,14 @@ class ClassIn(BaseModel):
     name: ClassName
 
 
-def _class(db: InstanceSession, class_id: int) -> SchoolClass:
+def class_or_404(db: InstanceSession, class_id: int) -> SchoolClass:
     klass = classes.get_class(db, class_id)
     if klass is None:
         raise HTTPException(status_code=404)
     return klass
 
 
-def _student(db: InstanceSession, student_id: int) -> Account:
+def student_or_404(db: InstanceSession, student_id: int) -> Account:
     student = service.get_account(db, student_id)
     if student is None or student.kind != "student":
         raise HTTPException(status_code=404)
@@ -100,12 +100,12 @@ def create_class(body: ClassIn, db: Db, now: Now, _: Teacher) -> ClassOut:
 
 @router.get("/{class_id}")
 def read_class(class_id: int, db: Db, _: Teacher) -> ClassOut:
-    return _out(db, _class(db, class_id))
+    return _out(db, class_or_404(db, class_id))
 
 
 @router.patch("/{class_id}", responses={409: {"description": "Name taken"}})
 def rename_class(class_id: int, body: ClassIn, db: Db, _: Teacher) -> ClassOut:
-    klass = _class(db, class_id)
+    klass = class_or_404(db, class_id)
     try:
         classes.rename_class(db, klass, body.name)
     except classes.NameTaken:
@@ -116,14 +116,14 @@ def rename_class(class_id: int, body: ClassIn, db: Db, _: Teacher) -> ClassOut:
 @router.put("/{class_id}/members/{student_id}")
 def add_member(class_id: int, student_id: int, db: Db, _: Teacher) -> ClassOut:
     """Put a student in the class; adding a member again changes nothing."""
-    klass = _class(db, class_id)
-    classes.add_member(db, klass, _student(db, student_id))
+    klass = class_or_404(db, class_id)
+    classes.add_member(db, klass, student_or_404(db, student_id))
     return _out(db, klass)
 
 
 @router.delete("/{class_id}/members/{student_id}")
 def remove_member(class_id: int, student_id: int, db: Db, _: Teacher) -> ClassOut:
     """Take a student out of the class; their account and history stay."""
-    klass = _class(db, class_id)
-    classes.remove_member(db, klass, _student(db, student_id))
+    klass = class_or_404(db, class_id)
+    classes.remove_member(db, klass, student_or_404(db, student_id))
     return _out(db, klass)

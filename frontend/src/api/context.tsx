@@ -9,6 +9,7 @@ import { httpMaterialsApi, type MaterialsApi } from '../materials/api'
 import { httpAuthApi, type AuthApi } from '../auth/api'
 import { httpSettingsApi, type SettingsApi } from '../settings/api'
 import { httpSourcesApi, type SourcesApi } from '../sources/api'
+import { httpRunsApi, type RunsApi } from '../runs/api'
 import { httpStudentsApi, type StudentsApi } from '../students/api'
 
 /** Every backend the pages talk to; tests replace them with fakes. */
@@ -18,6 +19,7 @@ export interface Apis {
   settings: SettingsApi
   students: StudentsApi
   classes: ClassesApi
+  runs: RunsApi
   courses: CoursesApi
   sources: SourcesApi
   concepts: ConceptsApi
@@ -32,6 +34,7 @@ export const httpApis: Apis = {
   settings: httpSettingsApi,
   students: httpStudentsApi,
   classes: httpClassesApi,
+  runs: httpRunsApi,
   courses: httpCoursesApi,
   sources: httpSourcesApi,
   concepts: httpConceptsApi,

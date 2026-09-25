@@ -1,4 +1,4 @@
-"""Authorisation predicates, applied at the API layer. Later slices add run access here.
+"""Authorisation predicates, applied at the API layer.
 
 A predicate answers whether an actor may do something; it never raises. The API turns a false
 answer into 403 with `requires` (predicates of the actor alone) or `ensure` (predicates that also
@@ -10,6 +10,7 @@ from typing import Literal
 
 from myteacher.accounts.models import Account
 from myteacher.courses.models import Course, CourseRight
+from myteacher.runs.models import CourseRun
 
 Predicate = Callable[[Account], bool]
 CourseAccessLevel = Literal[CourseRight, "owner"]
@@ -64,6 +65,12 @@ def can_edit_course(actor: Account, course: Course) -> bool:
 def can_manage_course_access(actor: Account, course: Course) -> bool:
     """Changing the access list and transferring the ownership."""
     return _at_least(actor, course, "owner")
+
+
+def can_teach_run(actor: Account, run: CourseRun, course: Course) -> bool:
+    """Seeing and changing the run: its teacher alone until co-teachers come in slice 4, and only
+    while they may still see its course, where the run is listed."""
+    return is_teacher(actor) and run.teacher_id == actor.id and can_view_course(actor, course)
 
 
 def roles(actor: Account) -> list[str]:
