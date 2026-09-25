@@ -106,20 +106,39 @@ class ConceptIn(BaseModel):
 
 
 class ConceptChange(BaseModel):
-    """Only the fields present change; none of them can be unset."""
+    """Only the fields present change; none of them can be unset. Prerequisites change either
+    as a whole list or, so that two editors' changes to one concept both stay, as the ones added
+    and the ones removed."""
 
     model_config = ConfigDict(extra="forbid")
 
     name: ConceptName | None = None
     description: ConceptDescription | None = None
     prerequisite_ids: list[int] | None = None
+    add_prerequisite_ids: list[int] | None = None
+    remove_prerequisite_ids: list[int] | None = None
 
-    @field_validator("name", "description", "prerequisite_ids")
+    @field_validator(
+        "name",
+        "description",
+        "prerequisite_ids",
+        "add_prerequisite_ids",
+        "remove_prerequisite_ids",
+    )
     @classmethod
     def _cannot_be_unset(cls, value: object) -> object:
         if value is None:
             raise ValueError("can be changed but not unset")
         return value
+
+    @model_validator(mode="after")
+    def _one_kind_of_prerequisite_change(self) -> Self:
+        adds, removes = self.add_prerequisite_ids or [], self.remove_prerequisite_ids or []
+        if self.prerequisite_ids is not None and (adds or removes):
+            raise ValueError("a whole list, or the ones added and removed")
+        if set(adds) & set(removes):
+            raise ValueError("a prerequisite is added or removed, not both")
+        return self
 
 
 class Merge(BaseModel):

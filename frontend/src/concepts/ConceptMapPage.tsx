@@ -337,25 +337,21 @@ function ConceptEditor(props: {
   // What the teacher typed; undefined while untouched, so a change from elsewhere shows.
   const [name, setName] = createSignal<string>()
   const [description, setDescription] = createSignal<string>()
-  const [requires, setRequires] = createSignal<number[]>()
+  // The prerequisites the teacher ticked (true) and unticked (false); empty while untouched.
+  const [toggled, setToggled] = createSignal<Record<number, boolean>>({})
   const [splitting, setSplitting] = createSignal(false)
   const [removing, setRemoving] = createSignal(false)
   const current = {
     name: () => name() ?? props.concept.name,
     description: () => description() ?? props.concept.description,
-    // Without a concept that left the map meanwhile, which could never be saved or unticked.
-    requires: () => {
-      const inMap = new Set(props.all.map((c) => c.id))
-      return (requires() ?? props.concept.prerequisite_ids).filter((id) => inMap.has(id))
-    },
+    // The saved ones with the teacher's ticks, in map order and without a concept that left
+    // the map meanwhile, which could never be saved or unticked.
+    requires: () =>
+      props.all
+        .map((c) => c.id)
+        .filter((id) => toggled()[id] ?? props.concept.prerequisite_ids.includes(id)),
   }
-  const toggle = (id: number, on: boolean) => {
-    const chosen = new Set(current.requires())
-    if (on) chosen.add(id)
-    else chosen.delete(id)
-    // In map order, as the backend answers.
-    setRequires(props.all.map((c) => c.id).filter((c) => chosen.has(c)))
-  }
+  const toggle = (id: number, on: boolean) => setToggled({ ...toggled(), [id]: on })
 
   async function save(event: SubmitEvent) {
     event.preventDefault()
@@ -363,15 +359,21 @@ function ConceptEditor(props: {
     const change: ConceptChange = {}
     const name = current.name().trim()
     const description = current.description().trim()
-    const prerequisites = current.requires()
     if (name !== props.concept.name) change.name = name
     if (description !== props.concept.description) change.description = description
-    if (prerequisites.join() !== props.concept.prerequisite_ids.join()) change.prerequisite_ids = prerequisites
+    // Only the ticks that differ from what is saved, of concepts still in the map.
+    const ticks = props.all
+      .map((c) => c.id)
+      .filter((id) => id in toggled() && toggled()[id] !== props.concept.prerequisite_ids.includes(id))
+    const added = ticks.filter((id) => toggled()[id])
+    const removed = ticks.filter((id) => !toggled()[id])
+    if (added.length > 0) change.add_prerequisite_ids = added
+    if (removed.length > 0) change.remove_prerequisite_ids = removed
     const saved = Object.keys(change).length === 0 || (await props.onSave(change))
     if (saved) {
       setName(undefined)
       setDescription(undefined)
-      setRequires(undefined)
+      setToggled({})
     }
   }
 

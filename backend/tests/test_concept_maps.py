@@ -248,6 +248,69 @@ def test_a_teacher_starts_a_map_by_hand(teacher, topic):
     assert [c["name"] for c in added.json()["concepts"]] == ["ser"]
 
 
+def test_prerequisite_changes_of_two_editors_both_stay(teacher, topic, models):
+    concept_map = proposed(teacher, topic, models)
+    estar = teacher.post(f"{map_url(*topic)}/concepts", json={"name": "estar"}).json()
+    ids = {name: c["id"] for name, c in by_name(estar).items()}
+    use = concept_url(topic, ids["Completed actions"])
+    assert by_name(concept_map)["Completed actions"]["prerequisite_ids"] == [ids["ser"], ids["ir"]]
+
+    # Both saw ser and ir required; one unticks ir, the other ticks estar.
+    teacher.patch(use, json={"remove_prerequisite_ids": [ids["ir"]]})
+    merged = teacher.patch(use, json={"add_prerequisite_ids": [ids["estar"]]})
+
+    assert merged.status_code == 200
+    assert by_name(merged.json())["Completed actions"]["prerequisite_ids"] == [
+        ids["ser"],
+        ids["estar"],
+    ]
+
+
+def test_adding_a_present_or_removing_an_absent_prerequisite_changes_nothing(
+    teacher, topic, models
+):
+    ids = {name: c["id"] for name, c in by_name(proposed(teacher, topic, models)).items()}
+    ir = concept_url(topic, ids["ir"])
+
+    again = teacher.patch(
+        ir,
+        json={
+            "add_prerequisite_ids": [ids["ser"]],
+            "remove_prerequisite_ids": [ids["Completed actions"]],
+        },
+    )
+
+    assert again.status_code == 200
+    assert by_name(again.json())["ir"]["prerequisite_ids"] == [ids["ser"]]
+
+
+def test_added_prerequisites_are_checked_like_a_whole_list(teacher, topic, models):
+    ids = {name: c["id"] for name, c in by_name(proposed(teacher, topic, models)).items()}
+    ser = concept_url(topic, ids["ser"])
+
+    loop = teacher.patch(ser, json={"add_prerequisite_ids": [ids["ir"]]})
+    unknown = teacher.patch(ser, json={"add_prerequisite_ids": [99999]})
+
+    assert loop.json() == {"detail": "prerequisite_cycle"}
+    assert unknown.json() == {"detail": "unknown_prerequisite"}
+    assert by_name(read(teacher, topic))["ser"]["prerequisite_ids"] == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"prerequisite_ids": [], "add_prerequisite_ids": [1]},
+        {"prerequisite_ids": [], "remove_prerequisite_ids": [1]},
+        {"add_prerequisite_ids": [1], "remove_prerequisite_ids": [1]},
+        {"add_prerequisite_ids": None},
+    ],
+)
+def test_a_prerequisite_change_says_one_thing(teacher, topic, models, body):
+    ids = {name: c["id"] for name, c in by_name(proposed(teacher, topic, models)).items()}
+
+    assert teacher.patch(concept_url(topic, ids["ir"]), json=body).status_code == 422
+
+
 def test_prerequisites_are_changed_but_never_circular_or_foreign(teacher, topic, models):
     concept_map = proposed(teacher, topic, models)
     concepts = by_name(concept_map)

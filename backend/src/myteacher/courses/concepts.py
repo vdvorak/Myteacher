@@ -245,13 +245,20 @@ def add_concept(
 def change_concept(
     db: InstanceSession, concept_map: ConceptMap, concept: Concept, changes: dict[str, Any]
 ) -> None:
-    """Change the text or the prerequisites of a concept; its identifier stays."""
+    """Change the text or the prerequisites of a concept; its identifier stays. Prerequisites
+    come as a whole list (`prerequisite_ids`), or as the ones to add and to remove, applied to
+    the current ones: removing one it no longer has changes nothing."""
     for field in ("name", "description"):
         if field in changes:
             setattr(concept, field, changes[field])
-    if "prerequisite_ids" in changes:
+    if {"prerequisite_ids", "add_prerequisite_ids", "remove_prerequisite_ids"} & changes.keys():
         graph = graph_of(db, concept_map)
-        graph[concept.id] = _checked(graph, changes["prerequisite_ids"])
+        if "prerequisite_ids" in changes:
+            graph[concept.id] = _checked(graph, changes["prerequisite_ids"])
+        else:
+            added = _checked(graph, changes.get("add_prerequisite_ids", []))
+            removed = set(changes.get("remove_prerequisite_ids", []))
+            graph[concept.id] = (graph[concept.id] | added) - removed
         _save_graph(db, concept_map, graph)
     _changed(concept_map)
 

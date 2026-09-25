@@ -96,6 +96,40 @@ describe('concept map of a topic', () => {
     expect(await shownNames()).toEqual(['ser', 'ir (pretérito)', 'Completed actions'])
   })
 
+  it('sends only the prerequisites ticked and unticked, so that a co-editor\'s change stays', async () => {
+    const { concepts } = renderMap({ map: preteritMap })
+    const user = userEvent.setup()
+    const actions = within(await row('Completed actions'))
+    // A co-editor unticks ser meanwhile; this page still shows it ticked.
+    await concepts.change(1, 2, 13, { remove_prerequisite_ids: [11] })
+
+    await user.click(actions.getByRole('checkbox', { name: 'Requires ir' }))
+    await user.click(actions.getByRole('button', { name: 'Save' }))
+
+    expect(concepts.change).toHaveBeenLastCalledWith(1, 2, 13, { remove_prerequisite_ids: [12] })
+    await waitFor(async () =>
+      expect(within(await row('Completed actions')).getByRole('checkbox', { name: 'Requires ser' })).not.toBeChecked(),
+    )
+    expect(within(await row('Completed actions')).getByRole('checkbox', { name: 'Requires ir' })).not.toBeChecked()
+  })
+
+  it('adds a ticked prerequisite and saves nothing for one unticked and ticked again', async () => {
+    const estar = { id: 14, name: 'estar', description: '', prerequisite_ids: [] }
+    const { concepts } = renderMap({ map: { ...preteritMap, concepts: [...preteritMap.concepts, estar] } })
+    const user = userEvent.setup()
+    const row14 = within(await row('estar'))
+
+    await user.click(row14.getByRole('checkbox', { name: 'Requires ir' }))
+    await user.click(row14.getByRole('checkbox', { name: 'Requires ser' }))
+    await user.click(row14.getByRole('checkbox', { name: 'Requires ir' }))
+    await user.click(row14.getByRole('button', { name: 'Save' }))
+
+    expect(concepts.change).toHaveBeenCalledWith(1, 2, 14, { add_prerequisite_ids: [11] })
+    await waitFor(async () =>
+      expect(within(await row('estar')).getByRole('checkbox', { name: 'Requires ser' })).toBeChecked(),
+    )
+  })
+
   it('forgets an unsaved prerequisite that left the map', async () => {
     const { concepts } = renderMap({ map: preteritMap })
     const user = userEvent.setup()

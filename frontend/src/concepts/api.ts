@@ -50,7 +50,12 @@ export interface ConceptDraft {
   description: string
 }
 
-export type ConceptChange = Partial<Pick<Concept, 'name' | 'description' | 'prerequisite_ids'>>
+/** Prerequisites change as the ones ticked and unticked, so that a co-editor's change to the
+ * same concept's prerequisites stays. */
+export type ConceptChange = Partial<Pick<Concept, 'name' | 'description'>> & {
+  add_prerequisite_ids?: number[]
+  remove_prerequisite_ids?: number[]
+}
 
 export type ConceptMapRefusal =
   | 'no_provider_key'

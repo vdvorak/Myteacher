@@ -171,9 +171,13 @@ export function fakeConceptsApi(
       const found = concept(map, conceptId)
       if (change.name !== undefined) found.name = change.name.trim()
       if (change.description !== undefined) found.description = change.description.trim()
-      if (change.prerequisite_ids !== undefined) {
-        if (change.prerequisite_ids.includes(conceptId)) throw new ConceptMapRefused('prerequisite_cycle')
-        found.prerequisite_ids = checked(map, change.prerequisite_ids)
+      if (change.add_prerequisite_ids || change.remove_prerequisite_ids) {
+        const added = change.add_prerequisite_ids ?? []
+        if (added.includes(conceptId)) throw new ConceptMapRefused('prerequisite_cycle')
+        checked(map, added)
+        const removed = change.remove_prerequisite_ids ?? []
+        const kept = new Set([...found.prerequisite_ids, ...added].filter((id) => !removed.includes(id)))
+        found.prerequisite_ids = map.concepts.map((c) => c.id).filter((id) => kept.has(id))
       }
       return changed(map)
     }),
