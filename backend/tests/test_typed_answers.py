@@ -69,6 +69,62 @@ def test_punctuation_and_accents_can_both_be_ignored(client, text):
     assert short(client, "where", text)["correct"] is True
 
 
+def lesson_in(monkeypatch, language: str, answer: str) -> str:
+    """The vocabulary lesson in another language, with `answer` accepted for `year`."""
+    from myteacher.api import lessons
+    from myteacher.lesson.schema import LessonDocument
+
+    lesson = document(VOCAB)
+    lesson["id"] = f"{language.lower()}-vocabulary"
+    lesson["language"] = language
+    exercise = next(b for b in lesson["blocks"] if b.get("id") == "year")
+    exercise["accepted_answers"] = [answer]
+    served = {**lessons.fixture_lessons(), lesson["id"]: LessonDocument.model_validate(lesson)}
+    monkeypatch.setattr(lessons, "fixture_lessons", lambda: served)
+    return lesson["id"]
+
+
+@pytest.mark.parametrize(
+    ("answer", "text", "correct"),
+    [
+        ("řeka", "reka", False),  # a háček makes a letter of its own in Czech
+        ("čeština", "cestina", False),
+        ("ďábel", "dabel", False),
+        ("tělo", "telo", False),
+        ("kůň", "kun", False),  # and so does the kroužek
+        ("kůň", "kůn", False),
+        ("Šťastný", "šťastny", True),  # the acute accent is ignored
+        ("výlet", "vylet", True),
+        ("úterý", "UTERY", True),
+        ("úterý", "Uterý", True),
+    ],
+)
+def test_ignoring_diacritics_in_czech_keeps_hacek_and_krouzek(
+    monkeypatch, client, answer, text, correct
+):
+    lesson = lesson_in(monkeypatch, "cs", answer)
+
+    assert short(client, "year", text, lesson=lesson)["correct"] is correct
+
+
+def test_czech_does_not_keep_the_spanish_enye(monkeypatch, client):
+    lesson = lesson_in(monkeypatch, "cs", "año")
+
+    assert short(client, "year", "ano", lesson=lesson)["correct"] is True
+
+
+def test_the_letters_kept_follow_the_language_not_its_region(monkeypatch, client):
+    lesson = lesson_in(monkeypatch, "cs-CZ", "řeka")
+
+    assert short(client, "year", "reka", lesson=lesson)["correct"] is False
+
+
+def test_a_language_without_letters_of_its_own_ignores_every_mark(monkeypatch, client):
+    lesson = lesson_in(monkeypatch, "en", "naïve café")
+
+    assert short(client, "year", "naive cafe", lesson=lesson)["correct"] is True
+
+
 def test_ignoring_punctuation_still_needs_the_words(client):
     assert short(client, "where", "¿Dónde está?")["correct"] is False
 
@@ -89,8 +145,8 @@ def test_whitespace_rule_can_be_switched_off(client):
     parsed = LessonDocument.model_validate(lesson).exercise("where")
     spaced = ShortAnswerAnswer(type="short_answer", text="¿Dónde  está la estación?")
     exact = ShortAnswerAnswer(type="short_answer", text="¿Dónde está la estación?")
-    assert assess_exercise(parsed, spaced).correct is False
-    assert assess_exercise(parsed, exact).correct is True
+    assert assess_exercise(parsed, spaced, language="es").correct is False
+    assert assess_exercise(parsed, exact, language="es").correct is True
 
 
 def test_case_rule_can_be_switched_off(client):
@@ -102,7 +158,9 @@ def test_case_rule_can_be_switched_off(client):
 
     parsed = LessonDocument.model_validate(lesson).exercise("song")
     assert (
-        assess_exercise(parsed, ShortAnswerAnswer(type="short_answer", text="Canción")).correct
+        assess_exercise(
+            parsed, ShortAnswerAnswer(type="short_answer", text="Canción"), language="es"
+        ).correct
         is False
     )
 

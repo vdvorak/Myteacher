@@ -416,7 +416,7 @@ def assess_answer(
     if exercise is None:
         raise HTTPException(status_code=404, detail="exercise not found")
     try:
-        return assess(exercise, answer, reveal=reveal)
+        return assess(exercise, answer, language=lesson.language, reveal=reveal)
     except AnswerMismatch as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 

@@ -123,7 +123,13 @@ class ToleranceRules(_Model):
         bool, Field(description="Collapse runs of whitespace; leading and trailing never count.")
     ] = True
     ignore_diacritics: Annotated[
-        bool, Field(description="Accents do not count; ñ stays a letter distinct from n.")
+        bool,
+        Field(
+            description=(
+                "Accents do not count, except marks that make a letter of its own in the "
+                "lesson's language: ñ in Spanish, háček and kroužek in Czech."
+            )
+        ),
     ] = False
     ignore_punctuation: Annotated[
         bool, Field(description="Punctuation, including ¿ and ¡, does not count.")

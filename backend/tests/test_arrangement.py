@@ -224,7 +224,7 @@ def test_identical_tokens_are_interchangeable(client):
     ]
 
     answer = TokenOrderingAnswer(type="token_ordering", order=swapped)
-    assert assess_exercise(exercise, answer).correct is True
+    assert assess_exercise(exercise, answer, language="es").correct is True
     assert sorted(swapped) == sorted(ids)
 
 

@@ -46,9 +46,12 @@ class AnswerMismatch(ValueError):
     """The answer does not fit the exercise it was given for."""
 
 
-def assess(exercise: Exercise, answer: ExerciseAnswer, *, reveal: bool = True) -> AssessmentOutcome:
-    """Score an answer. With `reveal=False` the solution of a wrong answer is withheld,
-    so that a student who may still retry does not receive it."""
+def assess(
+    exercise: Exercise, answer: ExerciseAnswer, *, language: str, reveal: bool = True
+) -> AssessmentOutcome:
+    """Score an answer to an exercise of a lesson in `language`, which decides the letters
+    that ignoring diacritics keeps apart. With `reveal=False` the solution of a wrong answer is
+    withheld, so that a student who may still retry does not receive it."""
     if answer.type != exercise.type:
         raise AnswerMismatch(f"a {answer.type} answer cannot assess a {exercise.type} exercise")
     match exercise, answer:
@@ -67,9 +70,9 @@ def assess(exercise: Exercise, answer: ExerciseAnswer, *, reveal: bool = True) -
         case MultipleChoiceExercise(), MultipleChoiceAnswer():
             result = _assess_multiple_choice(exercise, answer)
         case ShortAnswerExercise(), ShortAnswerAnswer():
-            result = _assess_short_answer(exercise, answer)
+            result = _assess_short_answer(exercise, answer, language)
         case ClozeExercise(), ClozeAnswer():
-            result = _assess_cloze(exercise, answer)
+            result = _assess_cloze(exercise, answer, language)
         case MatchingExercise(), MatchingAnswer():
             result = _assess_matching(exercise, answer)
         case TokenOrderingExercise(), TokenOrderingAnswer():
@@ -101,9 +104,9 @@ def _assess_multiple_choice(
 
 
 def _assess_short_answer(
-    exercise: ShortAnswerExercise, answer: ShortAnswerAnswer
+    exercise: ShortAnswerExercise, answer: ShortAnswerAnswer, language: str
 ) -> AssessmentResult:
-    correct = matches(answer.text, exercise.accepted_answers, exercise.tolerance)
+    correct = matches(answer.text, exercise.accepted_answers, exercise.tolerance, language)
     return AssessmentResult(
         status="assessed",
         exercise_id=exercise.id,
@@ -113,7 +116,7 @@ def _assess_short_answer(
     )
 
 
-def _assess_cloze(exercise: ClozeExercise, answer: ClozeAnswer) -> AssessmentResult:
+def _assess_cloze(exercise: ClozeExercise, answer: ClozeAnswer, language: str) -> AssessmentResult:
     # Stateless for now: the answer names the gaps it fills, which may be a second-round
     # variant's gaps (always as many as the exercise blanks). Attempts (slice 4) will pin the
     # variant server-side, so that only its exact gaps are accepted.
@@ -130,7 +133,7 @@ def _assess_cloze(exercise: ClozeExercise, answer: ClozeAnswer) -> AssessmentRes
         ItemCorrectness(
             id=gap.id,
             correct=matches(
-                answer.gaps[gap.id], [gap.answer, *gap.alternatives], exercise.tolerance
+                answer.gaps[gap.id], [gap.answer, *gap.alternatives], exercise.tolerance, language
             ),
         )
         for gap in gaps

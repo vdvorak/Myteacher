@@ -72,11 +72,12 @@ def assess_answer(
     """Assess one answer. `reveal=false` marks a try the student may retry: a wrong answer
     then comes back without its solution. Stateless for now; attempts (slice 4) will decide
     server-side how many tries remain."""
-    exercise = _lesson(lesson_id).exercise(exercise_id)
+    lesson = _lesson(lesson_id)
+    exercise = lesson.exercise(exercise_id)
     if exercise is None:
         raise HTTPException(status_code=404, detail="exercise not found")
     try:
-        return assess(exercise, answer, reveal=reveal)
+        return assess(exercise, answer, language=lesson.language, reveal=reveal)
     except AnswerMismatch as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 

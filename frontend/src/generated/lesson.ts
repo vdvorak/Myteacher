@@ -331,7 +331,7 @@ export interface ToleranceRules {
    */
   normalise_whitespace?: boolean
   /**
-   * Accents do not count; ñ stays a letter distinct from n.
+   * Accents do not count, except marks that make a letter of its own in the lesson's language: ñ in Spanish, háček and kroužek in Czech.
    */
   ignore_diacritics?: boolean
   /**
@@ -614,7 +614,7 @@ export interface ToleranceRules1 {
    */
   normalise_whitespace?: boolean
   /**
-   * Accents do not count; ñ stays a letter distinct from n.
+   * Accents do not count, except marks that make a letter of its own in the lesson's language: ñ in Spanish, háček and kroužek in Czech.
    */
   ignore_diacritics?: boolean
   /**
@@ -1245,7 +1245,7 @@ export interface ToleranceRules2 {
    */
   normalise_whitespace?: boolean
   /**
-   * Accents do not count; ñ stays a letter distinct from n.
+   * Accents do not count, except marks that make a letter of its own in the lesson's language: ñ in Spanish, háček and kroužek in Czech.
    */
   ignore_diacritics?: boolean
   /**

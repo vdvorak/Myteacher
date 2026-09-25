@@ -3757,7 +3757,7 @@
         },
         "ignore_diacritics": {
           "default": false,
-          "description": "Accents do not count; ñ stays a letter distinct from n.",
+          "description": "Accents do not count, except marks that make a letter of its own in the lesson's language: ñ in Spanish, háček and kroužek in Czech.",
           "title": "Ignore Diacritics",
           "type": "boolean"
         },
