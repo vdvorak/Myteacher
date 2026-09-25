@@ -30,6 +30,7 @@ from myteacher.courses.models import (
 )
 from myteacher.courses.topic_interview import topic_inputs
 from myteacher.courses.topics import topics_of
+from myteacher.jobs import runner
 from myteacher.jobs.models import Job
 from myteacher.jobs.runner import JobContext, Work
 from myteacher.persistence import InstanceSession
@@ -420,6 +421,31 @@ def _offer(topic: Topic, reason: str | None) -> None:
     diagnostic needs none. Only the teacher's acceptance sets the flag."""
     topic.diagnostic_offer = None if topic.diagnostic_wanted else reason
     topic.diagnostic_offer_answer = None
+
+
+def queue_proposal(
+    db: InstanceSession, topic: Topic, starter: Account, *, now: datetime
+) -> ConceptMap | None:
+    """Queue a proposal for the topic's map when it has nothing for the teacher to review: no
+    concepts, never approved and none being proposed. Returns the map, its `job_id` the queued
+    job for the caller to run once this transaction has committed; None when it is left as is."""
+    concept_map = ensure_map(db, topic, now=now)
+    if concept_map.approved_before or concept_map.state != "draft" or concepts_of(db, concept_map):
+        return None
+    running = runner.get_job(db, concept_map.job_id) if concept_map.job_id else None
+    if running is not None and running.state in ("queued", "running"):
+        return None
+    savepoint = db.begin_nested()
+    job = runner.create_job(db, TASK_KIND, starter=starter, course_id=topic.course_id, now=now)
+    concept_map.job_id = job.id
+    try:
+        db.flush()
+    except StaleDataError:
+        # The teacher changed the map meanwhile: it is theirs to look at now.
+        savepoint.rollback()
+        return None
+    savepoint.commit()
+    return concept_map
 
 
 def proposal(concept_map_id: int) -> Work:

@@ -303,13 +303,20 @@ def test_the_teacher_changes_and_clears_additions_by_hand(teacher, topic):
 # The map proposal
 
 
-def test_the_map_proposal_uses_the_brief_and_the_topics_additions(teacher, topic, models):
+def concept_map(client, topic) -> dict | None:
+    return client.get(map_url(*topic)).json()
+
+
+def test_finishing_the_interview_proposes_the_map_from_its_additions(teacher, topic, models):
     models.script(TOPIC_ROUND, ADDITIONS, PROPOSAL)
     start(teacher, topic)
+
     answer(teacher, topic, "a", "b")
 
-    assert teacher.post(f"{map_url(*topic)}/proposal").status_code == 202
-
+    proposed = concept_map(teacher, topic)
+    assert [c["name"] for c in proposed["concepts"]] == ["ser", "ir", "Completed actions"]
+    assert proposed["job"]["state"] == "succeeded"
+    assert proposed["job"]["kind"] == "concept_map"
     sent = json.loads(models.requests[-1]["prompt"])
     assert "brief" in sent
     assert sent["topic"]["additions"] == {
@@ -317,3 +324,80 @@ def test_the_map_proposal_uses_the_brief_and_the_topics_additions(teacher, topic
         "emphasis": "Only ser, ir and hacer among the irregular verbs.",
     }
     assert prompts.manifest()["concept_map"] == "v2"
+
+
+def test_a_round_asked_does_not_propose_the_map(teacher, topic, models):
+    models.script(TOPIC_ROUND)
+
+    start(teacher, topic)
+
+    assert concept_map(teacher, topic) is None
+
+
+def test_a_draft_with_concepts_is_not_replaced_after_the_interview(teacher, topic, models):
+    teacher.post(f"{map_url(*topic)}/concepts", json={"name": "Mine"})
+    models.script(TOPIC_ROUND, ADDITIONS, PROPOSAL)
+    start(teacher, topic)
+
+    answer(teacher, topic, "a", "b")
+
+    kept = concept_map(teacher, topic)
+    assert [c["name"] for c in kept["concepts"]] == ["Mine"]
+    assert kept["job"] is None
+    assert len(models.requests) == 2
+
+
+def test_a_map_approved_before_is_not_proposed_after_the_interview(teacher, topic, models):
+    from tests.test_reference_documents import approve_map
+
+    approve_map(teacher, *topic)
+    teacher.post(f"{map_url(*topic)}/reopening")
+    for concept in concept_map(teacher, topic)["concepts"]:
+        teacher.delete(f"{map_url(*topic)}/concepts/{concept['id']}")
+    models.script(TOPIC_ROUND, ADDITIONS, PROPOSAL)
+    start(teacher, topic)
+
+    answer(teacher, topic, "a", "b")
+
+    emptied = concept_map(teacher, topic)
+    assert emptied["concepts"] == []
+    assert emptied["job"] is None
+    assert len(models.requests) == 2
+
+
+def test_ending_the_interview_early_does_not_propose_the_map(teacher, topic, models):
+    models.script(TOPIC_ROUND, PROPOSAL)
+    start(teacher, topic)
+
+    teacher.post(f"{interview_url(*topic)}/end")
+
+    assert concept_map(teacher, topic) is None
+    assert len(models.requests) == 1
+
+
+def test_a_proposal_whose_topic_went_meanwhile_still_ends(
+    teacher, topic, models, admin_settings, monkeypatch
+):
+    from sqlalchemy import delete
+
+    from myteacher.api import topic_interview as api
+    from myteacher.courses.models import Topic
+
+    run = api.runner.run
+
+    async def run_then_remove_the_topic(ctx, job_id, work, **kwargs):
+        await run(ctx, job_id, work, **kwargs)
+        with open_session(create_engine_for(admin_settings)) as db:
+            if "proposal_job_id" in (api.runner.get_job(db, job_id).result or {}):
+                # The teacher removes the topic right after the interview lands.
+                db.execute(delete(Topic).where(Topic.id == topic[1]))
+                db.commit()
+
+    monkeypatch.setattr(api.runner, "run", run_then_remove_the_topic)
+    models.script(TOPIC_ROUND, ADDITIONS, PROPOSAL)
+    start(teacher, topic)
+
+    finished = answer(teacher, topic, "a", "b").json()["job"]["id"]
+
+    proposal_id = job(teacher, finished)["result"]["proposal_job_id"]
+    assert job(teacher, proposal_id)["state"] == "succeeded"

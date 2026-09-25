@@ -38,7 +38,7 @@ export function fakeConceptsApi(
     /** The topics of the course, in order, for the status of every map. */
     topics?: number[]
     /** Where a proposal's diagnostic offer lands. */
-    courses?: Pick<FakeCourses, 'offerDiagnostic'>
+    courses?: Pick<FakeCourses, 'offerDiagnostic'> & Partial<Pick<FakeCourses, 'whenTopicInterviewFinishes'>>
   } = {},
 ) {
   const jobs = options.jobs ?? fakeJobsApi()
@@ -118,6 +118,14 @@ export function fakeConceptsApi(
     map.version += 1
     return job
   }
+
+  // A finished topic interview proposes the map when it has nothing to review yet.
+  options.courses?.whenTopicInterviewFinishes?.((courseId, topicId) => {
+    const map = ensure(topicId)
+    if (!map.approved_before && map.state === 'draft' && !busy(map) && map.concepts.length === 0) {
+      startProposal(courseId, map)
+    }
+  })
 
   return {
     map: vi.fn(async (_courseId: number, topicId: number) => (maps[topicId] ? answer(maps[topicId]) : null)),

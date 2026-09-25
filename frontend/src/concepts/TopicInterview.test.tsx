@@ -74,6 +74,19 @@ describe('topic interview', () => {
     )
   })
 
+  it('proposes the concept map once the interview finishes', async () => {
+    renderTopic({ topicScript: [round, additions], proposals: [offered] })
+    const user = userEvent.setup()
+
+    await user.click((await interviewPanel()).getByRole('button', { name: 'Start the topic interview' }))
+    const panel = await interviewPanel()
+    await user.click(await panel.findByRole('button', { name: 'Use the recommendation' }))
+    await user.click(panel.getByRole('button', { name: 'Send answers' }))
+
+    expect(await screen.findByDisplayValue('estar')).toBeInTheDocument()
+    expect(await (await offerSection()).findByText(offered.diagnostic_offer!)).toBeInTheDocument()
+  })
+
   it('can be ended early', async () => {
     const { courses } = renderTopic({ topicScript: [round] })
     const user = userEvent.setup()

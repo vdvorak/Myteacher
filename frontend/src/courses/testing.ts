@@ -156,6 +156,8 @@ export function fakeCoursesApi(
       interview.sources_offered = step.sources_offered
       interview.summary = step.summary
     })
+  // Told when a topic interview finishes, as the server then proposes the topic's map.
+  const topicInterviewListeners: ((id: number, topicId: number) => void)[] = []
   const scheduleTopic = (id: number, topicId: number) =>
     scheduleStep('topic_interview', () => topicInterviews[topicId], topicScript, (interview, step) => {
       if (!('additions' in step)) throw new Error('a topic interview ends in additions')
@@ -163,6 +165,7 @@ export function fakeCoursesApi(
       topic.additions = { ...topic.additions, ...step.additions }
       interview.state = 'finished'
       interview.summary = step.summary
+      for (const listener of topicInterviewListeners) listener(id, topicId)
     })
   const topicInterviewOf = (id: number, topicId: number) => {
     topicOf(id, topicId)
@@ -391,6 +394,9 @@ export function fakeCoursesApi(
       return storeTopics(id, topicsOf(id).filter((t) => t.id !== topicId))
     }),
     /** What a finished proposal does to the topic: the assistant's diagnostic offer, if any. */
+    whenTopicInterviewFinishes(listener: (id: number, topicId: number) => void) {
+      topicInterviewListeners.push(listener)
+    },
     offerDiagnostic(id: number, topicId: number, reason: string | null) {
       const topic = topicOf(id, topicId)
       topic.diagnostic_offer = reason && !topic.diagnostic_wanted ? { reason, answer: null } : null

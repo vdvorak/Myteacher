@@ -169,7 +169,7 @@ async def next_step(db: InstanceSession, job: Job, ctx: JobContext) -> dict[str,
             db.rollback()
             if attempt == 1:
                 raise
-    return {"interview_id": interview.id}
+    return {"interview_id": interview.id, "finished": fresh.state == "finished"}
 
 
 def _land(topic: Topic, interview: TopicInterview, step: Round | AdditionsProposal) -> None:

@@ -143,7 +143,15 @@ function ConceptMapDetail() {
       <A href={`/courses/${courseId()}`}>{course()?.name ?? t('concepts.backToCourse')}</A>
       <h1>{topic()?.name ?? t('concepts.heading')}</h1>
       <Show when={canEdit()}>
-        <TopicInterviewPanel courseId={courseId()} topicId={topicId()} onFinished={() => void refetchTopics()} />
+        <TopicInterviewPanel
+          courseId={courseId()}
+          topicId={topicId()}
+          onFinished={() => {
+            // A finished interview starts proposing the map.
+            void refetch()
+            void refetchTopics()
+          }}
+        />
       </Show>
       <Show when={course() && topic()}>
         {(shown) => (

@@ -2,7 +2,7 @@
 anyone who may view the course. Every step runs as a job; the client polls it, then reads the
 interview again. The additions it ends in are part of the topic (see the topics API)."""
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
@@ -15,12 +15,14 @@ from myteacher.api.deps import Db, Now, requires
 from myteacher.api.interview import Answers, RoundOut, rounds_out
 from myteacher.api.jobs import JobOut
 from myteacher.assistant.service import paying_credential
+from myteacher.courses import concepts, topics
 from myteacher.courses import interview as interviews
 from myteacher.courses import topic_interview as topic_interviews
-from myteacher.courses import topics
 from myteacher.courses.models import Course, Topic, TopicInterview
 from myteacher.jobs import runner
-from myteacher.persistence import InstanceSession
+from myteacher.jobs.models import Job
+from myteacher.jobs.runner import JobContext
+from myteacher.persistence import InstanceSession, open_session
 from myteacher.policy import is_teacher
 
 router = APIRouter(
@@ -84,6 +86,33 @@ def _busy(db: InstanceSession, interview: TopicInterview) -> bool:
     return job is not None and job.state in ("queued", "running")
 
 
+async def _step(db: InstanceSession, job: Job, ctx: JobContext) -> dict[str, Any]:
+    """The next step of the interview. When it finishes the interview, a proposal for the
+    topic's map is queued in the same transaction, so that the map shows it as soon as the
+    interview shows the additions."""
+    result = await topic_interviews.next_step(db, job, ctx)
+    if not result.get("finished"):
+        return result
+    interview = db.get_one(TopicInterview, result["interview_id"])
+    topic = db.get_one(Topic, interview.topic_id)
+    starter = db.get_one(Account, job.account_id)
+    concept_map = concepts.queue_proposal(db, topic, starter, now=ctx.assistant.clock())
+    if concept_map is None:
+        return result
+    return {**result, "proposal_job_id": concept_map.job_id, "concept_map_id": concept_map.id}
+
+
+async def _step_then_propose(ctx: JobContext, job_id: int) -> None:
+    await runner.run(ctx, job_id, _step)
+    with open_session(ctx.engine, ctx.instance_id) as db:
+        job = runner.get_job(db, job_id)
+        result = (job.result or {}) if job else {}
+    if "proposal_job_id" in result:
+        # Run it even when the map went meanwhile: the work then ends as superseded.
+        work = concepts.proposal(result["concept_map_id"])
+        await runner.run(ctx, result["proposal_job_id"], work)
+
+
 def _schedule(
     request: Request,
     background: BackgroundTasks,
@@ -101,7 +130,7 @@ def _schedule(
     interview.job_id = job.id
     _save(db)
     # Runs after the response, once this request's transaction has committed.
-    background.add_task(runner.run, request.app.state.jobs, job.id, topic_interviews.next_step)
+    background.add_task(_step_then_propose, request.app.state.jobs, job.id)
     return Started(interview=_out(db, interview), job=JobOut.of(job))
 
 
