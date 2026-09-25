@@ -2,7 +2,16 @@ import { vi } from 'vitest'
 import { ApiError } from '../lesson/api'
 import type { Student } from '../students/api'
 import { jana, petr } from '../students/testing'
-import { ReleaseRefused, type CourseRun, type NewRelease, type ReleasableMaterial, type Release, type RunsApi } from './api'
+import {
+  ReleaseRefused,
+  type CourseRun,
+  type NewRelease,
+  type ReleasableMaterial,
+  type Release,
+  type ReleaseResults,
+  type RunsApi,
+  type StudentAttempts,
+} from './api'
 
 interface StoredRun {
   id: number
@@ -30,6 +39,10 @@ export function fakeRunsApi(
     /** The releasable material of every run. */
     materials?: ReleasableMaterial[]
     releases?: Record<number, Release[]>
+    /** By release id. */
+    results?: Record<number, ReleaseResults>
+    /** By `${releaseId}:${studentId}`. */
+    studentResults?: Record<string, StudentAttempts>
   } = {},
 ) {
   let runs = options.runs ?? []
@@ -134,6 +147,18 @@ export function fakeRunsApi(
       }
       releases[id] = [...(releases[id] ?? []), stored]
       return { ...stored, students: [...stored.students] }
+    }),
+    results: vi.fn(async (id: number, releaseId: number) => {
+      find(id)
+      const found = options.results?.[releaseId]
+      if (!found) throw new ApiError(404)
+      return structuredClone(found)
+    }),
+    studentResults: vi.fn(async (id: number, releaseId: number, studentId: number) => {
+      find(id)
+      const found = options.studentResults?.[`${releaseId}:${studentId}`]
+      if (!found) throw new ApiError(404)
+      return structuredClone(found)
     }),
   } satisfies RunsApi
 }

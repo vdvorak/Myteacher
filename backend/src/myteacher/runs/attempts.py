@@ -297,6 +297,11 @@ def served(released: MaterialRelease, row: Assessment) -> AssessmentOutcome:
     return _outcome.validate_python(outcome)
 
 
+def assessed(row: Assessment) -> AssessmentOutcome:
+    """The outcome as assessed, solution included, for the run teacher."""
+    return _outcome.validate_python(row.outcome)
+
+
 def answer_of(row: Assessment) -> ExerciseAnswer:
     return _answer.validate_python(row.answer)
 

@@ -253,7 +253,7 @@ def unenrol_student(run_id: int, student_id: int, db: Db, actor: Teacher) -> Run
     return _out(db, run)
 
 
-def _release_out(db: InstanceSession, released: MaterialRelease) -> ReleaseOut:
+def release_out(db: InstanceSession, released: MaterialRelease) -> ReleaseOut:
     version = db.get_one(ClassroomMaterialVersion, released.version_id)
     material = db.get_one(ClassroomMaterial, released.material_id)
     topic = db.get_one(Topic, material.topic_id)
@@ -298,7 +298,7 @@ def releasable_materials(run_id: int, db: Db, actor: Teacher) -> list[Releasable
 def list_releases(run_id: int, db: Db, actor: Teacher) -> list[ReleaseOut]:
     """The run's releases, the first released first."""
     run = taught_run(db, actor, run_id)
-    return [_release_out(db, released) for released in releases.releases_of(db, run)]
+    return [release_out(db, released) for released in releases.releases_of(db, run)]
 
 
 @router.post(
@@ -330,7 +330,7 @@ def release_material(run_id: int, body: ReleaseIn, db: Db, now: Now, actor: Teac
         raise HTTPException(status_code=422, detail="not_in_run") from None
     except releases.DueInThePast:
         raise HTTPException(status_code=422, detail="due_in_the_past") from None
-    return _release_out(db, released)
+    return release_out(db, released)
 
 
 @router.get("/runs/{run_id}/releases/{release_id}/recipients")

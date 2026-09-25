@@ -32,3 +32,13 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Read by assistive technology, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: var(--border-width);
+  height: var(--border-width);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

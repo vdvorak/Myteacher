@@ -135,12 +135,19 @@ def _attempt_or_404(
     return found
 
 
-def _try(released: MaterialRelease, row: Assessment) -> Try:
-    return Try(answer=attempts.answer_of(row), result=attempts.served(released, row))  # type: ignore[arg-type]
+def _try(released: MaterialRelease, row: Assessment, *, teacher: bool = False) -> Try:
+    """A try as the student gets it, or for the teacher as assessed, solution included."""
+    result = attempts.assessed(row) if teacher else attempts.served(released, row)
+    return Try(answer=attempts.answer_of(row), result=result)  # type: ignore[arg-type]
 
 
 def _round(
-    db: InstanceSession, attempt: Attempt, released: MaterialRelease, round: Round
+    db: InstanceSession,
+    attempt: Attempt,
+    released: MaterialRelease,
+    round: Round,
+    *,
+    teacher: bool = False,
 ) -> RoundOut:
     lesson = attempts.lesson_of(db, released)
     drafts = attempts.drafts_of(db, attempt, round)
@@ -151,7 +158,7 @@ def _round(
         answers={
             exercise_id: ExerciseProgress(
                 draft=drafts.get(exercise_id),
-                tries=[_try(released, row) for row in tries.get(exercise_id, [])],
+                tries=[_try(released, row, teacher=teacher) for row in tries.get(exercise_id, [])],
             )
             for exercise_id in sorted(set(drafts) | set(tries))
         },
@@ -160,16 +167,21 @@ def _round(
     )
 
 
-def _attempt_out(db: InstanceSession, attempt: Attempt, released: MaterialRelease) -> AttemptOut:
+def attempt_out(
+    db: InstanceSession, attempt: Attempt, released: MaterialRelease, *, teacher: bool = False
+) -> AttemptOut:
+    """The attempt for its student, or for the run teacher with every solution."""
     return AttemptOut(
         id=attempt.id,
         release_id=released.id,
         number=attempt.number,
         seed=attempt.seed,
         lesson=to_public(attempts.lesson_of(db, released)),
-        first=_round(db, attempt, released, "first"),
+        first=_round(db, attempt, released, "first", teacher=teacher),
         second=(
-            _round(db, attempt, released, "second") if attempt.second_round is not None else None
+            _round(db, attempt, released, "second", teacher=teacher)
+            if attempt.second_round is not None
+            else None
         ),
         started_at=attempt.started_at,
         submitted_at=attempt.submitted_at,
@@ -218,7 +230,7 @@ def my_release(release_id: int, db: Db, now: Now, actor: Student) -> ReleaseDeta
         late_submissions=released.late_submissions,  # type: ignore[arg-type]
         show_solutions=released.show_solutions,
         can_start=standing.can_start,
-        attempt=_attempt_out(db, shown, released) if shown else None,
+        attempt=attempt_out(db, shown, released) if shown else None,
     )
 
 
@@ -243,12 +255,12 @@ def start_attempt(
         raise HTTPException(status_code=409, detail="past_due") from None
     if not created:
         response.status_code = 200
-    return _attempt_out(db, attempt, released)
+    return attempt_out(db, attempt, released)
 
 
 @router.get("/attempts/{attempt_id}")
 def read_attempt(attempt_id: int, db: Db, actor: Student) -> AttemptOut:
-    return _attempt_out(db, *_attempt_or_404(db, actor, attempt_id))
+    return attempt_out(db, *_attempt_or_404(db, actor, attempt_id))
 
 
 _REFUSALS: list[tuple[type[Exception], int, str]] = [

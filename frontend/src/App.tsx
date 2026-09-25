@@ -23,7 +23,9 @@ import { ForgotPasswordPage } from './auth/ForgotPasswordPage'
 import { InvitationPage, ResetPasswordPage } from './auth/PasswordLinkPage'
 import { SignInPage } from './auth/SignInPage'
 import { PreviewPage } from './preview/PreviewPage'
+import { ReleaseResultsPage } from './runs/ReleaseResultsPage'
 import { RunPage } from './runs/RunPage'
+import { StudentResultsPage } from './runs/StudentResultsPage'
 import { HomePage } from './shell/HomePage'
 import { Shell } from './shell/Shell'
 import { SettingsPage } from './settings/SettingsPage'
@@ -65,6 +67,8 @@ const routes = () => (
       <Route path="/courses/:courseId" component={CoursePage} />
       <Route path="/courses/:courseId/topics/:topicId" component={ConceptMapPage} />
       <Route path="/runs/:runId" component={RunPage} />
+      <Route path="/runs/:runId/releases/:releaseId" component={ReleaseResultsPage} />
+      <Route path="/runs/:runId/releases/:releaseId/students/:studentId" component={StudentResultsPage} />
       <Route path="/work/:releaseId" component={WorkPage} />
       <Route path="/admin" component={AdminPage} />
     </Route>

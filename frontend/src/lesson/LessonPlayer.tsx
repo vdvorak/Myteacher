@@ -60,6 +60,8 @@ export interface LessonPlayerProps {
   /** Progress kept by the server, to resume from; the browser then keeps none of its own. */
   initial?: LessonProgress
   onProgress?: (progress: LessonProgress) => void
+  /** Shows the progress as it stands, every exercise locked, for a teacher looking at a student's work. */
+  readOnly?: boolean
 }
 
 /** Plays one lesson: the first pass in the lesson's feedback mode, then a second round of what failed. */
@@ -163,7 +165,7 @@ export function LessonPlayer(props: LessonPlayerProps) {
 
   function renderExercise(key: RoundKey, exercise: Exercise) {
     const state = () => exerciseProgress(round(key)!, exercise.id)
-    const status = () => exerciseStatus(mode(), round(key)!, exercise.id)
+    const status = () => (props.readOnly ? 'locked' : exerciseStatus(mode(), round(key)!, exercise.id))
     const lastTry = () => state().tries.at(-1)
     const verdict = (): Verdict | undefined => {
       if (status() === 'retrying') return 'retry'
@@ -204,7 +206,7 @@ export function LessonPlayer(props: LessonPlayerProps) {
   function renderSubmit(key: RoundKey) {
     const remaining = () => unanswered(round(key)!)
     return (
-      <Show when={mode() === 'at_the_end' && !round(key)!.submitted}>
+      <Show when={!props.readOnly && mode() === 'at_the_end' && !round(key)!.submitted}>
         <div class="lesson-actions">
           <Show when={remaining() > 0}>
             <span class="lesson-note">{t('lesson.unanswered', { count: remaining() })}</span>
@@ -271,7 +273,7 @@ export function LessonPlayer(props: LessonPlayerProps) {
       </For>
       {renderSubmit('first')}
 
-      <Show when={roundComplete(mode(), progress().first) && !progress().second && !finished()}>
+      <Show when={!props.readOnly && roundComplete(mode(), progress().first) && !progress().second && !finished()}>
         <div class="lesson-actions">
           <p class="lesson-note">{t('lesson.secondRoundIntro')}</p>
           <button type="button" disabled={busy().has('second-round')} onClick={startSecondRound}>
@@ -295,7 +297,7 @@ export function LessonPlayer(props: LessonPlayerProps) {
         )}
       </Show>
 
-      <Show when={finished()}>
+      <Show when={!props.readOnly && finished()}>
         <div class="lesson-finished" role="status">
           <h2>{t('lesson.finished')}</h2>
           <Show when={firstPassScore().total > 0}>

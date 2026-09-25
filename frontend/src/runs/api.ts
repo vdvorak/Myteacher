@@ -1,3 +1,4 @@
+import type { Attempt } from '../attempts/api'
 import type { ClassSummary } from '../classes/api'
 import type { FeedbackMode } from '../courses/api'
 import { ApiError } from '../lesson/api'
@@ -86,6 +87,47 @@ export interface Release extends ReleaseSettings {
   released_at: string
 }
 
+/** How an exercise went in the attempt that counts. */
+export type ResultCell = 'right' | 'wrong' | 'open' | 'unanswered'
+
+export interface ExerciseSummary {
+  id: string
+  type: string
+  /** The exercise's prompt, or a translation's source text. */
+  prompt: string | null
+  /** How many counted attempts got it right, wrong, left it waiting for the teacher or empty. */
+  right: number
+  wrong: number
+  open: number
+  unanswered: number
+}
+
+export interface StudentResult {
+  id: number
+  name: string
+  /** Still one of the release's recipients. */
+  in_run: boolean
+  state: 'not_started' | 'in_progress' | 'submitted'
+  /** The attempt that counts was submitted late. */
+  late: boolean
+  attempts: number
+  /** By exercise id, from the attempt that counts; empty without one. */
+  cells: Record<string, ResultCell>
+}
+
+export interface ReleaseResults {
+  release: Release
+  /** The first pass's exercises in lesson order. */
+  exercises: ExerciseSummary[]
+  students: StudentResult[]
+}
+
+export interface StudentAttempts {
+  student: { id: number; name: string; in_run: boolean }
+  /** The latest first, each with every assessment and its solution. */
+  attempts: (Attempt & { counts: boolean })[]
+}
+
 export type ReleaseRefusal = 'unknown_material' | 'unknown_version' | 'not_in_run' | 'due_in_the_past'
 
 /** A release was refused; `reason` says why. */
@@ -121,6 +163,9 @@ export interface RunsApi {
   materials(id: number): Promise<ReleasableMaterial[]>
   releases(id: number): Promise<Release[]>
   release(id: number, release: NewRelease): Promise<Release>
+  /** The run teacher's view of a release: students × exercises from the attempts that count. */
+  results(id: number, releaseId: number): Promise<ReleaseResults>
+  studentResults(id: number, releaseId: number, studentId: number): Promise<StudentAttempts>
 }
 
 async function json<T>(response: Response): Promise<T> {
@@ -151,4 +196,7 @@ export const httpRunsApi: RunsApi = {
   materials: async (id) => json(await fetch(`/api/runs/${id}/materials`)),
   releases: async (id) => json(await fetch(`/api/runs/${id}/releases`)),
   release: async (id, release) => released(await send('POST', `/api/runs/${id}/releases`, release)),
+  results: async (id, releaseId) => json(await fetch(`/api/runs/${id}/releases/${releaseId}/results`)),
+  studentResults: async (id, releaseId, studentId) =>
+    json(await fetch(`/api/runs/${id}/releases/${releaseId}/results/${studentId}`)),
 }

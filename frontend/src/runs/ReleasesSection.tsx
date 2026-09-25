@@ -1,3 +1,4 @@
+import { A } from '@solidjs/router'
 import { createEffect, createResource, createSignal, For, Show, untrack } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
@@ -117,7 +118,9 @@ export function ReleasesSection(props: { run: CourseRun }) {
                   <For each={list()}>
                     {(released) => (
                       <tr>
-                        <td>{released.title}</td>
+                        <td>
+                          <A href={`/runs/${props.run.id}/releases/${released.id}`}>{released.title}</A>
+                        </td>
                         <td>{released.topic}</td>
                         <td>{released.version}</td>
                         <td>{audienceOf(released)}</td>

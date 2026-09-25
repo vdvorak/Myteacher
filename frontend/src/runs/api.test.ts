@@ -37,6 +37,18 @@ describe('runs over HTTP', () => {
     }
   })
 
+  it('reads a release’s results and a student’s attempts', async () => {
+    for (const [call, url] of [
+      [() => httpRunsApi.results(7, 3), '/api/runs/7/releases/3/results'],
+      [() => httpRunsApi.studentResults(7, 3, 10), '/api/runs/7/releases/3/results/10'],
+    ] as const) {
+      const fetch = answer(200, {})
+      vi.stubGlobal('fetch', fetch)
+      await call()
+      expect(sent(fetch)).toMatchObject({ url, method: 'GET' })
+    }
+  })
+
   it('turns a known refusal of a release into its reason', async () => {
     const body = { material_id: 4, version: 1, audience: 'run' as const, student_ids: null, ...defaultSettings }
     vi.stubGlobal('fetch', answer(422, { detail: 'not_in_run' }))
