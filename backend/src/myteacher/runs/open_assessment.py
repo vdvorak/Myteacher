@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Annotated, Any
 
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import exists, select, update
+from sqlalchemy import exists, func, select, update
 
 from myteacher.accounts.models import Account
 from myteacher.assistant.generations import GenerationReaction
@@ -73,32 +73,40 @@ def share(rubric: Rubric, output: OpenAssessment) -> float:
 # Which answers wait for the assistant
 
 
+# Of attempts submitted and not retracted.
+_COUNTING = (Attempt.submitted_at.is_not(None), Attempt.retracted_at.is_(None))
+# Open answers with no assessment yet, flagged ones included, unless the teacher scored them.
+_WAITING = (
+    Assessment.status == "pending",
+    Assessment.assistant_score.is_(None),
+    Assessment.override_score.is_(None),
+)
+
+
 def _of_release(released: MaterialRelease):
     return (
         select(Assessment)
         .join(Attempt, Attempt.id == Assessment.attempt_id)
-        .where(
-            Attempt.release_id == released.id,
-            Attempt.submitted_at.is_not(None),
-            Attempt.retracted_at.is_(None),
-        )
+        .where(Attempt.release_id == released.id, *_COUNTING)
     )
 
 
 def waiting(db: InstanceSession, released: MaterialRelease) -> list[Assessment]:
     """Open answers of submitted attempts with no assessment yet, flagged ones included, unless
     the teacher already scored them."""
-    return list(
-        db.scalars(
-            _of_release(released)
-            .where(
-                Assessment.status == "pending",
-                Assessment.assistant_score.is_(None),
-                Assessment.override_score.is_(None),
-            )
-            .order_by(Assessment.id)
-        )
+    return list(db.scalars(_of_release(released).where(*_WAITING).order_by(Assessment.id)))
+
+
+def waiting_counts(db: InstanceSession, release_ids: list[int]) -> dict[int, int]:
+    """How many open answers wait in each of the releases, as `waiting` has them."""
+    found = (
+        select(Attempt.release_id, func.count())
+        .select_from(Assessment)
+        .join(Attempt, Attempt.id == Assessment.attempt_id)
+        .where(Attempt.release_id.in_(release_ids), *_COUNTING, *_WAITING)
+        .group_by(Attempt.release_id)
     )
+    return {release_id: count for release_id, count in db.execute(found)}
 
 
 def assessments_of(db: InstanceSession, released: MaterialRelease) -> list[Assessment]:

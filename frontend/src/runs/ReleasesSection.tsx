@@ -143,6 +143,11 @@ export function ReleasesSection(props: { run: CourseRun }) {
       <h3>{t('releases.new')}</h3>
       <Show when={materials()?.length === 0}>
         <p>{t('releases.noMaterial')}</p>
+        <p>
+          <A class="button-link" href={`/courses/${props.run.course.id}?tab=topics`}>
+            {t('emptyState.toTopics')}
+          </A>
+        </p>
       </Show>
       <Show when={available().length > 0}>
         <form onSubmit={release}>

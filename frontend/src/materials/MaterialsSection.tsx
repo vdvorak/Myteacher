@@ -130,7 +130,19 @@ export function MaterialsSection(props: {
         </Show>
       </Show>
       <Show when={props.canEdit}>
-        <Show when={props.mapApproved} fallback={<p class="settings-note">{t('materials.approveMapFirst')}</p>}>
+        <Show
+          when={props.mapApproved}
+          fallback={
+            <>
+              <p class="settings-note">{t('materials.approveMapFirst')}</p>
+              <p>
+                <a class="button-link" href={`/courses/${props.courseId}/topics/${props.topicId}?tab=map`}>
+                  {t('emptyState.toMap')}
+                </a>
+              </p>
+            </>
+          }
+        >
           <form class="document-editor" onSubmit={generate}>
             <Show when={(students() ?? []).length > 0}>
               <fieldset>

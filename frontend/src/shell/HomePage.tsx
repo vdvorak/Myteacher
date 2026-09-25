@@ -1,10 +1,9 @@
 import { Match, Switch } from 'solid-js'
 import { MyWork } from '../attempts/MyWork'
 import { useSession } from '../auth/session'
+import { TeacherHome } from '../home/TeacherHome'
 import { useI18n } from '../i18n/i18n'
 import { useBreadcrumbs } from './breadcrumbs'
-
-const SAMPLE_LESSON = 'es-ser-estar'
 
 export function HomePage() {
   const { t } = useI18n()
@@ -21,8 +20,7 @@ export function HomePage() {
         )}
       </Match>
       <Match when={session.account()?.kind === 'teacher'}>
-        <h1>{t('app.title')}</h1>
-        <a href={`/preview/${SAMPLE_LESSON}`}>{t('preview.openFixture')}</a>
+        <TeacherHome />
       </Match>
     </Switch>
   )

@@ -5,6 +5,7 @@ import { fakeClassesApi } from '../classes/testing'
 import { fakeConceptsApi } from '../concepts/testing'
 import { fakeCoursesApi } from '../courses/testing'
 import { fakeDocumentsApi } from '../documents/testing'
+import { fakeHomeApi } from '../home/testing'
 import { fakeJobsApi } from '../jobs/testing'
 import { fakeMaterialsApi } from '../materials/testing'
 import { fakeRunsApi } from '../runs/testing'
@@ -29,6 +30,7 @@ export function fakeApis(overrides: Partial<Apis> = {}): Apis {
     documents: fakeDocumentsApi(),
     materials: fakeMaterialsApi(),
     jobs: fakeJobsApi(),
+    home: fakeHomeApi(),
     ...overrides,
   }
 }

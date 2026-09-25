@@ -22,6 +22,7 @@ from myteacher.api import (
     concept_maps,
     course_archive,
     courses,
+    home,
     interview,
     jobs,
     lessons,
@@ -114,6 +115,7 @@ def create_app(
     app.include_router(sources.router, prefix="/api")
     app.include_router(interview.router, prefix="/api")
     app.include_router(jobs.router, prefix="/api")
+    app.include_router(home.router, prefix="/api")
 
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
     def unknown_api_route(path: str) -> None:

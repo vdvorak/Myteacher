@@ -52,6 +52,9 @@ class LatestRelease(BaseModel):
     id: int
     title: str
     released_at: datetime
+    # How many of its recipients submitted an attempt that counts, of how many.
+    submitted: int
+    total: int
 
     @field_serializer("released_at")
     def _utc(self, at: datetime) -> str:
@@ -227,28 +230,41 @@ def list_runs(course_id: int, db: Db, actor: Teacher) -> list[RunSummary]:
     return [RunSummary(id=run.id, name=run.name, roster_size=sizes[run.id]) for run in found]
 
 
+def runs_taught(db: InstanceSession, actor: Account) -> dict[CourseRun, Course]:
+    """Every run the actor teaches, with its course; a run of a course they can no longer see is
+    theirs no longer."""
+    taught = {run: db.get_one(Course, run.course_id) for run in runs.runs_taught_by(db, actor)}
+    return {run: course for run, course in taught.items() if can_teach_run(actor, run, course)}
+
+
 @router.get("/runs")
 def list_taught_runs(db: Db, actor: Teacher) -> list[TaughtRun]:
-    """Every run the actor teaches, across courses, by course and then by name; a run of a
-    course they can no longer see is theirs no longer."""
-    taught = runs.runs_taught_by(db, actor)
-    course_of = {run.id: db.get_one(Course, run.course_id) for run in taught}
-    found = [run for run in taught if can_teach_run(actor, run, course_of[run.id])]
-    sizes = runs.roster_sizes(db, found)
+    """Every run the actor teaches, across courses, by course and then by name."""
+    taught = runs_taught(db, actor)
+    course_of = {run.id: course for run, course in taught.items()}
+    found = list(taught)
+    rosters = {run.id: [entry.student for entry in runs.roster(db, run)] for run in found}
     latest = releases.latest_releases(db, found)
 
     def latest_of(run: CourseRun) -> LatestRelease | None:
         if run.id not in latest:
             return None
         released, title = latest[run.id]
-        return LatestRelease(id=released.id, title=title, released_at=released.released_at)
+        submitted, total = releases.submitted_of(db, run, released, rosters[run.id])
+        return LatestRelease(
+            id=released.id,
+            title=title,
+            released_at=released.released_at,
+            submitted=submitted,
+            total=total,
+        )
 
     listed = [
         TaughtRun(
             id=run.id,
             name=run.name,
             course=CourseRef(id=run.course_id, name=course_of[run.id].name),
-            roster_size=sizes[run.id],
+            roster_size=len(rosters[run.id]),
             latest_release=latest_of(run),
         )
         for run in found

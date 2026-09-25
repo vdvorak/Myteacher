@@ -10,7 +10,7 @@ from myteacher.accounts.models import Account
 from myteacher.courses.models import ClassroomMaterial, ClassroomMaterialVersion, Topic
 from myteacher.persistence import InstanceSession
 from myteacher.runs import service as runs
-from myteacher.runs.models import CourseRun, MaterialRelease, ReleaseStudent
+from myteacher.runs.models import Attempt, CourseRun, MaterialRelease, ReleaseStudent
 
 
 class UnknownMaterial(Exception):
@@ -182,13 +182,36 @@ def chosen_students(db: InstanceSession, released: MaterialRelease) -> list[Acco
     )
 
 
-def recipients(db: InstanceSession, run: CourseRun, released: MaterialRelease) -> list[Account]:
-    """Who has the release now: the roster, or the chosen students still on it."""
-    roster = [entry.student for entry in runs.roster(db, run)]
+def recipients(
+    db: InstanceSession,
+    run: CourseRun,
+    released: MaterialRelease,
+    roster: list[Account] | None = None,
+) -> list[Account]:
+    """Who has the release now: the roster, or the chosen students still on it. The run's roster
+    may be given when it was read already."""
+    if roster is None:
+        roster = [entry.student for entry in runs.roster(db, run)]
     if released.audience == "run":
         return roster
     chosen = {student.id for student in chosen_students(db, released)}
     return [student for student in roster if student.id in chosen]
+
+
+def submitted_of(
+    db: InstanceSession,
+    run: CourseRun,
+    released: MaterialRelease,
+    roster: list[Account] | None = None,
+) -> tuple[int, int]:
+    """How many of the release's recipients now have an attempt that counts, of how many."""
+    ids = {student.id for student in recipients(db, run, released, roster)}
+    counting = select(Attempt.student_id).where(
+        Attempt.release_id == released.id,
+        Attempt.submitted_at.is_not(None),
+        Attempt.retracted_at.is_(None),
+    )
+    return len(ids & set(db.scalars(counting))), len(ids)
 
 
 def topic_released(db: InstanceSession, topic: Topic) -> bool:

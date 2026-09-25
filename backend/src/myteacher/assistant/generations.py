@@ -81,6 +81,14 @@ def reviewed(db: InstanceSession, generation_id: int | None) -> bool:
     return db.scalar(kept.limit(1)) is not None
 
 
+def kept_of(db: InstanceSession, generation_ids: set[int]) -> set[int]:
+    """Which of the generations the teacher kept as they are."""
+    kept = select(GenerationReaction.generation_id).where(
+        GenerationReaction.generation_id.in_(generation_ids), GenerationReaction.kind == "kept"
+    )
+    return set(db.scalars(kept))
+
+
 # The record and the teacher's reactions stay for the prompt's quality signal; the student's
 # work in it goes.
 erasure.register(

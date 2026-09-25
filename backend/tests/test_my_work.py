@@ -53,6 +53,8 @@ def test_the_runs_a_teacher_teaches_are_listed_across_courses(teacher, course: C
         "id": release_id,
         "title": MATERIAL["title"],
         "released_at": clock.now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "submitted": 0,
+        "total": 2,
     }
     assert runs[0]["latest_release"] is None
 

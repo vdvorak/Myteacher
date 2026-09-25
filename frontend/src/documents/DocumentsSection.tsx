@@ -126,7 +126,19 @@ export function DocumentsSection(props: {
         </Show>
       </Show>
       <Show when={props.canEdit}>
-        <Show when={props.mapApproved} fallback={<p class="settings-note">{t('documents.approveMapFirst')}</p>}>
+        <Show
+          when={props.mapApproved}
+          fallback={
+            <>
+              <p class="settings-note">{t('documents.approveMapFirst')}</p>
+              <p>
+                <a class="button-link" href={`/courses/${props.courseId}/topics/${props.topicId}?tab=map`}>
+                  {t('emptyState.toMap')}
+                </a>
+              </p>
+            </>
+          }
+        >
           <form class="topic-name" onSubmit={generate}>
             <label>
               {t('documents.kind')}

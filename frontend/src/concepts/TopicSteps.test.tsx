@@ -103,6 +103,11 @@ describe('topic steps', () => {
     expect(await screen.findByRole('region', { name: 'Classroom material' })).toBeInTheDocument()
     expect(screen.queryByText(/This step opens once the concept map is approved/)).not.toBeInTheDocument()
     expect((await names())[3]).toBe('[4Classroom material, open]')
+    const region = await screen.findByRole('region', { name: 'Classroom material' })
+    expect(within(region).getByRole('link', { name: 'Open the concept map' })).toHaveAttribute(
+      'href',
+      '/courses/1/topics/2?tab=map',
+    )
   })
 
   it('marks the additions done once the teacher gave some', async () => {

@@ -5,6 +5,7 @@ import { httpClassesApi, type ClassesApi } from '../classes/api'
 import { httpConceptsApi, type ConceptsApi } from '../concepts/api'
 import { httpCoursesApi, type CoursesApi } from '../courses/api'
 import { httpDocumentsApi, type DocumentsApi } from '../documents/api'
+import { httpHomeApi, type HomeApi } from '../home/api'
 import { httpJobsApi, type JobsApi } from '../jobs/api'
 import { httpMaterialsApi, type MaterialsApi } from '../materials/api'
 import { httpAuthApi, type AuthApi } from '../auth/api'
@@ -28,6 +29,7 @@ export interface Apis {
   documents: DocumentsApi
   materials: MaterialsApi
   jobs: JobsApi
+  home: HomeApi
 }
 
 export const httpApis: Apis = {
@@ -44,6 +46,7 @@ export const httpApis: Apis = {
   documents: httpDocumentsApi,
   materials: httpMaterialsApi,
   jobs: httpJobsApi,
+  home: httpHomeApi,
 }
 
 const ApiContext = createContext<Apis>(httpApis)

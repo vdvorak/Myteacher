@@ -18,7 +18,14 @@ export interface TaughtRun {
   course: { id: number; name: string }
   roster_size: number
   /** The last release not retracted; null before the first. */
-  latest_release: { id: number; title: string; released_at: string } | null
+  latest_release: {
+    id: number
+    title: string
+    released_at: string
+    /** How many of its recipients submitted an attempt that counts, of how many. */
+    submitted: number
+    total: number
+  } | null
 }
 
 export type EnrolledStudent = Pick<Student, 'id' | 'name' | 'email' | 'state'>

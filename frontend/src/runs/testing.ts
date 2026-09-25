@@ -122,7 +122,16 @@ export function fakeRunsApi(
             name: run.name,
             course: run.course,
             roster_size: run.roster.length,
-            latest_release: latest ? { id: latest.id, title: latest.title, released_at: latest.released_at } : null,
+            latest_release: latest
+              ? {
+                  id: latest.id,
+                  title: latest.title,
+                  released_at: latest.released_at,
+                  submitted: (results[latest.id]?.students ?? []).filter((s) => s.in_run && s.state === 'submitted')
+                    .length,
+                  total: latest.audience === 'chosen' ? latest.students.length : run.roster.length,
+                }
+              : null,
           }
         })
         .sort((a, b) => a.course.name.localeCompare(b.course.name) || a.name.localeCompare(b.name)),

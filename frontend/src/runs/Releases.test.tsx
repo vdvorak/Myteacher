@@ -186,5 +186,6 @@ describe('releases of a run', () => {
 
     expect(await screen.findByText('The course has no classroom material to release yet.')).toBeInTheDocument()
     expect(screen.getByText('Nothing released yet.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to the course topics' })).toHaveAttribute('href', '/courses/1?tab=topics')
   })
 })
