@@ -7,6 +7,7 @@ import { fakeApis } from '../api/testing'
 import type { Account } from '../auth/api'
 import { fakeAuthApi, student } from '../auth/testing'
 import { atTheEndLesson, sampleLesson, withI18n } from '../lesson/testing'
+import { ApiError } from '../lesson/api'
 import type { ReleaseDetail } from './api'
 import { attemptOf, fakeAttemptsApi, releaseOf } from './testing'
 
@@ -140,6 +141,68 @@ describe('a student’s work', () => {
     expect(review).toHaveTextContent('50 %')
     expect(review).toHaveTextContent('Close: *somos* is for us.')
     expect(review).toHaveTextContent('Why: Half right after all.')
+  })
+
+  it('tells why an attempt was retracted and starts a new one', async () => {
+    const { attempts } = open('/work/1', [releaseOf({ retraction: { reason: 'A typo in exercise 2.', whole_release: false } })])
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your teacher retracted your attempt: A typo in exercise 2. You can start again.',
+    )
+    expect(attempts.start).toHaveBeenCalledWith(1)
+    expect(await screen.findByRole('radio', { name: 'está' })).toBeEnabled()
+  })
+
+  it('tells why a whole release was withdrawn and starts nothing', async () => {
+    const { attempts } = open('/work/1', [
+      releaseOf({ can_start: false, retraction: { reason: 'Released by mistake.', whole_release: true } }),
+    ])
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Your teacher withdrew this work: Released by mistake.')
+    expect(attempts.start).not.toHaveBeenCalled()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+  })
+
+  it('takes the student out of an attempt retracted while they work in it', async () => {
+    const attempt = attemptOf(sampleLesson)
+    const { attempts, user } = open('/work/1', [releaseOf({ state: 'in_progress', attempt })])
+    await screen.findByRole('radio', { name: 'está' })
+    attempts.tryAnswer.mockRejectedValueOnce(new ApiError(410))
+    attempts.release.mockResolvedValueOnce(
+      releaseOf({ can_start: true, retraction: { reason: 'A typo in exercise 2.', whole_release: false } }),
+    )
+
+    await user.click(screen.getByRole('radio', { name: 'está' }))
+    await user.click(within(exercise(/Madrid/)).getByRole('button', { name: 'Confirm' }))
+
+    expect(await screen.findByText(/Your teacher retracted your attempt: A typo in exercise 2\./)).toBeInTheDocument()
+    await vi.waitFor(() => expect(attempts.start).toHaveBeenCalledWith(1))
+  })
+
+  it('offers no other attempt once the whole release is withdrawn', async () => {
+    const { attempts, user } = open(
+      '/work/1',
+      [releaseOf({ feedback_mode: 'at_the_end', attempts: 'repeated' })],
+      atTheEndLesson,
+    )
+    await user.click(await screen.findByRole('radio', { name: 'es' }))
+    await user.click(screen.getByRole('radio', { name: 'somos' }))
+    await user.click(screen.getByRole('button', { name: 'Submit answers' }))
+    await screen.findByRole('button', { name: 'Start another attempt' })
+    attempts.secondRound.mockRejectedValueOnce(new ApiError(410))
+    attempts.release.mockResolvedValueOnce(
+      releaseOf({
+        feedback_mode: 'at_the_end',
+        attempts: 'repeated',
+        can_start: false,
+        retraction: { reason: 'Released by mistake.', whole_release: true },
+      }),
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Start the second round' }))
+
+    expect(await screen.findByText('Your teacher withdrew this work: Released by mistake.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start another attempt' })).not.toBeInTheDocument()
   })
 
   it('says when the due date has passed and late work is refused', async () => {

@@ -97,6 +97,8 @@ def test_a_material_version_is_released_to_the_whole_run_with_default_settings(
         "students": [],
         "released_by_id": me["id"],
         "released_at": "2026-09-24T08:00:00Z",
+        "retracted_at": None,
+        "retraction_reason": None,
         **DEFAULTS,
     }
     assert teacher.get(releases_url(run["id"])).json() == [body]

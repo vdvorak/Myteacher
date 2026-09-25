@@ -161,6 +161,8 @@ export function fakeRunsApi(
         students: chosen.map(({ id, name }) => ({ id, name })),
         released_by_id: 2,
         released_at: '2026-09-25T08:00:00Z',
+        retracted_at: null,
+        retraction_reason: null,
         ...settings,
       }
       releases[id] = [...(releases[id] ?? []), stored]
@@ -195,6 +197,21 @@ export function fakeRunsApi(
       Object.assign(review, { score, override_score: score, override_reason: reason, published: false })
       resultsOf(releaseId).open_answers.unpublished += 1
       return structuredClone(review)
+    }),
+    retractAttempt: vi.fn(async (id: number, releaseId: number, studentId: number, reason: string) => {
+      find(id)
+      const detail = studentResults[`${releaseId}:${studentId}`]
+      const target = detail?.attempts.find((a) => a.retracted_at === null)
+      if (!target) throw new ApiError(409)
+      Object.assign(target, { retracted_at: '2026-09-25T09:00:00Z', retraction_reason: reason, counts: false })
+    }),
+    retractRelease: vi.fn(async (id: number, releaseId: number, reason: string) => {
+      const release = (releases[id] ?? []).find((r) => r.id === releaseId)
+      if (!release) throw new ApiError(404)
+      Object.assign(release, { retracted_at: '2026-09-25T09:00:00Z', retraction_reason: reason })
+      const found = results[releaseId]
+      if (found) found.release = { ...release }
+      return { ...release, students: [...release.students] }
     }),
     publish: vi.fn(async (id: number, releaseId: number) => {
       find(id)

@@ -120,6 +120,7 @@ export function ReleasesSection(props: { run: CourseRun }) {
                       <tr>
                         <td>
                           <A href={`/runs/${props.run.id}/releases/${released.id}`}>{released.title}</A>
+                          <Show when={released.retracted_at}> · {t('releases.retracted')}</Show>
                         </td>
                         <td>{released.topic}</td>
                         <td>{released.version}</td>

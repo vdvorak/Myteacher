@@ -23,7 +23,7 @@ class StudentResult:
     # Still one of the release's recipients.
     in_run: bool
     standing: attempts.Standing
-    # Every attempt, the first first.
+    # Every attempt not retracted, the first first.
     attempts: list[Attempt]
     # By exercise id, from the attempt that counts; empty without one.
     cells: dict[str, Cell]
@@ -68,7 +68,9 @@ def results(
                 student=student,
                 in_run=student.id in in_run,
                 standing=standing,
-                attempts=attempts.attempts_of(db, released, student),
+                attempts=[
+                    a for a in attempts.attempts_of(db, released, student) if a.retracted_at is None
+                ],
                 cells=cells_of(db, lesson, standing.counting) if standing.counting else {},
             )
         )

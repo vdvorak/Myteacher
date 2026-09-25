@@ -106,6 +106,8 @@ def override_assessment(
     if attempt.submitted_at is None:
         # Results are of submitted attempts: an override here could never be published.
         raise HTTPException(status_code=409, detail="not_submitted")
+    if attempt.retracted_at is not None:
+        raise HTTPException(status_code=409, detail="attempt_retracted")
     open_assessment.override(db, row, score=body.score, reason=body.reason, teacher=actor, now=now)
     return AssessmentReview.of(row)
 

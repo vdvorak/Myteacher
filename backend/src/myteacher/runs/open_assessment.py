@@ -77,7 +77,11 @@ def _of_release(released: MaterialRelease):
     return (
         select(Assessment)
         .join(Attempt, Attempt.id == Assessment.attempt_id)
-        .where(Attempt.release_id == released.id, Attempt.submitted_at.is_not(None))
+        .where(
+            Attempt.release_id == released.id,
+            Attempt.submitted_at.is_not(None),
+            Attempt.retracted_at.is_(None),
+        )
     )
 
 
@@ -98,7 +102,7 @@ def waiting(db: InstanceSession, released: MaterialRelease) -> list[Assessment]:
 
 
 def assessments_of(db: InstanceSession, released: MaterialRelease) -> list[Assessment]:
-    """Every assessment of the release's submitted attempts."""
+    """Every assessment of the release's submitted attempts not retracted."""
     return list(db.scalars(_of_release(released).order_by(Assessment.id)))
 
 
@@ -169,8 +173,12 @@ def assessing(release_id: int) -> Work:
             exercise = lesson.exercise(row.exercise_id)
             if not isinstance(exercise, OpenExercise) or row.override_score is not None:
                 continue
+            attempt = db.get_one(Attempt, row.attempt_id)
+            if attempt.retracted_at is not None:
+                # Retracted while the job ran: it counts for nothing, so it is not paid for.
+                continue
             text = getattr(attempts.answer_of(row), "text", "")
-            student_id = db.get_one(Attempt, row.attempt_id).student_id
+            student_id = attempt.student_id
             try:
                 output, generation_id = await generate_recorded(
                     ctx.assistant,

@@ -131,6 +131,21 @@ describe('an attempt as the lesson player’s backend', () => {
     expect(attempts.secondRound).toHaveBeenCalledWith(8)
   })
 
+  it('says once that the attempt was retracted, however many calls hear it', async () => {
+    const attempts = fakeAttemptsApi()
+    attempts.tryAnswer.mockRejectedValue(new ApiError(410))
+    attempts.saveDraft.mockRejectedValue(new ApiError(410))
+    const onRetracted = vi.fn()
+    const api = attemptLessonApi(attempts, 8, onRetracted)
+
+    api.saveDraft!('first', 'location', choice('es'))
+    await expect(api.assess('location', choice('es'), { reveal: true, round: 'first' })).rejects.toEqual(new ApiError(410))
+    await expect(api.assess('origin', choice('somos'), { reveal: true, round: 'first' })).rejects.toEqual(new ApiError(410))
+    await vi.waitFor(() => expect(attempts.saveDraft).toHaveBeenCalled())
+
+    expect(onRetracted).toHaveBeenCalledTimes(1)
+  })
+
   it('resumes the player from the attempt', () => {
     const attempt = attemptOf(sampleLesson, { seed: 'abc' })
     attempt.first.answers = { location: { draft: null, tries: [] } }

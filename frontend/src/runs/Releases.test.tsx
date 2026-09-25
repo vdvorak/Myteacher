@@ -31,6 +31,8 @@ const earlier: Release = {
   students: [{ id: petr.id, name: petr.name }],
   released_by_id: 2,
   released_at: '2026-09-24T08:00:00Z',
+  retracted_at: null,
+  retraction_reason: null,
   ...defaultSettings,
   feedback_mode: 'at_the_end',
   due_at: '2026-10-01T18:00:00Z',

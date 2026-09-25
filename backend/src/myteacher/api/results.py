@@ -1,10 +1,11 @@
 """The results of a release for the run teacher alone (#69): students × exercises from the
 attempts that count, a summary per exercise, and each student's attempts with every assessment."""
 
+from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Response
+from pydantic import AfterValidator, BaseModel, Field, field_serializer
 
 from myteacher.accounts.models import Account
 from myteacher.api.attempts import AttemptOut, attempt_out
@@ -76,6 +77,18 @@ class StudentRef(BaseModel):
 class TeacherAttempt(AttemptOut):
     # The last submitted attempt, which is the one that counts.
     counts: bool
+    # Set once retracted: the answers stay here but count for nothing.
+    retracted_at: datetime | None
+    retraction_reason: str | None
+
+    @field_serializer("retracted_at")
+    def _utc_retracted(self, at: datetime | None) -> str | None:
+        return at.isoformat().replace("+00:00", "Z") if at is not None else None
+
+
+class RetractionIn(BaseModel):
+    # What the student is told.
+    reason: Annotated[str, AfterValidator(str.strip), Field(min_length=1, max_length=1000)]
 
 
 class StudentAttempts(BaseModel):
@@ -162,7 +175,52 @@ def student_results(
             TeacherAttempt(
                 **attempt_out(db, attempt, released, teacher=True).model_dump(),
                 counts=standing.counting is not None and attempt.id == standing.counting.id,
+                retracted_at=attempt.retracted_at,
+                retraction_reason=attempt.retraction_reason,
             )
             for attempt in reversed(attempts.attempts_of(db, released, student))
         ],
     )
+
+
+@router.post(
+    "/runs/{run_id}/releases/{release_id}/students/{student_id}/retraction", status_code=204
+)
+def retract_attempt(
+    run_id: int,
+    release_id: int,
+    student_id: int,
+    body: RetractionIn,
+    db: Db,
+    now: Now,
+    actor: Teacher,
+) -> Response:
+    """Retract the student's attempt being worked on, or else the one that counts: its answers
+    stay here but count for nothing, the student is told why and may start a new one."""
+    run = taught_run(db, actor, run_id)
+    released = _release_or_404(db, run, release_id)
+    student = next((s for s in outcomes.students_of(db, run, released) if s.id == student_id), None)
+    if student is None:
+        raise HTTPException(status_code=404)
+    try:
+        attempts.retract_attempt(db, released, student, reason=body.reason, teacher=actor, now=now)
+    except attempts.ReleaseRetracted:
+        raise HTTPException(status_code=409, detail="release_retracted") from None
+    except attempts.NothingToRetract:
+        raise HTTPException(status_code=409, detail="nothing_to_retract") from None
+    return Response(status_code=204)
+
+
+@router.post("/runs/{run_id}/releases/{release_id}/retraction")
+def retract_release(
+    run_id: int, release_id: int, body: RetractionIn, db: Db, now: Now, actor: Teacher
+) -> ReleaseOut:
+    """Take the release from its students and retract every attempt at it; the answers stay
+    here. A corrected material is released anew."""
+    run = taught_run(db, actor, run_id)
+    released = _release_or_404(db, run, release_id)
+    try:
+        attempts.retract_release(db, released, reason=body.reason, teacher=actor, now=now)
+    except attempts.ReleaseRetracted:
+        raise HTTPException(status_code=409, detail="release_retracted") from None
+    return release_out(db, released)

@@ -85,6 +85,14 @@ class NotSubmitted(Exception):
     pass
 
 
+class ReleaseRetracted(Exception):
+    pass
+
+
+class NothingToRetract(Exception):
+    """The student has no attempt being worked on or counting."""
+
+
 class Unanswered(Exception):
     """A closed exercise has no answer to submit."""
 
@@ -93,7 +101,8 @@ class Unanswered(Exception):
 
 
 def releases_for(db: InstanceSession, student: Account) -> list[MaterialRelease]:
-    """The releases meant for the student in the runs they are on, the latest first."""
+    """The releases meant for the student in the runs they are on, the latest first; a
+    retracted one is gone from the list."""
     chosen = exists().where(
         ReleaseStudent.release_id == MaterialRelease.id, ReleaseStudent.student_id == student.id
     )
@@ -103,6 +112,7 @@ def releases_for(db: InstanceSession, student: Account) -> list[MaterialRelease]
             .where(
                 MaterialRelease.run_id.in_(runs.runs_of_student(db, student)),
                 or_(MaterialRelease.audience == "run", chosen),
+                MaterialRelease.retracted_at.is_(None),
             )
             .order_by(MaterialRelease.released_at.desc(), MaterialRelease.id.desc())
         )
@@ -158,7 +168,8 @@ class Standing:
 def standing(
     db: InstanceSession, released: MaterialRelease, student: Account, now: datetime
 ) -> Standing:
-    attempts = attempts_of(db, released, student)
+    """Where the student stands on the release; a retracted attempt counts for nothing."""
+    attempts = [a for a in attempts_of(db, released, student) if a.retracted_at is None]
     current = next((a for a in attempts if a.submitted_at is None), None)
     submitted = [a for a in attempts if a.submitted_at is not None]
     counting = submitted[-1] if submitted else None
@@ -171,6 +182,7 @@ def standing(
             current is None
             and (not attempts or released.attempts == "repeated")
             and not past_due(released, now)
+            and released.retracted_at is None
         ),
     )
 
@@ -190,6 +202,8 @@ def start(
     db: InstanceSession, released: MaterialRelease, student: Account, now: datetime
 ) -> tuple[Attempt, bool]:
     """The attempt being worked on, or a new one; True when it was started now."""
+    if released.retracted_at is not None:
+        raise ReleaseRetracted()
     found = standing(db, released, student, now)
     if found.open is not None:
         return found.open, False
@@ -200,7 +214,7 @@ def start(
     attempt = Attempt(
         release_id=released.id,
         student_id=student.id,
-        number=len(attempts_of(db, released, student)) + 1,
+        number=max((a.number for a in attempts_of(db, released, student)), default=0) + 1,
         seed=secrets.token_hex(8),
         started_at=now,
     )
@@ -515,3 +529,60 @@ def start_second_round(db: InstanceSession, attempt: Attempt, released: Material
         if not isinstance(exercise, OpenExercise)
         and not (tries.get(exercise.id) and tries[exercise.id][0].correct)
     ]
+
+
+# Retraction
+
+
+def _retract(attempt: Attempt, reason: str, teacher: Account, now: datetime) -> None:
+    attempt.retracted_at = now
+    attempt.retracted_by_id = teacher.id
+    attempt.retraction_reason = reason
+
+
+def retract_attempt(
+    db: InstanceSession,
+    released: MaterialRelease,
+    student: Account,
+    *,
+    reason: str,
+    teacher: Account,
+    now: datetime,
+) -> None:
+    """Retract the attempt being worked on, or else the one that counts; the student may then
+    start a new one."""
+    if released.retracted_at is not None:
+        raise ReleaseRetracted()
+    found = standing(db, released, student, now)
+    target = found.open or found.counting
+    if target is None:
+        raise NothingToRetract()
+    _retract(target, reason, teacher, now)
+
+
+def retract_release(
+    db: InstanceSession, released: MaterialRelease, *, reason: str, teacher: Account, now: datetime
+) -> None:
+    """Take the release from its students and retract every attempt at it."""
+    if released.retracted_at is not None:
+        raise ReleaseRetracted()
+    released.retracted_at = now
+    released.retracted_by_id = teacher.id
+    released.retraction_reason = reason
+    for attempt in db.scalars(
+        select(Attempt).where(Attempt.release_id == released.id, Attempt.retracted_at.is_(None))
+    ):
+        _retract(attempt, reason, teacher, now)
+
+
+def retraction_notice(
+    db: InstanceSession, released: MaterialRelease, student: Account
+) -> tuple[str, bool] | None:
+    """What the student is told: the release's retraction, or that of their latest attempt until
+    they start another; (reason, whole release)."""
+    if released.retracted_at is not None:
+        return released.retraction_reason or "", True
+    latest = attempts_of(db, released, student)[-1:]
+    if latest and latest[0].retracted_at is not None:
+        return latest[0].retraction_reason or "", False
+    return None

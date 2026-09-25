@@ -6,6 +6,7 @@ import { useI18n } from '../i18n/i18n'
 import { ApiError } from '../lesson/api'
 import { LessonPlayer, type LessonApi } from '../lesson/LessonPlayer'
 import { TeachersOnly } from '../students/StudentsPage'
+import { RetractionForm } from './RetractionForm'
 
 // A read-only player asks nothing of its backend.
 const nothingToAsk: LessonApi = {
@@ -174,6 +175,17 @@ function StudentResults() {
             <Show when={!loaded().student.in_run}>
               <p class="settings-note">{t('results.notInRun')}</p>
             </Show>
+            <Show when={loaded().attempts.some((attempt) => attempt.retracted_at === null)}>
+              <RetractionForm
+                intro="retraction.attemptIntro"
+                action="retraction.retractAttempt"
+                onRetract={async (reason) => {
+                  await api.retractAttempt(ids()[0], ids()[1], ids()[2], reason)
+                  // Not awaited: reading the page again failing does not make the retraction fail.
+                  void refetch()
+                }}
+              />
+            </Show>
             <For each={loaded().attempts} fallback={<p>{t('results.noAttempts')}</p>}>
               {(attempt) => (
                 <section aria-label={t('results.attempt', { number: attempt.number })}>
@@ -187,6 +199,9 @@ function StudentResults() {
                   </p>
                   <Show when={attempt.counts}>
                     <p>{t('results.counts')}</p>
+                  </Show>
+                  <Show when={attempt.retraction_reason}>
+                    {(reason) => <p role="status">{t('retraction.retracted', { reason: reason() })}</p>}
                   </Show>
                   <LessonPlayer
                     lesson={attempt.lesson}

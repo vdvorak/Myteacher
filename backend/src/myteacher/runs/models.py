@@ -72,6 +72,10 @@ class MaterialRelease(InstanceOwned, Base):
     released_at: Mapped[datetime] = mapped_column(UTCDateTime)
     # The latest job assessing its open answers; one runs at a time.
     assessment_job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
+    # Set once the teacher retracted the whole release, with every attempt at it.
+    retracted_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    retracted_by_id: Mapped[int | None] = mapped_column(ForeignKey("account.id"))
+    retraction_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class ReleaseStudent(InstanceOwned, Base):
@@ -114,6 +118,11 @@ class Attempt(InstanceOwned, Base):
     second_round: Mapped[list[str] | None] = mapped_column(JSON)
     # Set once the second round was submitted, with feedback at the end.
     second_submitted_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    # Set once the teacher retracted it: its answers stay with the teacher but count for nothing,
+    # and the student may start again. The reason is what the student is told.
+    retracted_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    retracted_by_id: Mapped[int | None] = mapped_column(ForeignKey("account.id"))
+    retraction_reason: Mapped[str | None] = mapped_column(Text)
 
 
 class AttemptDraft(InstanceOwned, Base):

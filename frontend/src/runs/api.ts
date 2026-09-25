@@ -86,6 +86,9 @@ export interface Release extends ReleaseSettings {
   students: { id: number; name: string }[]
   released_by_id: number
   released_at: string
+  /** Set once the teacher retracted it, with the reason the students were told. */
+  retracted_at: string | null
+  retraction_reason: string | null
 }
 
 /** How an exercise went in the attempt that counts. */
@@ -137,7 +140,7 @@ export interface ReleaseResults {
 export interface StudentAttempts {
   student: { id: number; name: string; in_run: boolean }
   /** The latest first, each with every assessment and its solution. */
-  attempts: (Attempt & { counts: boolean })[]
+  attempts: (Attempt & { counts: boolean; retracted_at: string | null; retraction_reason: string | null })[]
 }
 
 export type AssessmentRefusal = 'no_provider_key' | 'nothing_to_assess' | 'assessment_running'
@@ -198,6 +201,10 @@ export interface RunsApi {
   override(id: number, releaseId: number, assessmentId: number, score: number, reason: string): Promise<AssessmentReview>
   /** Shows the students what they have not seen yet; says how many assessments that was. */
   publish(id: number, releaseId: number): Promise<number>
+  /** Voids the student's attempt being worked on, or else the one that counts; they may start again. */
+  retractAttempt(id: number, releaseId: number, studentId: number, reason: string): Promise<void>
+  /** Takes the release from its students and voids every attempt; the answers stay with the teacher. */
+  retractRelease(id: number, releaseId: number, reason: string): Promise<Release>
 }
 
 async function json<T>(response: Response): Promise<T> {
@@ -245,6 +252,14 @@ export const httpRunsApi: RunsApi = {
     json(
       await send('PUT', `/api/runs/${id}/releases/${releaseId}/assessments/${assessmentId}/override`, { score, reason }),
     ),
+  retractAttempt: async (id, releaseId, studentId, reason) => {
+    const response = await send('POST', `/api/runs/${id}/releases/${releaseId}/students/${studentId}/retraction`, {
+      reason,
+    })
+    if (!response.ok) throw new ApiError(response.status)
+  },
+  retractRelease: async (id, releaseId, reason) =>
+    json(await send('POST', `/api/runs/${id}/releases/${releaseId}/retraction`, { reason })),
   publish: async (id, releaseId) =>
     (await json<{ published: number }>(await send('POST', `/api/runs/${id}/releases/${releaseId}/publication`)))
       .published,

@@ -71,6 +71,8 @@ export interface ReleaseDetail extends StudentRelease, Omit<ReleaseSettings, 'du
   can_start: boolean
   /** The attempt being worked on, or else the one that counts. */
   attempt: Attempt | null
+  /** Why the student's latest attempt, or the whole release, was retracted. */
+  retraction: { reason: string; whole_release: boolean } | null
 }
 
 export type AttemptRefusal = 'no_more_attempts' | 'past_due'
@@ -167,8 +169,22 @@ export function progressOf(attempt: Attempt): LessonProgress {
 }
 
 /** The lesson player's backend for an attempt: the server assesses, counts the tries and draws the
- * second round, so what the player asks for (`reveal`, the failed exercises, the seed) is decided there. */
-export function attemptLessonApi(api: AttemptsApi, attemptId: number): LessonApi {
+ * second round, so what the player asks for (`reveal`, the failed exercises, the seed) is decided there.
+ * `onRetracted` hears when the teacher retracted the attempt meanwhile, so the page takes the student out. */
+export function attemptLessonApi(api: AttemptsApi, attemptId: number, onRetracted: () => void = () => {}): LessonApi {
+  // Several calls in flight may all hear it; the page is told once.
+  let retracted = false
+  const heard = async <T>(call: Promise<T>): Promise<T> => {
+    try {
+      return await call
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 410 && !retracted) {
+        retracted = true
+        onRetracted()
+      }
+      throw error
+    }
+  }
   // Drafts of one exercise are sent one at a time, the latest last, so a slower earlier request
   // never overwrites a later answer; the ones typed meanwhile collapse into the latest.
   const sending = new Map<string, Promise<void>>()
@@ -177,14 +193,14 @@ export function attemptLessonApi(api: AttemptsApi, attemptId: number): LessonApi
     while (waiting.has(key)) {
       const answer = waiting.get(key)!
       waiting.delete(key)
-      await api.saveDraft(attemptId, round, exerciseId, answer).catch(() => undefined)
+      await heard(api.saveDraft(attemptId, round, exerciseId, answer)).catch(() => undefined)
     }
     sending.delete(key)
   }
   return {
-    assess: (exerciseId, answer, { round }) => api.tryAnswer(attemptId, round, exerciseId, answer),
+    assess: (exerciseId, answer, { round }) => heard(api.tryAnswer(attemptId, round, exerciseId, answer)),
     secondRound: async () => {
-      const round = await api.secondRound(attemptId)
+      const round = await heard(api.secondRound(attemptId))
       return { exercises: round.exercises, layouts: round.layouts }
     },
     saveDraft: (round, exerciseId, answer) => {
@@ -195,7 +211,7 @@ export function attemptLessonApi(api: AttemptsApi, attemptId: number): LessonApi
     submitRound: async (round, answers) => {
       // The server assesses the drafts it holds too, so the ones typed before go first.
       await Promise.all(sending.values())
-      return api.submitRound(attemptId, round, answers)
+      return heard(api.submitRound(attemptId, round, answers))
     },
   }
 }

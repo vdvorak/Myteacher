@@ -145,8 +145,11 @@ class ReleaseOut(ReleaseSettings):
     students: list[StudentRef]
     released_by_id: int
     released_at: datetime
+    # Set once the teacher retracted it, with the reason the students were told.
+    retracted_at: datetime | None = None
+    retraction_reason: str | None = None
 
-    @field_serializer("released_at", "due_at")
+    @field_serializer("released_at", "due_at", "retracted_at")
     def _utc(self, at: datetime | None) -> str | None:
         return at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ") if at else None
 
@@ -275,6 +278,8 @@ def release_out(db: InstanceSession, released: MaterialRelease) -> ReleaseOut:
         show_solutions=released.show_solutions,
         released_by_id=released.released_by_id,
         released_at=released.released_at,
+        retracted_at=released.retracted_at,
+        retraction_reason=released.retraction_reason,
     )
 
 

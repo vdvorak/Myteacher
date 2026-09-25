@@ -43,6 +43,7 @@ export function releaseOf(fields: Partial<ReleaseDetail> = {}): ReleaseDetail {
     counting_attempt_id: null,
     can_start: true,
     attempt: null,
+    retraction: null,
     ...fields,
   }
 }

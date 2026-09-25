@@ -142,6 +142,13 @@ class AttemptOut(BaseModel):
         return _utc(at)
 
 
+class RetractionNotice(BaseModel):
+    # What the teacher told the student.
+    reason: str
+    # The whole release was retracted, not just the student's attempt.
+    whole_release: bool
+
+
 class ReleaseDetail(StudentRelease):
     feedback_mode: FeedbackMode
     attempts: Literal["one", "repeated"]
@@ -151,6 +158,8 @@ class ReleaseDetail(StudentRelease):
     can_start: bool
     # The attempt being worked on, or else the one that counts.
     attempt: AttemptOut | None
+    # Why the student's latest attempt, or the release, was retracted.
+    retraction: RetractionNotice | None
 
 
 class SubmissionIn(BaseModel):
@@ -177,6 +186,9 @@ def _attempt_or_404(
     found = attempts.attempt_for(db, actor, attempt_id)
     if found is None:
         raise HTTPException(status_code=404)
+    if found[0].retracted_at is not None:
+        # The teacher retracted it: the student is taken out, and the release says why.
+        raise HTTPException(status_code=410, detail="attempt_retracted")
     return found
 
 
@@ -285,6 +297,11 @@ def my_release(release_id: int, db: Db, now: Now, actor: Student) -> ReleaseDeta
         show_solutions=released.show_solutions,
         can_start=standing.can_start,
         attempt=attempt_out(db, shown, released) if shown else None,
+        retraction=(
+            RetractionNotice(reason=notice[0], whole_release=notice[1])
+            if (notice := attempts.retraction_notice(db, released, actor))
+            else None
+        ),
     )
 
 
@@ -307,6 +324,8 @@ def start_attempt(
         raise HTTPException(status_code=409, detail="no_more_attempts") from None
     except attempts.PastDue:
         raise HTTPException(status_code=409, detail="past_due") from None
+    except attempts.ReleaseRetracted:
+        raise HTTPException(status_code=410, detail="release_retracted") from None
     if not created:
         response.status_code = 200
     return attempt_out(db, attempt, released)

@@ -13,7 +13,7 @@ export function WorkPage() {
   const { t, locale } = useI18n()
   const api = useApi().attempts
   const params = useParams<{ releaseId: string }>()
-  const [detail] = createResource(() => Number(params.releaseId), (id) => api.release(id))
+  const [detail, { refetch }] = createResource(() => Number(params.releaseId), (id) => api.release(id))
   const [attempt, setAttempt] = createSignal<Attempt>()
   const [refused, setRefused] = createSignal<AttemptRefusal | 'failed'>()
   const [passDone, setPassDone] = createSignal(false)
@@ -37,9 +37,13 @@ export function WorkPage() {
       () => !detail.error && detail(),
       (loaded) => {
         if (!loaded) return
-        if (loaded.attempt) setAttempt(loaded.attempt)
+        // Read afresh, as after a retraction: what the page knew of the attempt before is gone.
+        setPassDone(false)
+        setRefused(undefined)
+        setAttempt(loaded.attempt ?? undefined)
+        if (loaded.attempt || loaded.retraction?.whole_release) return
+        if (loaded.can_start) void begin(loaded.id)
         // Nothing started yet and nothing may be: only the due date can stand in the way.
-        else if (loaded.can_start) void begin(loaded.id)
         else setRefused('past_due')
       },
     ),
@@ -64,10 +68,20 @@ export function WorkPage() {
               {(due) => <> · {t('work.due', { date: new Date(due()).toLocaleString(locale()) })}</>}
             </Show>
           </p>
+          <Show when={release().retraction}>
+            {(notice) => (
+              <p role="alert">
+                {notice().whole_release
+                  ? t('work.retracted.release', { reason: notice().reason })
+                  : t('work.retracted.attempt', { reason: notice().reason })}
+              </p>
+            )}
+          </Show>
           <Show when={attempt()} keyed>
             {(current) => {
               // One backend per attempt: it queues the drafts, so it must outlive every save.
-              const lessonApi = attemptLessonApi(api, current.id)
+              // The teacher retracted the attempt meanwhile: the release says why, and what next.
+              const lessonApi = attemptLessonApi(api, current.id, () => void refetch())
               return (
                 <>
                   <Show when={current.number > 1}>

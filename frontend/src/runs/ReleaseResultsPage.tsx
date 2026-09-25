@@ -8,6 +8,7 @@ import '../admin/admin.css'
 import { TeachersOnly } from '../students/StudentsPage'
 import { finished, type Job } from '../jobs/api'
 import { JobStatus } from '../jobs/JobStatus'
+import { RetractionForm } from './RetractionForm'
 import { AssessmentRefused, type OpenAnswers, type ResultCell } from './api'
 
 const cellNames: Record<ResultCell, MessageKey> = {
@@ -141,6 +142,9 @@ function ReleaseResults() {
           <>
             <h1>{loaded().release.title}</h1>
             <p class="settings-note">{loaded().release.topic}</p>
+            <Show when={loaded().release.retraction_reason}>
+              {(reason) => <p role="status">{t('retraction.retracted', { reason: reason() })}</p>}
+            </Show>
             <OpenAnswersPanel
               runId={ids()[0]}
               releaseId={ids()[1]}
@@ -226,6 +230,18 @@ function ReleaseResults() {
                 </tbody>
               </table>
             </div>
+            <Show when={!loaded().release.retracted_at}>
+              <h2>{t('retraction.retractRelease')}</h2>
+              <RetractionForm
+                intro="retraction.releaseIntro"
+                action="retraction.retractRelease"
+                onRetract={async (reason) => {
+                  await api.retractRelease(ids()[0], ids()[1], reason)
+                  // Not awaited: reading the page again failing does not make the retraction fail.
+                  void refetch()
+                }}
+              />
+            </Show>
           </>
         )}
       </Show>

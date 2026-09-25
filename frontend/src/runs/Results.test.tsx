@@ -1,7 +1,7 @@
 import { createMemoryHistory } from '@solidjs/router'
 import { render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import { attemptOf } from '../attempts/testing'
@@ -24,6 +24,8 @@ const release: Release = {
   students: [],
   released_by_id: 2,
   released_at: '2026-09-24T08:00:00Z',
+  retracted_at: null,
+  retraction_reason: null,
   ...defaultSettings,
 }
 const results: ReleaseResults = {
@@ -50,14 +52,19 @@ const results: ReleaseResults = {
 
 function open(
   path: string,
-  options: { studentResults?: Record<string, StudentAttempts>; as?: Account; results?: ReleaseResults } = {},
+  options: {
+    studentResults?: Record<string, StudentAttempts>
+    as?: Account
+    results?: ReleaseResults
+    release?: Release
+  } = {},
 ) {
   const history = createMemoryHistory()
   history.set({ value: path })
   const jobs = fakeJobsApi()
   const runs = fakeRunsApi({
     runs: [{ id: 7, courseId: 1, name: '2.B 2026/27', classIds: [], studentIds: [] }],
-    releases: { 7: [release] },
+    releases: { 7: [options.release ?? release] },
     results: { 3: options.results ?? results },
     studentResults: options.studentResults,
     jobs,
@@ -142,8 +149,8 @@ describe('a student’s results', () => {
   const detail: StudentAttempts = {
     student: { id: jana.id, name: jana.name, in_run: true },
     attempts: [
-      { ...counted, counts: true },
-      { ...earlier, counts: false },
+      { ...counted, counts: true, retracted_at: null, retraction_reason: null },
+      { ...earlier, counts: false, retracted_at: null, retraction_reason: null },
     ],
   }
 
@@ -229,7 +236,7 @@ describe('the teacher’s own scores', () => {
   }
   const detail: StudentAttempts = {
     student: { id: jana.id, name: jana.name, in_run: true },
-    attempts: [{ ...written, counts: true }],
+    attempts: [{ ...written, counts: true, retracted_at: null, retraction_reason: null }],
   }
 
   it('shows each assessment and saves the teacher’s score with a reason', async () => {
@@ -275,5 +282,64 @@ describe('the teacher’s own scores', () => {
     open(`/runs/7/releases/3/students/${jana.id}`, { studentResults: { [`3:${jana.id}`]: flagged } })
 
     expect(await screen.findByText('The assistant could not assess it; score it yourself.')).toBeInTheDocument()
+  })
+})
+
+describe('retracting', () => {
+  it('retracts a whole release with a reason, and marks it', async () => {
+    const { runs, user } = open('/runs/7/releases/3')
+
+    await user.type(await screen.findByLabelText('Reason for the students'), 'Released by mistake.')
+    await user.click(screen.getByRole('button', { name: 'Retract the release' }))
+
+    expect(runs.retractRelease).toHaveBeenCalledWith(7, 3, 'Released by mistake.')
+    expect(await screen.findByText('Retracted: Released by mistake.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retract the release' })).not.toBeInTheDocument()
+  })
+
+  it('marks a retracted release among the run’s releases', async () => {
+    open('/runs/7', { release: { ...release, retracted_at: '2026-09-25T09:00:00Z', retraction_reason: 'Oops.' } })
+
+    const row = (await screen.findByRole('link', { name: 'Pretérito in class' })).closest('td')!
+    expect(row).toHaveTextContent('Retracted')
+  })
+
+  it('retracts a student’s attempt with a reason, keeping its answers', async () => {
+    const attempt = attemptOf(atTheEndLesson, { id: 12, submitted_at: '2026-09-24T09:00:00Z' })
+    const { runs, user } = open(`/runs/7/releases/3/students/${jana.id}`, {
+      studentResults: {
+        [`3:${jana.id}`]: {
+          student: { id: jana.id, name: jana.name, in_run: true },
+          attempts: [{ ...attempt, counts: true, retracted_at: null, retraction_reason: null }],
+        },
+      },
+    })
+
+    await user.type(await screen.findByLabelText('Reason for the students'), 'A typo in exercise 2.')
+    await user.click(screen.getByRole('button', { name: 'Retract the attempt' }))
+
+    expect(runs.retractAttempt).toHaveBeenCalledWith(7, 3, jana.id, 'A typo in exercise 2.')
+    const kept = await screen.findByRole('region', { name: 'Attempt 1' })
+    expect(await within(kept).findByText('Retracted: A typo in exercise 2.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retract the attempt' })).not.toBeInTheDocument()
+  })
+
+  it('does not call a retraction failed when only reading the page again failed', async () => {
+    const attempt = attemptOf(atTheEndLesson, { id: 12, submitted_at: '2026-09-24T09:00:00Z' })
+    const { runs, user } = open(`/runs/7/releases/3/students/${jana.id}`, {
+      studentResults: {
+        [`3:${jana.id}`]: {
+          student: { id: jana.id, name: jana.name, in_run: true },
+          attempts: [{ ...attempt, counts: true, retracted_at: null, retraction_reason: null }],
+        },
+      },
+    })
+    await user.type(await screen.findByLabelText('Reason for the students'), 'A typo in exercise 2.')
+    runs.studentResults.mockRejectedValueOnce(new Error('offline'))
+
+    await user.click(screen.getByRole('button', { name: 'Retract the attempt' }))
+
+    await vi.waitFor(() => expect(runs.retractAttempt).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText('The retraction failed. Try again.')).not.toBeInTheDocument()
   })
 })
