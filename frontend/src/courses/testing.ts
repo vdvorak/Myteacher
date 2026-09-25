@@ -253,6 +253,7 @@ export function fakeCoursesApi(
         store({
           ...structuredClone(find(id)),
           id: 100 + courses.length,
+          name: `${find(id).name} (copy)`,
           owner_id: 2,
           access: 'owner',
           can_edit: true,

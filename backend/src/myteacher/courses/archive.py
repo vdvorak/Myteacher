@@ -60,7 +60,8 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-Name = Annotated[str, Field(min_length=1, max_length=200)]
+NAME_MAX = 200
+Name = Annotated[str, Field(min_length=1, max_length=NAME_MAX)]
 
 
 def _unique(values: list, what: str) -> None:
@@ -506,6 +507,16 @@ def _import_materials(
             db.add(stored)
             db.flush()
             by_number[version.number] = stored
+
+
+_COPY_SUFFIX = {"cs": " (kopie)", "en": " (copy)"}
+
+
+def fork_name(name: str, language: str | None) -> str:
+    """The name of a fork, in the forking teacher's language: the original's, marked a copy,
+    shortened to fit the length a course name may have."""
+    suffix = _COPY_SUFFIX.get(language or "en", _COPY_SUFFIX["en"])
+    return name[: NAME_MAX - len(suffix)].rstrip() + suffix
 
 
 def import_course(

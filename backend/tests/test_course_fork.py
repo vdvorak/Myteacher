@@ -7,6 +7,7 @@ from tests.test_classroom_materials import materials_url
 from tests.test_concept_maps import map_url
 from tests.test_course_access import COLLEAGUE, THIRD, as_teacher, grant, invite_teachers
 from tests.test_course_export import course, export, unpacked  # noqa: F401 - `course` is a fixture
+from tests.test_courses import create_course
 from tests.test_reference_documents import documents_url
 from tests.test_topics import topics_url
 
@@ -38,9 +39,25 @@ def test_a_fork_is_a_new_course_of_the_forking_teacher_recording_its_origin(fork
     assert body["owner_id"] == me["id"]
     assert body["access"] == "owner"
     assert body["forked_from_id"] == course["course"]
-    assert body["name"] == "Španělština 2.B"
+    assert body["name"] == "Španělština 2.B (kopie)"
     assert forker.get(f"/api/courses/{body['id']}/access").json() == []
     assert body["id"] in {c["id"] for c in forker.get("/api/courses").json()}
+
+
+def test_a_fork_is_named_a_copy_in_the_forking_teachers_language(forker, course):
+    me = forker.get("/api/auth/me").json()
+    forker.patch(f"/api/accounts/{me['id']}/settings", json={"language": "en"})
+
+    assert fork(forker, course["course"]).json()["name"] == "Španělština 2.B (copy)"
+
+
+def test_a_long_name_is_shortened_to_fit_the_copy_suffix(teacher):
+    cid = create_course(teacher, name="x" * 198 + " y").json()["id"]
+
+    name = fork(teacher, cid).json()["name"]
+
+    assert name == "x" * 192 + " (kopie)"
+    assert len(name) <= 200
 
 
 def test_export_then_import_round_trips_the_course(forker, course):
@@ -49,6 +66,9 @@ def test_export_then_import_round_trips_the_course(forker, course):
     forked = fork(forker, course["course"]).json()
 
     copy, copy_files = unpacked(export(forker, forked["id"]))
+    # The copy is named a copy; everything else is the same.
+    assert copy["course"]["name"] == f"{original['course']['name']} (kopie)"
+    copy["course"]["name"] = original["course"]["name"]
     assert comparable(copy) == comparable(original)
     assert copy_files == original_files
 

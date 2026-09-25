@@ -30,6 +30,7 @@ describe('forking a course', () => {
     await user.click(await screen.findByRole('button', { name: 'Make my own copy' }))
 
     expect(courses.fork).toHaveBeenCalledWith(1)
+    expect(await screen.findByRole('heading', { level: 1, name: `${forkable.name} (copy)` })).toBeInTheDocument()
     expect(await screen.findByText('This course is a copy of another course. It does not follow changes to it.')).toBeInTheDocument()
     expect(history.get()).toMatch(/^\/courses\/\d+$/)
     expect(history.get()).not.toBe('/courses/1')

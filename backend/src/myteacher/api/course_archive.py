@@ -40,7 +40,8 @@ def export_course(course_id: int, db: Db, now: Now, actor: Teacher) -> Response:
 @router.post("/fork", status_code=201, responses={403: {"description": "No fork right"}})
 def fork_course(course_id: int, db: Db, now: Now, actor: Teacher) -> CourseOut:
     """Make the actor's own copy of the course: owned by them, recording its origin, and never
-    following later changes of the original. Everything in it gets identifiers of its own."""
+    following later changes of the original, named a copy in their language. Everything in it
+    gets identifiers of its own."""
     course = course_for(db, actor, course_id)
     if not can_fork_course(actor, course):
         raise HTTPException(status_code=403, detail="forbidden")
@@ -51,5 +52,7 @@ def fork_course(course_id: int, db: Db, now: Now, actor: Teacher) -> CourseOut:
     except archive.ArchiveInvalid:
         # The course's own export always reads back; a failure here is the app's own bug.
         raise HTTPException(status_code=500, detail="archive_invalid") from None
+    copy.name = archive.fork_name(course.name, actor.language)
+    db.flush()
     db.refresh(copy)
     return CourseOut.of(copy, actor)
