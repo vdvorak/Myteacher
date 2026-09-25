@@ -52,7 +52,7 @@ class ConceptProblem(Exception):
 Graph = dict[int, set[int]]
 
 
-def _cycle(graph: Graph) -> bool:
+def has_cycle(graph: Graph) -> bool:
     done: set[int] = set()
     on_path: set[int] = set()
 
@@ -104,7 +104,7 @@ class Proposal(_Strict):
         unknown = {p for c in self.concepts for p in c.prerequisites} - set(keys)
         if unknown:
             raise ValueError(f"prerequisites name unknown keys: {sorted(unknown)}")
-        if _cycle(
+        if has_cycle(
             {i: {keys.index(p) for p in c.prerequisites} for i, c in enumerate(self.concepts)}
         ):
             raise ValueError("prerequisites must not form a cycle")
@@ -190,7 +190,7 @@ def _renumber(concepts: list[Concept]) -> None:
 
 
 def _save_graph(db: InstanceSession, concept_map: ConceptMap, graph: Graph) -> None:
-    if _cycle(graph):
+    if has_cycle(graph):
         raise ConceptProblem("prerequisite_cycle")
     in_map = select(Concept.id).where(Concept.concept_map_id == concept_map.id)
     db.execute(delete(ConceptPrerequisite).where(ConceptPrerequisite.concept_id.in_(in_map)))

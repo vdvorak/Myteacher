@@ -51,6 +51,10 @@ export interface Course extends CourseSummary {
   can_edit: boolean
   /** Whether the teacher may change the access list and transfer the ownership. */
   can_manage_access: boolean
+  /** Whether the teacher may make their own copy of the course. */
+  can_fork: boolean
+  /** The course this one was forked from; null when it was not, or the origin is gone. */
+  forked_from_id: number | null
 }
 
 export interface AccessEntry {
@@ -205,6 +209,8 @@ export interface CoursesApi {
   removeAccess(id: number, teacherId: number): Promise<AccessEntry[]>
   /** The previous owner keeps the right named, or none. */
   transferOwnership(id: number, email: string, previousOwnerKeeps: CourseRight | null): Promise<void>
+  /** A new course of the teacher's own, copied from this one; it does not follow the original. */
+  fork(id: number): Promise<Course>
 }
 
 async function json<T>(response: Response): Promise<T> {
@@ -274,6 +280,7 @@ export const httpCoursesApi: CoursesApi = {
   grantAccess: async (id, email, right) => accessStep(await send('POST', accessUrl(id), { email, right })),
   changeAccess: async (id, teacherId, right) => accessStep(await send('PUT', `${accessUrl(id)}/${teacherId}`, { right })),
   removeAccess: async (id, teacherId) => accessStep(await send('DELETE', `${accessUrl(id)}/${teacherId}`)),
+  fork: async (id) => json(await send('POST', `/api/courses/${id}/fork`)),
   transferOwnership: async (id, email, previousOwnerKeeps) => {
     const response = await send('POST', `/api/courses/${id}/owner`, { email, previous_owner_keeps: previousOwnerKeeps })
     if (response.status !== 204) await accessStep(response)

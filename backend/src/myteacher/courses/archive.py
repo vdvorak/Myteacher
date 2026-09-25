@@ -9,23 +9,42 @@ the transcripts of the course and topic interviews, generation records or retire
 the interviews established is in the brief and the topics' additions.
 
 A later slice that adds to the format raises `VERSION`; a reader refuses versions it does not know.
+Importing builds a new course from an archive with identifiers of its own; a fork is an export
+followed by an import (ADR 0008).
 """
 
 import io
 import re
 import zipfile
 from datetime import datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, PlainSerializer
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, ValidationError, model_validator
 
+from myteacher.accounts.models import Account
 from myteacher.courses import concepts, documents, materials
 from myteacher.courses import service as courses
 from myteacher.courses.brief import CourseBrief
-from myteacher.courses.models import Course, Source, SourceFile, Topic
+from myteacher.courses.concepts import ConceptDescription, ConceptName, has_cycle
+from myteacher.courses.models import (
+    ClassroomMaterial,
+    ClassroomMaterialVersion,
+    Concept,
+    ConceptMap,
+    ConceptPrerequisite,
+    Course,
+    ReferenceDocument,
+    ReferenceDocumentVersion,
+    ReferenceKind,
+    Source,
+    SourceFile,
+    SourceKind,
+    Topic,
+)
 from myteacher.courses.sources import sources_of
-from myteacher.courses.topic_interview import additions_of
+from myteacher.courses.topic_interview import AdditionText, additions_of, set_additions
 from myteacher.courses.topics import topics_of
+from myteacher.lesson.schema import LessonDocument
 from myteacher.persistence import InstanceSession
 
 FORMAT = "myteacher-course"
@@ -41,17 +60,25 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+Name = Annotated[str, Field(min_length=1, max_length=200)]
+
+
+def _unique(values: list, what: str) -> None:
+    if len(set(values)) != len(values):
+        raise ValueError(f"every {what} must be unique")
+
+
 class ArchiveCourse(_Model):
-    name: str
-    subject: str
+    name: Name
+    subject: Name
     taught_language: str | None
     instruction_language: str
 
 
 class ArchiveSource(_Model):
     key: str
-    name: str
-    kind: str
+    name: Name
+    kind: SourceKind
     media_type: str
     size: int
     visible_to_students: bool
@@ -65,8 +92,8 @@ class ArchiveSource(_Model):
 
 class ArchiveConcept(_Model):
     key: str
-    name: str
-    description: str
+    name: ConceptName
+    description: ConceptDescription
     # Keys of concepts of the same map.
     prerequisites: list[str]
 
@@ -75,6 +102,20 @@ class ArchiveConceptMap(_Model):
     state: Literal["draft", "approved"]
     approved_before: bool
     concepts: list[ArchiveConcept]
+
+    @model_validator(mode="after")
+    def _a_graph(self) -> Self:
+        keys = [c.key for c in self.concepts]
+        _unique(keys, "concept key")
+        for c in self.concepts:
+            _unique(c.prerequisites, "prerequisite of a concept")
+            if not set(c.prerequisites) <= set(keys):
+                raise ValueError(f"unknown prerequisites of {c.key!r}")
+        index = {key: n for n, key in enumerate(keys)}
+        # A concept requiring itself is a cycle too.
+        if has_cycle({n: {index[p] for p in c.prerequisites} for n, c in enumerate(self.concepts)}):
+            raise ValueError("prerequisites must not form a cycle")
+        return self
 
 
 class ArchiveCitation(_Model):
@@ -90,13 +131,18 @@ class ArchivePassage(_Model):
 
 class ArchiveDocumentVersion(_Model):
     number: int
-    title: str
+    title: Name
     passages: list[ArchivePassage]
 
 
 class ArchiveReferenceDocument(_Model):
-    kind: str
-    versions: list[ArchiveDocumentVersion]
+    kind: ReferenceKind
+    versions: Annotated[list[ArchiveDocumentVersion], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def _numbered(self) -> Self:
+        _unique([v.number for v in self.versions], "version number")
+        return self
 
 
 class ArchiveMaterialVersion(_Model):
@@ -109,7 +155,17 @@ class ArchiveMaterialVersion(_Model):
 
 
 class ArchiveMaterial(_Model):
-    versions: list[ArchiveMaterialVersion]
+    versions: Annotated[list[ArchiveMaterialVersion], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def _linked(self) -> Self:
+        _unique([v.number for v in self.versions], "version number")
+        seen: set[int] = set()
+        for v in self.versions:
+            if v.previous is not None and v.previous not in seen:
+                raise ValueError(f"version {v.number} comes from no earlier version")
+            seen.add(v.number)
+        return self
 
 
 class ArchiveDiagnosticOffer(_Model):
@@ -117,10 +173,17 @@ class ArchiveDiagnosticOffer(_Model):
     answer: str | None
 
 
+class ArchiveAdditions(_Model):
+    goals: AdditionText = None
+    prior_knowledge: AdditionText = None
+    emphasis: AdditionText = None
+    notes: AdditionText = None
+
+
 class ArchiveTopic(_Model):
-    name: str
+    name: Name
     diagnostic_wanted: bool
-    additions: dict[str, str | None]
+    additions: ArchiveAdditions
     diagnostic_offer: ArchiveDiagnosticOffer | None
     concept_map: ArchiveConceptMap | None
     reference_documents: list[ArchiveReferenceDocument]
@@ -136,6 +199,12 @@ class Archive(_Model):
     sources: list[ArchiveSource]
     # In teaching order.
     topics: list[ArchiveTopic]
+
+    @model_validator(mode="after")
+    def _sources_by_key(self) -> Self:
+        _unique([s.key for s in self.sources], "source key")
+        _unique([s.file for s in self.sources if s.file is not None], "source file")
+        return self
 
 
 def _file_name(key: str, name: str) -> str:
@@ -273,7 +342,7 @@ def export(db: InstanceSession, course: Course, *, now: datetime) -> bytes:
             ArchiveTopic(
                 name=topic.name,
                 diagnostic_wanted=topic.diagnostic_wanted,
-                additions=additions_of(topic),
+                additions=ArchiveAdditions(**additions_of(topic)),
                 diagnostic_offer=ArchiveDiagnosticOffer(
                     reason=topic.diagnostic_offer, answer=topic.diagnostic_offer_answer
                 )
@@ -292,3 +361,214 @@ def export(db: InstanceSession, course: Course, *, now: datetime) -> bytes:
         for name, content in files.items():
             zipped.writestr(name, content)
     return buffer.getvalue()
+
+
+# Importing
+
+
+class ArchiveInvalid(Exception):
+    """Not an archive this app can read: `reason` says why."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
+# A citation of a source the course no longer had: it keeps its location and points at no row.
+NO_SOURCE = 0
+
+
+def read(data: bytes) -> tuple[Archive, dict[str, bytes]]:
+    """The archive's document and the source files it names."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zipped:
+            archive = Archive.model_validate_json(zipped.read(DOCUMENT_NAME))
+            files = {s.file: zipped.read(s.file) for s in archive.sources if s.file is not None}
+    # An encrypted or damaged member raises RuntimeError or ValueError while it is read.
+    except (zipfile.BadZipFile, KeyError, RuntimeError, ValueError) as error:
+        raise ArchiveInvalid(str(error)) from None
+    return archive, files
+
+
+def _import_concepts(
+    db: InstanceSession,
+    archived: ArchiveConceptMap,
+    course: Course,
+    topic: Topic,
+    owner: Account,
+    now: datetime,
+) -> None:
+    approved = archived.state == "approved"
+    concept_map = ConceptMap(
+        course_id=course.id,
+        topic_id=topic.id,
+        state=archived.state,
+        approved_at=now if approved else None,
+        approved_by_id=owner.id if approved else None,
+        approved_before=archived.approved_before,
+        created_at=now,
+    )
+    db.add(concept_map)
+    db.flush()
+    rows = {
+        c.key: Concept(
+            course_id=course.id,
+            concept_map_id=concept_map.id,
+            position=position,
+            name=c.name,
+            description=c.description,
+            created_at=now,
+        )
+        for position, c in enumerate(archived.concepts)
+    }
+    db.add_all(rows.values())
+    db.flush()
+    for c in archived.concepts:
+        for key in c.prerequisites:
+            if key not in rows:
+                raise ArchiveInvalid(f"unknown prerequisite {key!r}")
+            db.add(ConceptPrerequisite(concept_id=rows[c.key].id, prerequisite_id=rows[key].id))
+
+
+def _import_documents(
+    db: InstanceSession,
+    archived: list[ArchiveReferenceDocument],
+    course: Course,
+    topic: Topic,
+    source_ids: dict[str, int],
+    owner: Account,
+    now: datetime,
+) -> None:
+    for document in archived:
+        row = ReferenceDocument(
+            course_id=course.id,
+            topic_id=topic.id,
+            kind=document.kind,
+            created_by_id=owner.id,
+            created_at=now,
+        )
+        db.add(row)
+        db.flush()
+        for version in document.versions:
+            passages = []
+            for p in version.passages:
+                citations = []
+                for c in p.citations:
+                    if c.source is not None and c.source not in source_ids:
+                        raise ArchiveInvalid(f"unknown source {c.source!r}")
+                    source_id = source_ids[c.source] if c.source is not None else NO_SOURCE
+                    citations.append({"source_id": source_id, "location": c.location})
+                passages.append({"markdown": p.markdown, "citations": citations})
+            db.add(
+                ReferenceDocumentVersion(
+                    document_id=row.id,
+                    number=version.number,
+                    title=version.title,
+                    passages=passages,
+                    author_id=owner.id,
+                    created_at=now,
+                )
+            )
+
+
+def _import_materials(
+    db: InstanceSession,
+    archived: list[ArchiveMaterial],
+    course: Course,
+    topic: Topic,
+    owner: Account,
+    now: datetime,
+) -> None:
+    for material in archived:
+        row = ClassroomMaterial(
+            course_id=course.id, topic_id=topic.id, created_by_id=owner.id, created_at=now
+        )
+        db.add(row)
+        db.flush()
+        by_number: dict[int, ClassroomMaterialVersion] = {}
+        for version in material.versions:
+            try:
+                lesson = LessonDocument.model_validate(
+                    {**version.lesson, "id": f"material-{row.id}-{version.number}"}
+                )
+            except ValidationError as error:
+                raise ArchiveInvalid(str(error)) from None
+            previous = by_number.get(version.previous) if version.previous else None
+            stored = ClassroomMaterialVersion(
+                material_id=row.id,
+                number=version.number,
+                lesson=lesson.model_dump(mode="json"),
+                instruction=version.instruction,
+                previous_version_id=previous.id if previous else None,
+                author_id=owner.id,
+                created_at=now,
+            )
+            db.add(stored)
+            db.flush()
+            by_number[version.number] = stored
+
+
+def import_course(
+    db: InstanceSession,
+    data: bytes,
+    owner: Account,
+    *,
+    now: datetime,
+    forked_from: Course | None = None,
+) -> Course:
+    """A new course owned by `owner` built from the archive, every record with an identifier
+    of its own. Raises `ArchiveInvalid` for an archive this app cannot read."""
+    archive, files = read(data)
+    basics = archive.course
+    course = courses.create_course(
+        db,
+        owner,
+        name=basics.name,
+        subject=basics.subject,
+        taught_language=basics.taught_language,
+        instruction_language=basics.instruction_language,
+        now=now,
+    )
+    course.forked_from_id = forked_from.id if forked_from else None
+    courses.change_brief(course, archive.brief.model_dump(mode="json"))
+    source_ids: dict[str, int] = {}
+    for s in archive.sources:
+        source = Source(
+            course_id=course.id,
+            name=s.name,
+            kind=s.kind,
+            media_type=s.media_type,
+            size=s.size,
+            visible_to_students=s.visible_to_students,
+            text=s.text,
+            extracted_with=s.extracted_with,
+            url=s.url,
+            fetched_at=s.fetched_at,
+            uploaded_by_id=owner.id,
+            created_at=now,
+        )
+        db.add(source)
+        db.flush()
+        if s.file is not None:
+            db.add(SourceFile(source_id=source.id, content=files[s.file]))
+        source_ids[s.key] = source.id
+    for position, t in enumerate(archive.topics):
+        offer = t.diagnostic_offer
+        topic = Topic(
+            course_id=course.id,
+            position=position,
+            name=t.name,
+            diagnostic_wanted=t.diagnostic_wanted,
+            diagnostic_offer=offer.reason if offer else None,
+            diagnostic_offer_answer=offer.answer if offer else None,
+            created_at=now,
+        )
+        set_additions(topic, t.additions.model_dump())
+        db.add(topic)
+        db.flush()
+        if t.concept_map is not None:
+            _import_concepts(db, t.concept_map, course, topic, owner, now)
+        _import_documents(db, t.reference_documents, course, topic, source_ids, owner, now)
+        _import_materials(db, t.classroom_materials, course, topic, owner, now)
+    db.flush()
+    return course

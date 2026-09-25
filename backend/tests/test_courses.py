@@ -74,6 +74,8 @@ def test_a_teacher_creates_a_course_with_an_empty_brief(teacher, clock):
         "access": "owner",
         "can_edit": True,
         "can_manage_access": True,
+        "can_fork": True,
+        "forked_from_id": None,
     }
     assert teacher.get(f"/api/courses/{body['id']}").json() == body
 

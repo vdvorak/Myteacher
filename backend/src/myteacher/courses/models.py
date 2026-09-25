@@ -26,6 +26,9 @@ class Course(InstanceOwned, Base):
     # The language explanations are written in.
     instruction_language: Mapped[str] = mapped_column(String(10))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # The course this one was forked from, for lineage; a fork never follows it. Forgotten when
+    # the origin is deleted.
+    forked_from_id: Mapped[int | None] = mapped_column(ForeignKey("course.id", ondelete="SET NULL"))
 
     brief: Mapped["CourseBriefRow"] = relationship(lazy="joined")
     # The teachers the owner shared the course with; the owner is never on it.

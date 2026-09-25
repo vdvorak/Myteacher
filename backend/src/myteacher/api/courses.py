@@ -16,6 +16,7 @@ from myteacher.persistence import InstanceSession
 from myteacher.policy import (
     CourseAccessLevel,
     can_edit_course,
+    can_fork_course,
     can_manage_course_access,
     can_view_course,
     course_access,
@@ -59,6 +60,10 @@ class CourseOut(CourseSummary):
     can_edit: bool
     # Whether the actor may change the access list and transfer the ownership.
     can_manage_access: bool
+    # Whether the actor may make their own copy of the course.
+    can_fork: bool
+    # The course this one was forked from; None when it was not, or the origin is gone.
+    forked_from_id: int | None
 
     @field_serializer("created_at")
     def _utc(self, at: datetime) -> str:
@@ -73,6 +78,8 @@ class CourseOut(CourseSummary):
             brief=courses.brief_of(course),
             can_edit=can_edit_course(actor, course),
             can_manage_access=can_manage_course_access(actor, course),
+            can_fork=can_fork_course(actor, course),
+            forked_from_id=course.forked_from_id,
         )
 
 

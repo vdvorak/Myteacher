@@ -45,6 +45,8 @@ export const spanish: Course = {
   access: 'owner',
   can_edit: true,
   can_manage_access: true,
+  can_fork: true,
+  forked_from_id: null,
 }
 
 export const noAdditions: TopicAdditions = { goals: null, prior_knowledge: null, emphasis: null, notes: null }
@@ -242,7 +244,23 @@ export function fakeCoursesApi(
         access: 'owner',
         can_edit: true,
         can_manage_access: true,
+        can_fork: true,
+        forked_from_id: null,
       }),
+    ),
+    fork: vi.fn(async (id: number) =>
+      structuredClone(
+        store({
+          ...structuredClone(find(id)),
+          id: 100 + courses.length,
+          owner_id: 2,
+          access: 'owner',
+          can_edit: true,
+          can_manage_access: true,
+          can_fork: true,
+          forked_from_id: id,
+        }),
+      ),
     ),
     change: vi.fn(async (id, change) => store({ ...find(id), ...change })),
     changeBrief: vi.fn(async (id, change) => {

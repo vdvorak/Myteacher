@@ -66,6 +66,22 @@ function CourseDetail() {
     navigate('/courses')
   }
 
+  const [forking, setForking] = createSignal(false)
+  const [forkFailed, setForkFailed] = createSignal(false)
+
+  async function forkCourse(id: number) {
+    setForking(true)
+    setForkFailed(false)
+    try {
+      const copy = await api.fork(id)
+      navigate(`/courses/${copy.id}`)
+    } catch {
+      setForkFailed(true)
+    } finally {
+      setForking(false)
+    }
+  }
+
   return (
     <section class="admin-section">
       <A href="/courses">{t('courses.all')}</A>
@@ -80,13 +96,24 @@ function CourseDetail() {
             <Show when={!loaded()!.can_edit}>
               <p class="settings-note">{t('courses.readOnly')}</p>
             </Show>
+            <Show when={loaded()!.forked_from_id !== null}>
+              <p class="settings-note">{t('courses.forkNote')}</p>
+            </Show>
             <div class="settings-actions">
+              <Show when={loaded()!.can_fork}>
+                <button type="button" disabled={forking()} onClick={() => void forkCourse(id)}>
+                  {t('courses.fork')}
+                </button>
+              </Show>
               {/* The browser saves the archive the server names; anyone who may view the course may export it. */}
               <a href={`/api/courses/${id}/export`} download="">
                 {t('courses.export')}
               </a>
             </div>
             <p class="settings-note">{t('courses.exportNote')}</p>
+            <Show when={forkFailed()}>
+              <p role="alert">{t('courses.forkFailed')}</p>
+            </Show>
             <Show when={loaded()!.can_manage_access}>
               <Show
                 when={sharing()}
