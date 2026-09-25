@@ -80,6 +80,13 @@ function CourseDetail() {
             <Show when={!loaded()!.can_edit}>
               <p class="settings-note">{t('courses.readOnly')}</p>
             </Show>
+            <div class="settings-actions">
+              {/* The browser saves the archive the server names; anyone who may view the course may export it. */}
+              <a href={`/api/courses/${id}/export`} download="">
+                {t('courses.export')}
+              </a>
+            </div>
+            <p class="settings-note">{t('courses.exportNote')}</p>
             <Show when={loaded()!.can_manage_access}>
               <Show
                 when={sharing()}

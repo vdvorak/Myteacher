@@ -103,6 +103,16 @@ def get_document(db: InstanceSession, topic: Topic, document_id: int) -> Referen
     ).first()
 
 
+def versions_of(db: InstanceSession, document: ReferenceDocument) -> list[ReferenceDocumentVersion]:
+    return list(
+        db.scalars(
+            select(ReferenceDocumentVersion)
+            .where(ReferenceDocumentVersion.document_id == document.id)
+            .order_by(ReferenceDocumentVersion.number)
+        )
+    )
+
+
 def latest_version(
     db: InstanceSession, document: ReferenceDocument
 ) -> ReferenceDocumentVersion | None:
