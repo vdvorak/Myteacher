@@ -46,6 +46,7 @@ export function MaterialsSection(props: { courseId: number; topicId: number; can
   const api = apis.materials
   const [list, setList] = createStore<MaterialSummary[]>([])
   const [chosen, setChosen] = createSignal<number[]>([])
+  const [instruction, setInstruction] = createSignal('')
   const [busy, setBusy] = createSignal(false)
   const [problem, setProblem] = createSignal<Problem>(null)
   // The students' names, for the targets; material still shows without them.
@@ -79,8 +80,9 @@ export function MaterialsSection(props: { courseId: number; topicId: number; can
     setBusy(true)
     setProblem(null)
     try {
-      await api.generate(props.courseId, props.topicId, chosen())
+      await api.generate(props.courseId, props.topicId, chosen(), instruction().trim() || null)
       setChosen([])
+      setInstruction('')
       await reload()
     } catch (error) {
       setProblem(asProblem(error))
@@ -139,6 +141,16 @@ export function MaterialsSection(props: { courseId: number; topicId: number; can
               </fieldset>
             </Show>
             <p class="settings-note">{t('materials.targetsNote')}</p>
+            <label>
+              {t('materials.firstInstruction')}
+              <textarea
+                rows={2}
+                maxLength={2000}
+                value={instruction()}
+                placeholder={t('materials.firstInstructionPlaceholder')}
+                onInput={(e) => setInstruction(e.currentTarget.value)}
+              />
+            </label>
             <div class="settings-actions">
               <button type="submit" disabled={busy()}>
                 {t('materials.generate')}
@@ -220,7 +232,9 @@ function MaterialCard(props: {
       <Show when={latest()?.instruction}>
         {(text) => (
           <p class="settings-note">
-            {t('materials.reworked', { previous: latest()?.previous ?? '', instruction: text() })}
+            {latest()?.previous
+              ? t('materials.reworked', { previous: latest()!.previous!, instruction: text() })
+              : t('materials.askedFor', { instruction: text() })}
           </p>
         )}
       </Show>

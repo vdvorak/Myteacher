@@ -57,7 +57,7 @@ describe('classroom material of a topic', () => {
     await user.click(await materialSection.findByRole('checkbox', { name: 'Jana Veselá' }))
     await user.click(materialSection.getByRole('button', { name: 'Generate material' }))
 
-    expect(materials.generate).toHaveBeenCalledWith(1, 2, [jana.id])
+    expect(materials.generate).toHaveBeenCalledWith(1, 2, [jana.id], null)
     const material = await item('Ser, or estar?')
     expect(material.getByText('Version 1')).toBeInTheDocument()
     expect(material.getByText('For Jana Veselá')).toBeInTheDocument()
@@ -65,6 +65,19 @@ describe('classroom material of a topic', () => {
       'href',
       '/preview/courses/1/topics/2/materials/100',
     )
+  })
+
+  it('generates the first version by an optional instruction and shows what was asked', async () => {
+    const { materials } = renderTopic({ script: [written] })
+    const user = userEvent.setup()
+    const materialSection = await section()
+
+    await user.type(materialSection.getByRole('textbox', { name: 'Instruction (optional)' }), '  Five exercises.  ')
+    await user.click(materialSection.getByRole('button', { name: 'Generate material' }))
+
+    expect(materials.generate).toHaveBeenCalledWith(1, 2, [], 'Five exercises.')
+    expect((await item('Ser, or estar?')).getByText('Asked for: “Five exercises.”')).toBeInTheDocument()
+    expect(materialSection.getByRole('textbox', { name: 'Instruction (optional)' })).toHaveValue('')
   })
 
   it('says that material for chosen students is the same as for the class for now', async () => {

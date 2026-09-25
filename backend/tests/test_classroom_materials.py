@@ -112,7 +112,7 @@ def test_generating_runs_a_job_on_the_strong_slot_and_records_the_prompt_version
     assert job(teacher, body["job"]["id"])["state"] == "succeeded"
     assert models.calls[-1] == ("anthropic", "claude-opus-5-5", KEY)
     [record] = material_generations(admin_settings)
-    assert record.prompt_version == prompts.current_version("classroom_material") == "v1"
+    assert record.prompt_version == prompts.current_version("classroom_material") == "v2"
     sent = json.loads(models.requests[-1]["prompt"])
     assert sent["topic"]["name"] == "Pretérito indefinido"
     assert sent["topic"]["additions"] == {"emphasis": "Only -ar verbs."}
@@ -205,6 +205,33 @@ def test_a_failed_generation_says_why_and_is_retried(teacher, topic, models):
     assert teacher.post(f"{materials_url(*topic)}/{material_id}/retry").json() == {
         "detail": "nothing_to_retry"
     }
+
+
+def test_the_first_generation_can_follow_an_instruction(teacher, topic, models):
+    material = generated(teacher, topic, models, instruction="  Five exercises, only cloze.  ")
+
+    sent = json.loads(models.requests[-1]["prompt"])
+    assert sent["instruction"] == "Five exercises, only cloze."
+    assert "previous" not in sent
+    [version] = material["versions"]
+    assert version["instruction"] == "Five exercises, only cloze."
+    assert version["previous"] is None
+
+
+@pytest.mark.parametrize("instruction", ["", "   ", "x" * 2001])
+def test_a_first_instruction_must_say_something_short(teacher, topic, instruction):
+    assert generate(teacher, topic, instruction=instruction).status_code == 422
+
+
+def test_a_retried_first_generation_keeps_its_instruction(teacher, topic, models):
+    models.script(ModelHTTPError(429, "claude", {"error": "rate limited"}))
+    material_id = generate(teacher, topic, instruction="Only cloze.").json()["material"]["id"]
+    models.script(MATERIAL)
+
+    teacher.post(f"{materials_url(*topic)}/{material_id}/retry")
+
+    assert json.loads(models.requests[-1]["prompt"])["instruction"] == "Only cloze."
+    assert detail(teacher, topic, material_id)["versions"][0]["instruction"] == "Only cloze."
 
 
 # Regeneration with an instruction

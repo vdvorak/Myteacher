@@ -57,6 +57,8 @@ export function fakeMaterialsApi(
   const summary = ({ lesson: _l, answer_key: _a, versions: _v, ...rest }: Material) => structuredClone(rest)
   const busy = (material: Material) => material.job?.state === 'queued' || material.job?.state === 'running'
   // A generation as a job; the scripted material lands as a new version when the job ends.
+  // What each material's first version was asked for with, for retrying it.
+  const firstInstructions = new Map<number, string | null>()
   const schedule = (material: Material, instruction: string | null) => {
     if (options.hasKey === false) throw new MaterialRefused('no_provider_key')
     const job = jobs.start('classroom_material', () => {
@@ -92,27 +94,31 @@ export function fakeMaterialsApi(
     get: vi.fn(async (_courseId: number, topicId: number, materialId: number) =>
       structuredClone(find(topicId, materialId)),
     ),
-    generate: vi.fn(async (_courseId: number, topicId: number, targetStudentIds: number[]) => {
-      if (options.unapproved?.includes(topicId)) throw new MaterialRefused('map_not_approved')
-      if (options.hasKey === false) throw new MaterialRefused('no_provider_key')
-      const material: Material = {
-        id: nextId++,
-        title: null,
-        version: null,
-        created_at: '2026-09-24T08:00:00Z',
-        job: null,
-        target_student_ids: [...new Set(targetStudentIds)].sort((a, b) => a - b),
-        lesson: null,
-        answer_key: null,
-        versions: [],
-      }
-      listOf(topicId).push(material)
-      return schedule(material, null)
-    }),
+    generate: vi.fn(
+      async (_courseId: number, topicId: number, targetStudentIds: number[], instruction: string | null) => {
+        if (options.unapproved?.includes(topicId)) throw new MaterialRefused('map_not_approved')
+        if (options.hasKey === false) throw new MaterialRefused('no_provider_key')
+        const material: Material = {
+          id: nextId++,
+          title: null,
+          version: null,
+          created_at: '2026-09-24T08:00:00Z',
+          job: null,
+          target_student_ids: [...new Set(targetStudentIds)].sort((a, b) => a - b),
+          lesson: null,
+          answer_key: null,
+          versions: [],
+        }
+        listOf(topicId).push(material)
+        const asked = instruction?.trim() || null
+        firstInstructions.set(material.id, asked)
+        return schedule(material, asked)
+      },
+    ),
     retry: vi.fn(async (_courseId: number, topicId: number, materialId: number) => {
       const material = find(topicId, materialId)
       if (material.version !== null || material.job?.state !== 'failed') throw new MaterialRefused('nothing_to_retry')
-      return schedule(material, null)
+      return schedule(material, firstInstructions.get(materialId) ?? null)
     }),
     regenerate: vi.fn(
       async (_courseId: number, topicId: number, materialId: number, instruction: string, basedOn: number) => {

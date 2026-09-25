@@ -91,6 +91,8 @@ class MaterialIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     target_student_ids: list[int] = []
+    # What the teacher asks of the first version, such as the number or types of exercises.
+    instruction: Instruction | None = None
 
 
 class Regeneration(BaseModel):
@@ -244,13 +246,14 @@ def generate_material(
     now: Now,
     actor: Teacher,
 ) -> Started:
-    """Let the assistant write exercises for the topic, optionally for chosen students."""
+    """Let the assistant write exercises for the topic, optionally for chosen students and by
+    the teacher's instruction."""
     course = editable_course(db, actor, course_id)
     topic = _topic(db, course, topic_id)
     _map_approved(db, topic_id, course)
     if paying_credential(db, actor) is None:
         raise HTTPException(status_code=409, detail="no_provider_key")
-    material = materials.start(db, topic, actor, now=now)
+    material = materials.start(db, topic, actor, now=now, instruction=body.instruction)
     _targets(db, material, body.target_student_ids)
     return _schedule(request, background, db, material, actor, now)
 

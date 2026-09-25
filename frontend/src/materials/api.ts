@@ -18,7 +18,7 @@ export interface MaterialSummary {
 
 export interface MaterialVersion {
   number: number
-  /** The instruction it was regenerated with. */
+  /** The instruction it was generated or regenerated with. */
   instruction: string | null
   /** The number of the version it came from. */
   previous: number | null
@@ -63,7 +63,13 @@ export interface MaterialsApi {
   list(courseId: number, topicId: number): Promise<MaterialSummary[]>
   get(courseId: number, topicId: number, materialId: number): Promise<Material>
   /** Needs the topic's concept map approved; the content lands when the job ends. */
-  generate(courseId: number, topicId: number, targetStudentIds: number[]): Promise<MaterialStarted>
+  /** `instruction`: what the teacher asks of the first version, or null. */
+  generate(
+    courseId: number,
+    topicId: number,
+    targetStudentIds: number[],
+    instruction: string | null,
+  ): Promise<MaterialStarted>
   retry(courseId: number, topicId: number, materialId: number): Promise<MaterialStarted>
   /** Reworks version `basedOn` by the instruction into a new version; recorded as a reaction. */
   regenerate(
@@ -120,8 +126,10 @@ const materialUrl = (courseId: number, topicId: number, materialId: number) =>
 export const httpMaterialsApi: MaterialsApi = {
   list: async (courseId, topicId) => json(await fetch(materialsUrl(courseId, topicId))),
   get: async (courseId, topicId, materialId) => json(await fetch(materialUrl(courseId, topicId, materialId))),
-  generate: async (courseId, topicId, targetStudentIds) =>
-    json(await send('POST', materialsUrl(courseId, topicId), { target_student_ids: targetStudentIds })),
+  generate: async (courseId, topicId, targetStudentIds, instruction) =>
+    json(
+      await send('POST', materialsUrl(courseId, topicId), { target_student_ids: targetStudentIds, instruction }),
+    ),
   retry: async (courseId, topicId, materialId) =>
     json(await send('POST', `${materialUrl(courseId, topicId, materialId)}/retry`)),
   regenerate: async (courseId, topicId, materialId, instruction, basedOn) =>

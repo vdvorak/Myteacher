@@ -361,6 +361,8 @@ class ClassroomMaterial(InstanceOwned, Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     # Set when the teacher discarded it; it is then gone from the topic.
     discarded_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    # What the teacher asked the first version for, kept for retrying a failed generation.
+    instruction: Mapped[str | None] = mapped_column(Text)
 
 
 class ClassroomMaterialVersion(InstanceOwned, Base):

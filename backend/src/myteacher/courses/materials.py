@@ -142,9 +142,21 @@ def targets_of(db: InstanceSession, material: ClassroomMaterial) -> list[int]:
 # Changing
 
 
-def start(db: InstanceSession, topic: Topic, creator: Account, *, now: datetime):
+def start(
+    db: InstanceSession,
+    topic: Topic,
+    creator: Account,
+    *,
+    now: datetime,
+    instruction: str | None = None,
+):
+    """New material for the topic, its first version to follow `instruction` when given."""
     material = ClassroomMaterial(
-        course_id=topic.course_id, topic_id=topic.id, created_by_id=creator.id, created_at=now
+        course_id=topic.course_id,
+        topic_id=topic.id,
+        created_by_id=creator.id,
+        created_at=now,
+        instruction=instruction,
     )
     db.add(material)
     db.flush()
@@ -334,9 +346,10 @@ def _inputs(
         ],
         "sources": source_inputs(sources_of(db, course)),
     }
-    if previous is not None and instruction is not None:
+    if previous is not None:
         lesson = previous.lesson
         inputs["previous"] = {"title": lesson["title"], "blocks": lesson["blocks"]}
+    if instruction is not None:
         inputs["instruction"] = instruction
     return inputs
 
@@ -347,8 +360,8 @@ GENERATE = Task(TASK_KIND, Content, slot="strong", timeout_s=300)
 def generation(
     material_id: int, *, based_on: int | None = None, instruction: str | None = None
 ) -> Work:
-    """The work of a generation job: the first version, or with `instruction` a regeneration
-    of version `based_on`."""
+    """The work of a generation job: the first version, following the instruction it was asked
+    for with, or a regeneration of version `based_on` by `instruction`."""
 
     async def work(db: InstanceSession, job: Job, ctx: JobContext) -> dict[str, Any]:
         material = db.get(ClassroomMaterial, material_id)
@@ -358,6 +371,7 @@ def generation(
         course = courses.get_course(db, material.course_id)
         teacher = get_account(db, job.account_id)
         assert course is not None and teacher is not None
+        asked = instruction if based_on is not None else material.instruction
         previous = (
             db.scalars(
                 select(ClassroomMaterialVersion).where(
@@ -373,7 +387,7 @@ def generation(
             db,
             GENERATE,
             teacher=teacher,
-            inputs=_inputs(db, course, topic, previous, instruction),
+            inputs=_inputs(db, course, topic, previous, asked),
             course_id=course.id,
         )
         # Claim the material for this result, once, unless it was discarded or asked again
@@ -402,7 +416,7 @@ def generation(
                     course,
                     content,
                     previous=previous,
-                    instruction=instruction,
+                    instruction=asked,
                     author_id=teacher.id,
                     generation_id=generation_id,
                     now=now,
