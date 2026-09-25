@@ -518,22 +518,41 @@ def test_submitting_is_for_feedback_at_the_end(teacher, course):
 # Solutions follow the release
 
 
-def test_solutions_are_never_served_when_the_release_hides_them(teacher, course):
+def test_a_release_hiding_solutions_withholds_them_from_wrong_answers_only(teacher, course):
     at_the_end = released(teacher, course, feedback_mode="at_the_end", show_solutions=False)
     immediate = released(teacher, course, show_solutions=False)
     as_student(teacher)
 
-    submitted = outcomes(submit(teacher, started(teacher, at_the_end)["id"], WRONG))
+    submitted = outcomes(
+        submit(teacher, started(teacher, at_the_end)["id"], {**WRONG, "gaps": RIGHT["gaps"]})
+    )
     attempt_id = started(teacher, immediate)["id"]
     answer(teacher, attempt_id, "hablar", WRONG["hablar"])
     last = answer(teacher, attempt_id, "hablar", WRONG["hablar"]).json()
     right = answer(teacher, attempt_id, "gaps", RIGHT["gaps"]).json()
 
-    assert {outcome["solution"] for outcome in submitted.values()} == {None}
+    # A right answer's solution gives nothing away, and its explanation teaches.
+    assert submitted["gaps"]["solution"]["gaps"] == [{"id": "g1", "answer": "soy"}]
+    assert right["solution"]["gaps"] == [{"id": "g1", "answer": "soy"}]
+    assert {submitted[key]["solution"] for key in CLOSED if key != "gaps"} == {None}
     assert last["solution"] is None
-    assert right["solution"] is None
     tries = attempt(teacher, attempt_id)["first"]["answers"]
-    assert {t["result"]["solution"] for key in tries for t in tries[key]["tries"]} == {None}
+    assert [t["result"]["solution"] for t in tries["hablar"]["tries"]] == [None, None]
+    assert tries["gaps"]["tries"][0]["result"]["solution"] == right["solution"]
+
+
+def test_a_right_answer_comes_with_its_explanation_when_solutions_are_hidden(teacher, course):
+    release_id = released(teacher, course, show_solutions=False)
+    as_student(teacher)
+    attempt_id = started(teacher, release_id)["id"]
+
+    right = answer(teacher, attempt_id, "hablar", RIGHT["hablar"]).json()
+
+    assert right["solution"] == {
+        "type": "multiple_choice",
+        "option_id": "a",
+        "explanation": "It is *hablé*.",
+    }
 
 
 # The due date

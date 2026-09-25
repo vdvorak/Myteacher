@@ -284,11 +284,13 @@ def tries_of(db: InstanceSession, attempt: Attempt, round: Round) -> dict[str, l
 
 
 def served(released: MaterialRelease, row: Assessment) -> AssessmentOutcome:
-    """The outcome as the student gets it: the solution only where the release shows solutions,
-    and with immediate feedback only once the exercise is done with."""
+    """The outcome as the student gets it. A right answer always comes with its solution, which
+    gives nothing away and whose explanation teaches. A wrong answer's solution comes only where
+    the release shows solutions, and with immediate feedback only once its tries are used up."""
     outcome = dict(row.outcome)
-    reveal = released.show_solutions and (
-        released.feedback_mode == "at_the_end" or bool(row.correct) or row.number >= MAX_TRIES
+    reveal = bool(row.correct) or (
+        released.show_solutions
+        and (released.feedback_mode == "at_the_end" or row.number >= MAX_TRIES)
     )
     if "solution" in outcome and not reveal:
         outcome["solution"] = None
