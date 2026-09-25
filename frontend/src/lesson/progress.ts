@@ -112,6 +112,15 @@ export function failedExercises(round: RoundProgress): string[] {
     .map((exercise) => exercise.id)
 }
 
+/** Closed exercises that come back in the second round: every one not right on its first try.
+ * An answer made right after the hint is weaker retrieval, so it gets another go too. */
+export function exercisesToRepeat(round: RoundProgress): string[] {
+  return round.exercises
+    .filter((exercise) => !isOpen(exercise))
+    .filter((exercise) => !isCorrect(exerciseProgress(round, exercise.id).tries[0]?.result))
+    .map((exercise) => exercise.id)
+}
+
 /** Exercises still to answer before submitting at the end. An open exercise may be left empty,
  * but a started one must be within its length limits. */
 export function unanswered(round: RoundProgress): number {
@@ -130,7 +139,7 @@ export function scoredExercises(round: RoundProgress): Exercise[] {
 
 export function lessonFinished(mode: FeedbackMode, progress: LessonProgress): boolean {
   if (!roundComplete(mode, progress.first)) return false
-  if (failedExercises(progress.first).length === 0) return true
+  if (exercisesToRepeat(progress.first).length === 0) return true
   return progress.second !== null && roundComplete(mode, progress.second)
 }
 

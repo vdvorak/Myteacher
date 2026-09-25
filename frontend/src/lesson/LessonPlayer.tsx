@@ -10,6 +10,7 @@ import {
   clearProgress,
   exerciseProgress,
   exerciseStatus,
+  exercisesToRepeat,
   failedExercises,
   isComplete,
   lessonExercises,
@@ -125,7 +126,7 @@ export function LessonPlayer(props: LessonPlayerProps) {
 
   function startSecondRound() {
     void track('second-round', async () => {
-      const repeats = await props.api.secondRound(failedExercises(progress().first), props.seed)
+      const repeats = await props.api.secondRound(exercisesToRepeat(progress().first), props.seed)
       setProgress((current) => ({
         ...current,
         second: newRound(repeats.exercises.filter(isRendered)),

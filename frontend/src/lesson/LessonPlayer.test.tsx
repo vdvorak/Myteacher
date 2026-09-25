@@ -207,6 +207,25 @@ describe('second round', () => {
     expect(api.secondRound).toHaveBeenCalledTimes(1)
   })
 
+  it('repeats an exercise that was right only on the retry, still counting it right', async () => {
+    const { user, api } = play(sampleLesson, 'seed-a')
+    await answer(user, /Madrid/, 'es')
+    await confirm(user, /Madrid/)
+    await answer(user, /Madrid/, 'está')
+    await confirm(user, /Madrid/)
+    await answer(user, /Nosotros/, 'somos')
+    await confirm(user, /Nosotros/)
+
+    expect(await screen.findByText(/not right on the first try/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Start the second round' }))
+
+    expect(api.secondRound).toHaveBeenCalledWith(['location'], 'seed-a')
+    const round = await screen.findByRole('region', { name: 'Second round' })
+    await user.click(within(round).getByRole('radio', { name: 'está' }))
+    await user.click(within(round).getByRole('button', { name: 'Confirm' }))
+    expect(await screen.findByText('2 of 2 right in the first pass.')).toBeInTheDocument()
+  })
+
   it('has no second round when nothing failed', async () => {
     const { user, api } = play()
 
