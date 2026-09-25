@@ -5,6 +5,7 @@ import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
 import { stateNames, TeachersOnly } from '../students/StudentsPage'
 import type { CourseRun, RosterStudent } from './api'
+import { ReleasesSection } from './ReleasesSection'
 
 /** One run, seen by its teacher: the roster, and enrolling classes and students. */
 export function RunPage() {
@@ -107,6 +108,8 @@ function RunDetail() {
                 </button>
               </div>
             </form>
+
+            <ReleasesSection run={current()} />
 
             <h2>{t('runs.roster')}</h2>
             <p class="settings-note">{t('runs.rosterNote')}</p>

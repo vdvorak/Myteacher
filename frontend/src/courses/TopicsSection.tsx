@@ -8,16 +8,17 @@ import { ConceptMapRefused, type MapStatus } from '../concepts/api'
 import { finished } from '../jobs/api'
 import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
 import { ApiError } from '../lesson/api'
-import type { Topic } from './api'
+import { TopicReleased, type Topic } from './api'
 import './courses.css'
 
-type Problem = 'failed' | 'changedMeanwhile' | 'loadFailed' | 'nameRequired' | null
+type Problem = 'failed' | 'changedMeanwhile' | 'loadFailed' | 'nameRequired' | 'released' | null
 
 const problemMessages: Record<NonNullable<Problem>, MessageKey> = {
   failed: 'courses.saveFailed',
   changedMeanwhile: 'topics.changedMeanwhile',
   loadFailed: 'topics.loadFailed',
   nameRequired: 'topics.nameRequired',
+  released: 'topics.released',
 }
 
 /** The topics of a course in teaching order: changed by editors, read by viewers. */
@@ -92,7 +93,9 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
       show(await action())
       return true
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
+      if (error instanceof TopicReleased) {
+        setProblem('released')
+      } else if (error instanceof ApiError && error.status === 409) {
         // Someone else added, removed or moved a topic meanwhile: show their list.
         setProblem('changedMeanwhile')
         await refetch()

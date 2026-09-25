@@ -8,7 +8,7 @@ import type { Account } from '../auth/api'
 import { fakeAuthApi, invitedTeacher } from '../auth/testing'
 import { ApiError } from '../lesson/api'
 import { withI18n } from '../lesson/testing'
-import type { Course, Topic } from './api'
+import { TopicReleased, type Course, type Topic } from './api'
 import { fakeCoursesApi, spanish, topicFixture } from './testing'
 
 const teacher: Account = { ...invitedTeacher, language: 'en' }
@@ -137,6 +137,20 @@ describe('topics of a course', () => {
     expect(courses.removeTopic).toHaveBeenCalledWith(1, 1)
     await screen.findByRole('list', { name: 'Topics' })
     expect(await shownNames()).toEqual(['Pretérito indefinido', 'Imperfecto'])
+  })
+
+  it('keeps a topic whose material was released to students', async () => {
+    const { courses } = renderCourse()
+    courses.removeTopic.mockRejectedValueOnce(new TopicReleased())
+    const user = userEvent.setup()
+
+    await user.click(within(await item('Presente')).getByRole('button', { name: 'Remove' }))
+    await user.click(within(await item('Presente')).getByRole('button', { name: 'Remove Presente for good' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Material of this topic was released to students, so the topic stays.',
+    )
+    expect(await shownNames()).toEqual(['Presente', 'Pretérito indefinido', 'Imperfecto'])
   })
 
   it('reloads the topics when someone else changed them meanwhile', async () => {

@@ -238,6 +238,7 @@ def test_this_slice_registers_its_student_data():
         "guardian_consent",
         "class_membership",
         "run_student",
+        "release_student",
     } <= tables
 
 

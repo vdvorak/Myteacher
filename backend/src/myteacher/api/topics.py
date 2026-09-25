@@ -6,6 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy.exc import IntegrityError
 
 from myteacher.accounts.models import Account
 from myteacher.api.courses import course_for, editable_course
@@ -15,6 +16,7 @@ from myteacher.courses.models import Course, Topic
 from myteacher.courses.topic_interview import AdditionText
 from myteacher.persistence import InstanceSession
 from myteacher.policy import is_teacher
+from myteacher.runs import releases
 
 router = APIRouter(prefix="/courses/{course_id}/topics", tags=["topics"])
 Teacher = Annotated[Account, requires(is_teacher)]
@@ -177,8 +179,19 @@ def answer_diagnostic_offer(
     return _listed(db, course)
 
 
-@router.delete("/{topic_id}")
+@router.delete(
+    "/{topic_id}", responses={409: {"description": "Material of the topic was released"}}
+)
 def remove_topic(course_id: int, topic_id: int, db: Db, actor: Teacher) -> list[TopicOut]:
     course = editable_course(db, actor, course_id)
-    topics.remove_topic(db, course, _topic(db, course, topic_id))
+    topic = _topic(db, course, topic_id)
+    # Released versions never change, so the material they come from has to stay. The foreign
+    # keys catch a release that landed after the check.
+    if releases.topic_released(db, topic):
+        raise HTTPException(status_code=409, detail="topic_released")
+    try:
+        with db.begin_nested():
+            topics.remove_topic(db, course, topic)
+    except IntegrityError:
+        raise HTTPException(status_code=409, detail="topic_released") from None
     return _listed(db, course)

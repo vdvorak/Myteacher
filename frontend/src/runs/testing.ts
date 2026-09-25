@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 import { ApiError } from '../lesson/api'
 import type { Student } from '../students/api'
 import { jana, petr } from '../students/testing'
-import type { CourseRun, RunsApi } from './api'
+import { ReleaseRefused, type CourseRun, type NewRelease, type ReleasableMaterial, type Release, type RunsApi } from './api'
 
 interface StoredRun {
   id: number
@@ -27,9 +27,14 @@ export function fakeRunsApi(
     classes?: StoredClass[]
     students?: Student[]
     courseNames?: Record<number, string>
+    /** The releasable material of every run. */
+    materials?: ReleasableMaterial[]
+    releases?: Record<number, Release[]>
   } = {},
 ) {
   let runs = options.runs ?? []
+  const materials = options.materials ?? []
+  const releases: Record<number, Release[]> = { ...options.releases }
   const classes = options.classes ?? [{ id: 1, name: '2.B 2026/27', memberIds: [jana.id] }]
   const students = options.students ?? [jana, petr]
   const find = (id: number) => {
@@ -96,6 +101,39 @@ export function fakeRunsApi(
     unenrolStudent: vi.fn(async (id: number, studentId: number) => {
       const stored = find(id)
       return store({ ...stored, studentIds: stored.studentIds.filter((s) => s !== studentId) })
+    }),
+    materials: vi.fn(async (id: number) => {
+      find(id)
+      return materials.map((m) => ({ ...m, versions: [...m.versions], target_student_ids: [...m.target_student_ids] }))
+    }),
+    releases: vi.fn(async (id: number) => {
+      find(id)
+      return (releases[id] ?? []).map((r) => ({ ...r, students: [...r.students] }))
+    }),
+    release: vi.fn(async (id: number, release: NewRelease) => {
+      const roster = resolve(find(id)).roster
+      const material = materials.find((m) => m.id === release.material_id)
+      if (!material) throw new ReleaseRefused('unknown_material')
+      if (!material.versions.includes(release.version)) throw new ReleaseRefused('unknown_version')
+      const chosen = roster.filter((s) => release.student_ids?.includes(s.id))
+      if (release.audience === 'chosen' && (chosen.length === 0 || chosen.length !== release.student_ids?.length)) {
+        throw new ReleaseRefused('not_in_run')
+      }
+      const { material_id, version, audience, student_ids: _, ...settings } = release
+      const stored: Release = {
+        id: 300 + Object.values(releases).flat().length,
+        material_id,
+        title: material.title,
+        topic: material.topic,
+        version,
+        audience,
+        students: chosen.map(({ id, name }) => ({ id, name })),
+        released_by_id: 2,
+        released_at: '2026-09-25T08:00:00Z',
+        ...settings,
+      }
+      releases[id] = [...(releases[id] ?? []), stored]
+      return { ...stored, students: [...stored.students] }
     }),
   } satisfies RunsApi
 }

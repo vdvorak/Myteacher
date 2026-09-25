@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../lesson/api'
-import { httpRunsApi } from './api'
+import { defaultSettings, httpRunsApi, ReleaseRefused } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -35,6 +35,15 @@ describe('runs over HTTP', () => {
       await call()
       expect(sent(fetch)).toMatchObject({ url, method })
     }
+  })
+
+  it('turns a known refusal of a release into its reason', async () => {
+    const body = { material_id: 4, version: 1, audience: 'run' as const, student_ids: null, ...defaultSettings }
+    vi.stubGlobal('fetch', answer(422, { detail: 'not_in_run' }))
+    await expect(httpRunsApi.release(7, body)).rejects.toEqual(new ReleaseRefused('not_in_run'))
+
+    vi.stubGlobal('fetch', answer(422, { detail: [{ msg: 'invalid' }] }))
+    await expect(httpRunsApi.release(7, body)).rejects.toEqual(new ApiError(422))
   })
 
   it('turns a refusal into an error with its status', async () => {

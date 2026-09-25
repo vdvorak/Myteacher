@@ -172,6 +172,9 @@ export type TopicChange = Partial<Pick<Topic, 'name' | 'diagnostic_wanted'>> & {
 /** A type would be both preferred and forbidden. */
 export class TypeConflict extends Error {}
 
+/** Material of the topic was released to students, so the topic stays. */
+export class TopicReleased extends Error {}
+
 export interface CoursesApi {
   list(): Promise<CourseSummary[]>
   get(id: number): Promise<Course>
@@ -262,7 +265,11 @@ export const httpCoursesApi: CoursesApi = {
   addTopic: async (id, name) => json(await send('POST', topicsUrl(id), { name })),
   changeTopic: async (id, topicId, change) => json(await send('PATCH', `${topicsUrl(id)}/${topicId}`, change)),
   reorderTopics: async (id, topicIds) => json(await send('PUT', `${topicsUrl(id)}/order`, { topic_ids: topicIds })),
-  removeTopic: async (id, topicId) => json(await send('DELETE', `${topicsUrl(id)}/${topicId}`)),
+  removeTopic: async (id, topicId) => {
+    const response = await send('DELETE', `${topicsUrl(id)}/${topicId}`)
+    if (response.status === 409 && (await response.clone().json()).detail === 'topic_released') throw new TopicReleased()
+    return json(response)
+  },
   answerDiagnosticOffer: async (id, topicId, accept) =>
     json(await send('POST', `${topicsUrl(id)}/${topicId}/diagnostic-offer`, { accept })),
   topicInterview: async (id, topicId) => json(await fetch(topicInterviewUrl(id, topicId))),
