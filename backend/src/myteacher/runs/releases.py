@@ -147,6 +147,21 @@ def releases_of(db: InstanceSession, run: CourseRun) -> list[MaterialRelease]:
     )
 
 
+def latest_releases(
+    db: InstanceSession, runs: list[CourseRun]
+) -> dict[int, tuple[MaterialRelease, str]]:
+    """Each run's last release that was not retracted, with the title of the version released."""
+    ids = [run.id for run in runs]
+    found = db.execute(
+        select(MaterialRelease, ClassroomMaterialVersion.lesson)
+        .join(ClassroomMaterialVersion, ClassroomMaterialVersion.id == MaterialRelease.version_id)
+        .where(MaterialRelease.run_id.in_(ids), MaterialRelease.retracted_at.is_(None))
+        .order_by(MaterialRelease.released_at, MaterialRelease.id)
+    )
+    # Later rows win, so each run keeps its last release.
+    return {released.run_id: (released, lesson["title"]) for released, lesson in found}
+
+
 def get_release(db: InstanceSession, run: CourseRun, release_id: int) -> MaterialRelease | None:
     return db.scalars(
         select(MaterialRelease).where(

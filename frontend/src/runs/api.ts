@@ -11,6 +11,16 @@ export interface RunSummary {
   roster_size: number
 }
 
+/** A run the teacher teaches, as listed across courses. */
+export interface TaughtRun {
+  id: number
+  name: string
+  course: { id: number; name: string }
+  roster_size: number
+  /** The last release not retracted; null before the first. */
+  latest_release: { id: number; title: string; released_at: string } | null
+}
+
 export type EnrolledStudent = Pick<Student, 'id' | 'name' | 'email' | 'state'>
 
 export interface RosterStudent {
@@ -181,6 +191,8 @@ async function released(response: Response): Promise<Release> {
 
 export interface RunsApi {
   list(courseId: number): Promise<RunSummary[]>
+  /** Every run the teacher teaches, across courses. */
+  taught(): Promise<TaughtRun[]>
   start(courseId: number, name: string): Promise<CourseRun>
   get(id: number): Promise<CourseRun>
   rename(id: number, name: string): Promise<CourseRun>
@@ -225,6 +237,7 @@ const studentUrl = (id: number, studentId: number) => `/api/runs/${id}/students/
 
 export const httpRunsApi: RunsApi = {
   list: async (courseId) => json(await fetch(`/api/courses/${courseId}/runs`)),
+  taught: async () => json(await fetch('/api/runs')),
   start: async (courseId, name) => json(await send('POST', `/api/courses/${courseId}/runs`, { name })),
   get: async (id) => json(await fetch(`/api/runs/${id}`)),
   rename: async (id, name) => json(await send('PATCH', `/api/runs/${id}`, { name })),

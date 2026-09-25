@@ -46,6 +46,11 @@ def runs_of(db: InstanceSession, course_id: int, teacher: Account) -> list[Cours
     )
 
 
+def runs_taught_by(db: InstanceSession, teacher: Account) -> list[CourseRun]:
+    """Every run the teacher teaches, across courses."""
+    return list(db.scalars(select(CourseRun).where(CourseRun.teacher_id == teacher.id)))
+
+
 def enrolled_classes(db: InstanceSession, run: CourseRun) -> list[tuple[SchoolClass, int]]:
     """The run's classes by name, with how many students are in each now."""
     counts = (

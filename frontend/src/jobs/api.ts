@@ -33,10 +33,19 @@ export interface Job {
   raw_output: string | null
 }
 
+/** Assistant work the teacher started lately, with where its result is. */
+export interface RecentJob extends Job {
+  course_name: string | null
+  place: { course_id: number | null; topic_id: number | null; run_id: number | null; release_id: number | null }
+  created_at: string
+}
+
 export const finished = (job: Job) => job.state === 'succeeded' || job.state === 'failed'
 
 export interface JobsApi {
   get(id: number): Promise<Job>
+  /** What the teacher started in the last day, the newest first. */
+  recent(): Promise<RecentJob[]>
   /** How long to wait between two polls of a running job. */
   pollMs: number
 }
@@ -46,6 +55,11 @@ export const httpJobsApi: JobsApi = {
     const response = await fetch(`/api/jobs/${id}`)
     if (!response.ok) throw new ApiError(response.status)
     return (await response.json()) as Job
+  },
+  recent: async () => {
+    const response = await fetch('/api/jobs')
+    if (!response.ok) throw new ApiError(response.status)
+    return (await response.json()) as RecentJob[]
   },
   pollMs: 1500,
 }

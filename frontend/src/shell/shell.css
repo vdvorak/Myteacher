@@ -509,3 +509,79 @@
 .step-heading h2 {
   margin: 0;
 }
+
+.nav-count {
+  min-width: var(--space-6);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  text-align: center;
+}
+
+/* The assistant's work in the top bar. */
+.assistant-menu .disclosure-button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-pill);
+}
+
+.assistant-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.assistant-dot[data-running='true'] {
+  background: var(--color-accent);
+}
+
+.assistant-jobs {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assistant-jobs li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Notices of work that ended, at the corner of the screen. */
+.notices {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 25;
+  display: grid;
+  gap: var(--space-2);
+  max-width: var(--content-width);
+}
+
+.notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-left: calc(var(--border-width) * 4) solid var(--color-correct);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.notice[data-tone='failed'] {
+  border-left-color: var(--color-incorrect);
+}
+
+.notice p {
+  margin: 0;
+}

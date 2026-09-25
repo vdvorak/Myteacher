@@ -97,7 +97,7 @@ describe('teacher navigation', () => {
     expect(within(crumbs).getByRole('link', { name: 'Classes and students' })).toHaveAttribute('href', '/classes')
   })
 
-  it('keeps a place for course runs until they are listed', async () => {
+  it('opens the course runs, pointing to the courses while there is none', async () => {
     renderApp('/runs')
 
     expect(await screen.findByRole('heading', { name: 'Course runs' })).toBeInTheDocument()

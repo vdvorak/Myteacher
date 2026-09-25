@@ -3,6 +3,7 @@ import { createSignal, onCleanup, onMount, Show } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
+import { noticeJobs } from '../shell/Assistant'
 import { finished, type Job, type JobFailure } from './api'
 import './jobs.css'
 
@@ -80,6 +81,8 @@ export function JobStatus(props: {
   }
 
   onMount(() => {
+    // The top bar's indicator follows the work a page shows.
+    noticeJobs()
     if (finished(job())) props.onFinished(job())
     else timer = setTimeout(poll, api.pollMs)
   })

@@ -112,6 +112,21 @@ export function fakeRunsApi(
         .sort(byName)
         .map((r) => ({ id: r.id, name: r.name, roster_size: resolve(r).roster.length })),
     ),
+    taught: vi.fn(async () =>
+      runs
+        .map((r) => {
+          const run = resolve(r)
+          const latest = (releases[r.id] ?? []).filter((released) => !released.retracted_at).at(-1)
+          return {
+            id: run.id,
+            name: run.name,
+            course: run.course,
+            roster_size: run.roster.length,
+            latest_release: latest ? { id: latest.id, title: latest.title, released_at: latest.released_at } : null,
+          }
+        })
+        .sort((a, b) => a.course.name.localeCompare(b.course.name) || a.name.localeCompare(b.name)),
+    ),
     start: vi.fn(async (courseId: number, name: string) =>
       store({ id: 50 + runs.length, courseId, name: name.trim(), classIds: [], studentIds: [] }),
     ),

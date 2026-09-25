@@ -23,7 +23,7 @@ from myteacher.api.courses import course_for, editable_course
 from myteacher.api.deps import Db, Now, requires
 from myteacher.courses import materials
 from myteacher.courses import service as courses
-from myteacher.courses.models import ClassroomMaterial, ClassroomMaterialVersion, Topic
+from myteacher.courses.models import ClassroomMaterial, ClassroomMaterialVersion, Course, Topic
 from myteacher.lesson.schema import FeedbackMode
 from myteacher.persistence import InstanceSession
 from myteacher.policy import can_teach_run, is_teacher
@@ -46,6 +46,25 @@ class RunSummary(BaseModel):
 class CourseRef(BaseModel):
     id: int
     name: str
+
+
+class LatestRelease(BaseModel):
+    id: int
+    title: str
+    released_at: datetime
+
+    @field_serializer("released_at")
+    def _utc(self, at: datetime) -> str:
+        return at.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class TaughtRun(BaseModel):
+    id: int
+    name: str
+    course: CourseRef
+    roster_size: int
+    # The last release not retracted; None before the first.
+    latest_release: LatestRelease | None
 
 
 class EnrolledStudent(BaseModel):
@@ -206,6 +225,35 @@ def list_runs(course_id: int, db: Db, actor: Teacher) -> list[RunSummary]:
     found = runs.runs_of(db, course.id, actor)
     sizes = runs.roster_sizes(db, found)
     return [RunSummary(id=run.id, name=run.name, roster_size=sizes[run.id]) for run in found]
+
+
+@router.get("/runs")
+def list_taught_runs(db: Db, actor: Teacher) -> list[TaughtRun]:
+    """Every run the actor teaches, across courses, by course and then by name; a run of a
+    course they can no longer see is theirs no longer."""
+    taught = runs.runs_taught_by(db, actor)
+    course_of = {run.id: db.get_one(Course, run.course_id) for run in taught}
+    found = [run for run in taught if can_teach_run(actor, run, course_of[run.id])]
+    sizes = runs.roster_sizes(db, found)
+    latest = releases.latest_releases(db, found)
+
+    def latest_of(run: CourseRun) -> LatestRelease | None:
+        if run.id not in latest:
+            return None
+        released, title = latest[run.id]
+        return LatestRelease(id=released.id, title=title, released_at=released.released_at)
+
+    listed = [
+        TaughtRun(
+            id=run.id,
+            name=run.name,
+            course=CourseRef(id=run.course_id, name=course_of[run.id].name),
+            roster_size=sizes[run.id],
+            latest_release=latest_of(run),
+        )
+        for run in found
+    ]
+    return sorted(listed, key=lambda run: (run.course.name, run.name, run.id))
 
 
 @router.post("/courses/{course_id}/runs", status_code=201)

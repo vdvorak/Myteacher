@@ -1,5 +1,6 @@
 import { A, Navigate, useLocation, type RouteSectionProps } from '@solidjs/router'
-import { createSignal, For, Match, Show, Switch, type JSX } from 'solid-js'
+import { createEffect, createResource, createSignal, For, Match, on, Show, Switch, type JSX } from 'solid-js'
+import { useApi } from '../api/context'
 import type { Account } from '../auth/api'
 import { useSession } from '../auth/session'
 import { useI18n } from '../i18n/i18n'
@@ -7,6 +8,7 @@ import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import type { Locale, MessageKey } from '../i18n/messages'
 import { useChooseLanguage } from '../settings/language'
 import { themes, useChooseTheme, type Theme } from '../settings/theme'
+import { AssistantIndicator } from './Assistant'
 import { Breadcrumbs, BreadcrumbsProvider } from './breadcrumbs'
 import { Disclosure } from './Disclosure'
 import './shell.css'
@@ -87,7 +89,17 @@ function TeacherFrame(props: { account: Account; attempt: Attempt; alerts: JSX.E
     menuButton.focus()
   }
   const onPeoplePages = () => /^\/(classes|students)(\/|$)/.test(location.pathname)
-  const link = (href: string, label: MessageKey, extra: { end?: boolean; active?: boolean } = {}) => (
+  const api = useApi().runs
+  // How many runs the teacher teaches, beside the section in the navigation.
+  const [taught, { refetch: recount }] = createResource(() => api.taught())
+  // A run started or left elsewhere shows on the next page.
+  createEffect(on(() => location.pathname, () => void recount(), { defer: true }))
+  const runCount = () => (taught.error ? undefined : taught()?.length)
+  const link = (
+    href: string,
+    label: MessageKey,
+    extra: { end?: boolean; active?: boolean; count?: number } = {},
+  ) => (
     <li>
       <A
         href={href}
@@ -96,6 +108,9 @@ function TeacherFrame(props: { account: Account; attempt: Attempt; alerts: JSX.E
         onClick={() => setNavOpen(false)}
       >
         {t(label)}
+        <Show when={extra.count}>
+          <span class="nav-count">{extra.count}</span>
+        </Show>
       </A>
     </li>
   )
@@ -130,7 +145,7 @@ function TeacherFrame(props: { account: Account; attempt: Attempt; alerts: JSX.E
           {group(
             'nav.group.teaching',
             <>
-              {link('/runs', 'nav.runs')}
+              {link('/runs', 'nav.runs', { count: runCount() })}
               {reserved('nav.reviewQueue')}
               {reserved('nav.studentQuestions')}
             </>,
@@ -159,6 +174,7 @@ function TeacherFrame(props: { account: Account; attempt: Attempt; alerts: JSX.E
             {t('nav.menu')}
           </button>
           <Breadcrumbs />
+          <AssistantIndicator />
           <AccountMenu account={props.account} attempt={props.attempt} />
         </header>
         {props.alerts}
