@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from myteacher.accounts import service
-from myteacher.accounts.models import Account
+from myteacher.accounts.models import Account, Theme, theme_of
 from myteacher.api.deps import Actor, Db, ensure
 from myteacher.mail.templates import Language
 from myteacher.persistence import Instance, InstanceSession
@@ -17,6 +17,7 @@ DigestTime = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", examples
 
 class AccountSettings(BaseModel):
     language: Language | None
+    theme: Theme
     # None for students, who get no digest.
     digest_time: DigestTime | None
     digest_time_is_default: bool
@@ -28,15 +29,16 @@ class AccountSettingsChange(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     language: Language | None = None
+    theme: Theme | None = None
     digest_time: DigestTime | None = None
 
-    @field_validator("language")
+    @field_validator("language", "theme")
     @classmethod
-    def _language_cannot_be_unset(cls, language: Language | None) -> Language:
+    def _cannot_be_unset(cls, value: str | None) -> str:
         # Validators skip defaults, so this only refuses an explicit null.
-        if language is None:
-            raise ValueError("the language can be changed but not unset")
-        return language
+        if value is None:
+            raise ValueError("can be changed but not unset")
+        return value
 
 
 def _own_account(db: InstanceSession, actor: Account, account_id: int) -> Account:
@@ -50,11 +52,15 @@ def _own_account(db: InstanceSession, actor: Account, account_id: int) -> Accoun
 def _settings_of(db: InstanceSession, account: Account) -> AccountSettings:
     if not is_teacher(account):
         return AccountSettings(
-            language=account.language, digest_time=None, digest_time_is_default=False
+            language=account.language,
+            theme=theme_of(account),
+            digest_time=None,
+            digest_time_is_default=False,
         )
     default = db.get_one(Instance, db.instance_id).default_digest_time
     return AccountSettings(
         language=account.language,
+        theme=theme_of(account),
         digest_time=account.digest_time or default,
         digest_time_is_default=account.digest_time is None,
     )
@@ -75,6 +81,8 @@ def change_settings(
         ensure(is_teacher(account))
     if "language" in change.model_fields_set:
         account.language = change.language
+    if "theme" in change.model_fields_set:
+        account.theme = None if change.theme == "system" else change.theme
     if "digest_time" in change.model_fields_set:
         account.digest_time = change.digest_time
     return _settings_of(db, account)

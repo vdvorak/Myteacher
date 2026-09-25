@@ -8,6 +8,7 @@ export const admin: Account = {
   kind: 'teacher',
   roles: ['teacher', 'admin'],
   language: null,
+  theme: 'system',
 }
 
 export const invitedTeacher: Account = {
@@ -17,6 +18,7 @@ export const invitedTeacher: Account = {
   kind: 'teacher',
   roles: ['teacher'],
   language: 'cs',
+  theme: 'system',
 }
 
 export const student: Account = {
@@ -26,6 +28,7 @@ export const student: Account = {
   kind: 'student',
   roles: ['student'],
   language: 'en',
+  theme: 'system',
 }
 
 /** A stand-in for the auth endpoints with one account and its password. */

@@ -8,6 +8,8 @@ from myteacher import erasure
 from myteacher.persistence import Base, InstanceOwned, UTCDateTime
 
 AccountKind = Literal["teacher", "student"]
+# "system" follows the device's light or dark setting.
+Theme = Literal["light", "dark", "system"]
 
 
 class Account(InstanceOwned, Base):
@@ -29,11 +31,17 @@ class Account(InstanceOwned, Base):
     active: Mapped[bool] = mapped_column(default=True)
     # Interface language; None until chosen, and the interface follows the browser meanwhile.
     language: Mapped[str | None] = mapped_column(String(2))
+    # "light" or "dark"; None follows the device's setting.
+    theme: Mapped[str | None] = mapped_column(String(5))
     # "HH:MM" of the teacher's daily digest; None follows the instance default.
     digest_time: Mapped[str | None] = mapped_column(String(5))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
     # When an admin erased the student; the row stays, with placeholders, for statistics.
     erased_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+
+
+def theme_of(account: Account) -> Theme:
+    return account.theme or "system"  # type: ignore[return-value]
 
 
 class AuthSession(InstanceOwned, Base):
@@ -127,6 +135,7 @@ erasure.register(
             "email": lambda student_id: f"erased-{student_id}@erased.invalid",
             "password_hash": None,
             "language": None,
+            "theme": None,
             "digest_time": None,
             "is_minor": False,
             "active": False,

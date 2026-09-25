@@ -1,4 +1,5 @@
 import type { Locale } from '../i18n/messages'
+import type { Theme } from '../settings/theme'
 import { ApiError } from '../lesson/api'
 
 export interface Account {
@@ -10,6 +11,7 @@ export interface Account {
   roles: string[]
   /** Chosen interface language; null until chosen. */
   language: Locale | null
+  theme: Theme
 }
 
 /** The account on success, or why signing in was refused. */

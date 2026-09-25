@@ -8,7 +8,7 @@ from sqlalchemy import Engine
 
 from myteacher.accounts import invitations, resets, service
 from myteacher.accounts.invitations import InvitationState
-from myteacher.accounts.models import Account
+from myteacher.accounts.models import Account, Theme, theme_of
 from myteacher.accounts.passwords import MIN_PASSWORD_LENGTH
 from myteacher.api.deps import SESSION_COOKIE, Actor, AppSettings, Db, MailSender, Now
 from myteacher.mail import MailError, Sender
@@ -36,6 +36,7 @@ class Me(BaseModel):
     kind: Literal["teacher", "student"]
     roles: list[str]
     language: Language | None
+    theme: Theme
 
     @classmethod
     def of(cls, account: Account) -> "Me":
@@ -46,6 +47,7 @@ class Me(BaseModel):
             kind=account.kind,
             roles=roles(account),
             language=account.language,
+            theme=theme_of(account),
         )
 
 

@@ -1,8 +1,10 @@
 import type { Locale } from '../i18n/messages'
 import { ApiError } from '../lesson/api'
+import type { Theme } from './theme'
 
 export interface AccountSettings {
   language: Locale | null
+  theme: Theme
   /** Null for students, who get no digest. */
   digest_time: string | null
   digest_time_is_default: boolean
@@ -11,6 +13,7 @@ export interface AccountSettings {
 /** Only the fields present change; a null digest time returns to the instance default. */
 export interface AccountSettingsChange {
   language?: Locale
+  theme?: Theme
   digest_time?: string | null
 }
 

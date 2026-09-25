@@ -303,12 +303,23 @@ def test_a_student_changes_their_interface_language(teacher, sender):
     assert teacher.get("/api/auth/me").json()["language"] == "en"
 
 
+def test_a_student_chooses_a_theme(teacher, sender):
+    student = as_student(teacher, sender)
+    url = f"/api/accounts/{student['id']}/settings"
+
+    changed = teacher.patch(url, json={"theme": "dark"})
+
+    assert changed.status_code == 200
+    assert teacher.get("/api/auth/me").json()["theme"] == "dark"
+
+
 def test_a_student_has_no_digest_time(teacher, sender):
     student = as_student(teacher, sender)
     url = f"/api/accounts/{student['id']}/settings"
 
     assert teacher.get(url).json() == {
         "language": "cs",
+        "theme": "system",
         "digest_time": None,
         "digest_time_is_default": False,
     }

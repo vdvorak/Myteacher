@@ -309,3 +309,34 @@
   background: var(--color-incorrect-surface);
   color: var(--color-text);
 }
+
+/* A marked answer differs in more than colour: a symbol after the item, a dashed border on a field.
+ * The symbol is decoration (alternative text ''); the verdict and the labels say it in words. */
+.exercise-option[data-state='correct']::after,
+.cloze-gap[data-state='correct']::after,
+.matching-item[data-state='correct']::after,
+.ordering-token[data-state='correct']::after,
+.selection-token[data-state='correct']::after {
+  content: '✓';
+  content: '✓' / '';
+  margin-inline-start: var(--space-1);
+  font-weight: 700;
+  color: var(--color-correct);
+}
+
+.exercise-option[data-state='incorrect']::after,
+.cloze-gap[data-state='incorrect']::after,
+.matching-item[data-state='incorrect']::after,
+.ordering-token[data-state='incorrect']::after,
+.selection-token[data-state='incorrect']::after {
+  content: '✗';
+  content: '✗' / '';
+  margin-inline-start: var(--space-1);
+  font-weight: 700;
+  color: var(--color-incorrect);
+}
+
+.exercise-text-input[data-state='incorrect'],
+.cloze-gap-input[data-state='incorrect'] {
+  border-style: dashed;
+}

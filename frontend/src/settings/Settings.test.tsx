@@ -1,13 +1,14 @@
 import { createMemoryHistory } from '@solidjs/router'
 import { render, screen } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import type { Account } from '../auth/api'
 import { admin, fakeAuthApi } from '../auth/testing'
 import { withI18n } from '../lesson/testing'
 import { fakeSettingsApi } from './testing'
+import { THEME_KEY } from './theme'
 
 function renderApp(path: string, options: { signedIn?: Account; settings?: ReturnType<typeof fakeSettingsApi> } = {}) {
   const history = createMemoryHistory()
@@ -91,7 +92,13 @@ describe('teacher settings', () => {
     settings.change.mockImplementationOnce(
       (_id, change) =>
         new Promise((resolve) => {
-          finish = () => resolve({ language: change.language ?? null, digest_time: '07:00', digest_time_is_default: true })
+          finish = () =>
+            resolve({
+              language: change.language ?? null,
+              theme: 'system',
+              digest_time: '07:00',
+              digest_time_is_default: true,
+            })
         }),
     )
     renderApp('/', { signedIn: admin, settings })
@@ -114,5 +121,71 @@ describe('teacher settings', () => {
     await user.click(await screen.findByRole('link', { name: 'Settings' }))
 
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument()
+  })
+})
+
+describe('theme', () => {
+  const root = document.documentElement
+
+  afterEach(() => {
+    delete root.dataset.theme
+    localStorage.clear()
+  })
+
+  it('applies the account theme once signed in and remembers it for the next page load', async () => {
+    renderApp('/', { signedIn: { ...admin, theme: 'dark' } })
+
+    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+    expect(root.dataset.theme).toBe('dark')
+    expect(localStorage.getItem(THEME_KEY)).toBe('dark')
+  })
+
+  it('switches the theme at once and stores it on the account', async () => {
+    const { settings } = renderApp('/settings', { signedIn: admin })
+    const user = userEvent.setup()
+
+    await user.selectOptions(await screen.findByLabelText('Theme'), 'dark')
+
+    expect(root.dataset.theme).toBe('dark')
+    expect(settings.change).toHaveBeenCalledWith(admin.id, { theme: 'dark' })
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved.')
+    expect(screen.getByLabelText('Theme')).toHaveValue('dark')
+  })
+
+  it('follows the device again when the teacher chooses the system theme', async () => {
+    const settings = fakeSettingsApi({ theme: 'light' })
+    renderApp('/settings', { signedIn: { ...admin, theme: 'light' }, settings })
+    const user = userEvent.setup()
+    expect(await screen.findByLabelText('Theme')).toHaveValue('light')
+
+    await user.selectOptions(screen.getByLabelText('Theme'), 'system')
+
+    expect(root.dataset.theme).toBeUndefined()
+    expect(localStorage.getItem(THEME_KEY)).toBeNull()
+    expect(settings.change).toHaveBeenCalledWith(admin.id, { theme: 'system' })
+  })
+
+  it('returns a shared device to the system theme when the account signs out', async () => {
+    renderApp('/', { signedIn: { ...admin, theme: 'dark' } })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Sign out' }))
+
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
+    expect(root.dataset.theme).toBeUndefined()
+    expect(localStorage.getItem(THEME_KEY)).toBeNull()
+  })
+
+  it('puts back the account theme when saving it fails', async () => {
+    const settings = fakeSettingsApi()
+    settings.change.mockRejectedValueOnce(new Error('offline'))
+    renderApp('/settings', { signedIn: admin, settings })
+    const user = userEvent.setup()
+
+    await user.selectOptions(await screen.findByLabelText('Theme'), 'dark')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Saving failed')
+    expect(root.dataset.theme).toBeUndefined()
+    expect(screen.getByLabelText('Theme')).toHaveValue('system')
   })
 })

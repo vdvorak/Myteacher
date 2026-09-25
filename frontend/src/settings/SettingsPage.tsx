@@ -5,16 +5,19 @@ import { useI18n } from '../i18n/i18n'
 import { localeNames, locales, type Locale } from '../i18n/messages'
 import '../admin/admin.css'
 import { useChooseLanguage } from './language'
+import { themes, useChooseTheme, type Theme } from './theme'
 import { ProviderKeys } from './ProviderKeys'
 
 type Outcome = 'saved' | 'failed' | null
 
-/** The signed-in account's own settings: interface language, and a teacher's digest time. */
+/** The signed-in account's own settings: interface language, theme, and a teacher's digest time. */
 export function SettingsPage() {
   const { t, locale } = useI18n()
   const session = useSession()
   const api = useApi().settings
   const chooseLanguage = useChooseLanguage()
+  const chooseTheme = useChooseTheme()
+  const theme = () => session.account()?.theme ?? 'system'
   const accountId = () => session.account()?.id
   const [settings, { mutate }] = createResource(accountId, (id) => api.read(id))
   const [digestTime, setDigestTime] = createSignal('')
@@ -63,6 +66,25 @@ export function SettingsPage() {
                   onChange={(event) => run(() => chooseLanguage(event.currentTarget.value as Locale))}
                 >
                   <For each={locales}>{(code) => <option value={code}>{localeNames[code]}</option>}</For>
+                </select>
+              </label>
+              <label>
+                {t('settings.theme')}
+                <select
+                  value={theme()}
+                  disabled={busy()}
+                  onChange={(event) => {
+                    const select = event.currentTarget
+                    void run(() =>
+                      chooseTheme(select.value as Theme).catch((error) => {
+                        // The choice did not stick: show the account's theme again.
+                        select.value = theme()
+                        throw error
+                      }),
+                    )
+                  }}
+                >
+                  <For each={themes}>{(option) => <option value={option}>{t(`settings.theme.${option}`)}</option>}</For>
                 </select>
               </label>
             </div>

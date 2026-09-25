@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
+  '@fontsource-variable/onest':
+    specifier: ^5.3.1
+    version: 5.3.1
   '@solidjs/router':
     specifier: ^1.0.0
     version: 1.0.0(solid-js@1.9.15)
@@ -334,6 +337,10 @@ packages:
       '@noble/hashes':
         optional: true
     dev: true
+
+  /@fontsource-variable/onest@5.3.1:
+    resolution: {integrity: sha512-xaaw6G4HDB2/RczsWLD/2bnib4ykmQlTlBUN3GOEOiyErilZukQWVJG95h9zwAy0i8KY+QzDa+COPfqhI72Acw==}
+    dev: false
 
   /@jridgewell/gen-mapping@0.3.13:
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}

@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Myteacher</title>
+    <script>
+      // The account's theme, remembered by the app, before anything is painted (src/settings/theme.ts).
+      try {
+        var theme = localStorage.getItem('myteacher.theme')
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -21,6 +21,7 @@ export function fakeSettingsApi(
   let credentials = options.credentials ?? []
   let stored: AccountSettings = {
     language: null,
+    theme: 'system',
     digest_time: '07:00',
     digest_time_is_default: true,
     ...initial,
@@ -30,6 +31,7 @@ export function fakeSettingsApi(
     change: vi.fn(async (_accountId: number, change: AccountSettingsChange) => {
       stored = { ...stored }
       if (change.language !== undefined) stored.language = change.language
+      if (change.theme !== undefined) stored.theme = change.theme
       if (change.digest_time !== undefined) {
         stored.digest_time = change.digest_time ?? '07:00'
         stored.digest_time_is_default = change.digest_time === null

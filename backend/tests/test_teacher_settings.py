@@ -27,8 +27,13 @@ def test_a_new_teacher_has_no_language_and_the_instance_default_digest_time(app_
 
     settings = app_client.get(settings_url(me["id"])).json()
 
-    assert settings == {"language": None, "digest_time": "07:00", "digest_time_is_default": True}
-    assert me["language"] is None
+    assert settings == {
+        "language": None,
+        "theme": "system",
+        "digest_time": "07:00",
+        "digest_time_is_default": True,
+    }
+    assert (me["language"], me["theme"]) == (None, "system")
 
 
 def test_the_language_is_stored_and_returned_at_sign_in_on_any_device(app_client, admin_settings):
@@ -43,6 +48,28 @@ def test_the_language_is_stored_and_returned_at_sign_in_on_any_device(app_client
     assert app_client.get("/api/auth/me").json()["language"] == "cs"
 
 
+def test_the_theme_is_stored_and_returned_at_sign_in_on_any_device(app_client):
+    me = sign_in(app_client).json()
+
+    response = app_client.patch(settings_url(me["id"]), json={"theme": "dark"})
+
+    assert response.status_code == 200
+    assert response.json()["theme"] == "dark"
+    app_client.cookies.clear()
+    assert sign_in(app_client).json()["theme"] == "dark"
+    assert app_client.get("/api/auth/me").json()["theme"] == "dark"
+
+
+def test_following_the_system_again_forgets_the_chosen_theme(app_client):
+    me = sign_in(app_client).json()
+    app_client.patch(settings_url(me["id"]), json={"theme": "light"})
+
+    settings = app_client.patch(settings_url(me["id"]), json={"theme": "system"}).json()
+
+    assert settings["theme"] == "system"
+    assert app_client.get("/api/auth/me").json()["theme"] == "system"
+
+
 def test_the_digest_time_is_stored_until_reset_to_the_default(app_client):
     me = sign_in(app_client).json()
 
@@ -51,7 +78,7 @@ def test_the_digest_time_is_stored_until_reset_to_the_default(app_client):
 
     assert set_time["digest_time"] == "18:30"
     assert set_time["digest_time_is_default"] is False
-    assert reset == {"language": None, "digest_time": "07:00", "digest_time_is_default": True}
+    assert (reset["digest_time"], reset["digest_time_is_default"]) == ("07:00", True)
 
 
 def test_changing_one_setting_keeps_the_other(app_client):
@@ -73,7 +100,9 @@ def test_changing_one_setting_keeps_the_other(app_client):
         {"digest_time": "noon"},
         {"language": "de"},
         {"language": None},
-        {"theme": "dark"},
+        {"theme": "blue"},
+        {"theme": None},
+        {"font": "large"},
     ],
 )
 def test_invalid_settings_are_rejected(app_client, change):

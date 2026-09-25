@@ -1,6 +1,7 @@
 import { createContext, createSignal, onMount, useContext, type ParentProps } from 'solid-js'
 import { useApi } from '../api/context'
 import { browserLocale, useI18n } from '../i18n/i18n'
+import { applyTheme } from '../settings/theme'
 import type { AcceptResult, Account, SignInResult } from './api'
 
 interface Session {
@@ -14,7 +15,7 @@ interface Session {
   acceptInvitation(token: string, password: string): Promise<AcceptResult>
   /** Set a new password through a reset link, which also signs in. */
   completeReset(token: string, password: string): Promise<AcceptResult>
-  /** Replace the signed-in account after it changed, for example its language. */
+  /** Replace the signed-in account after it changed, for example its language or theme. */
   updateAccount(account: Account): void
 }
 
@@ -30,6 +31,8 @@ export function SessionProvider(props: ParentProps) {
     const previous = account()
     if (next?.language) setLocale(next.language)
     else if (previous) setLocale(browserLocale())
+    // The theme likewise follows the account, and the device's setting without one.
+    applyTheme(next?.theme ?? 'system')
     setSignedIn(next)
   }
   const [loadFailed, setLoadFailed] = createSignal(false)
