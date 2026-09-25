@@ -2,7 +2,7 @@ import { useParams } from '@solidjs/router'
 import { createResource, Match, Show, Switch } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
-import { LanguageSwitch } from '../i18n/LanguageSwitch'
+import { useCourseTrail } from '../courses/trail'
 import { ApiError } from '../lesson/api'
 import { LessonPlayer } from '../lesson/LessonPlayer'
 import { AnswerKeyPage } from '../preview/AnswerKeyPage'
@@ -17,18 +17,20 @@ export function MaterialPreviewPage() {
   const ids = () => [Number(params.courseId), Number(params.topicId), Number(params.materialId)] as const
   const [material] = createResource(ids, ([courseId, topicId, materialId]) => api.get(courseId, topicId, materialId))
 
+  useCourseTrail(() => ({
+    courseId: Number(params.courseId),
+    topicId: Number(params.topicId),
+    page: (!material.error && material()?.title) || t('materials.previewHeading'),
+  }))
+
   return (
-    <div class="page">
-      <header class="page-header">
-        <span class="page-caption">{t('materials.previewHeading')}</span>
-        <LanguageSwitch />
-      </header>
+    <div class="preview-page">
       <div class="print-toolbar">
-        <button type="button" disabled={!material()?.lesson} onClick={() => window.print()}>
+        <button type="button" disabled={material.error !== undefined || !material()?.lesson} onClick={() => window.print()}>
           {t('print.print')}
         </button>
       </div>
-      <main>
+      <div>
         <Switch>
           <Match when={material.error}>
             <p role="alert">
@@ -55,7 +57,7 @@ export function MaterialPreviewPage() {
             <p>{t('preview.loading')}</p>
           </Match>
         </Switch>
-      </main>
+      </div>
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import { withI18n } from '../lesson/testing'
-import { fakeAuthApi } from './testing'
+import { fakeAuthApi, findAccountMenu } from './testing'
 
 function renderApp(path: string, auth = fakeAuthApi()) {
   const history = createMemoryHistory()
@@ -46,7 +46,7 @@ describe('password reset', () => {
     await user.type(screen.getByLabelText('Repeat the password'), 'a brand new password')
     await user.click(screen.getByRole('button', { name: 'Set password and sign in' }))
 
-    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+    expect(await findAccountMenu()).toBeInTheDocument()
     expect(auth.completeReset).toHaveBeenCalledWith('reset-token', 'a brand new password')
     expect(history.get()).toBe('/')
   })

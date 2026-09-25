@@ -16,6 +16,10 @@ import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import { cheatSheet, fakeDocumentsApi } from '../documents/testing'
 import { fakeMaterialsApi, serEstarMaterial } from '../materials/testing'
+import { admin, fakeAuthApi } from '../auth/testing'
+
+// Previews open inside the app, for a signed-in teacher.
+const signedIn = () => fakeAuthApi({ signedIn: { ...admin, roles: ['teacher'] } })
 
 interface Rule {
   selector: string
@@ -24,7 +28,7 @@ interface Rule {
 
 /** The rules inside every `@media print` block of the app's stylesheets. */
 function printRules(): Rule[] {
-  const sheets = ['preview/print.css', 'styles/tokens.css'].map((path) =>
+  const sheets = ['preview/print.css', 'styles/tokens.css', 'shell/shell.css'].map((path) =>
     readFileSync(join(import.meta.dirname, '..', path), 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''),
   )
   const rules: Rule[] = []
@@ -237,7 +241,7 @@ describe('printing a reference document', () => {
   it('hides the controls and keeps the footnotes and the unsourced marks', async () => {
     const history = createMemoryHistory()
     history.set({ value: '/preview/courses/1/topics/2/documents/31' })
-    const apis = fakeApis({ documents: fakeDocumentsApi({ documents: { 2: [cheatSheet] } }) })
+    const apis = fakeApis({ auth: signedIn(), documents: fakeDocumentsApi({ documents: { 2: [cheatSheet] } }) })
     render(withI18n(() => <App apis={apis} history={history} />, 'en'))
 
     await screen.findByRole('heading', { level: 1, name: 'Pretérito indefinido' })
@@ -256,7 +260,7 @@ describe('printing classroom material', () => {
   it('puts the answer key on a page of its own and hides the controls', async () => {
     const history = createMemoryHistory()
     history.set({ value: '/preview/courses/1/topics/2/materials/41' })
-    const apis = fakeApis({ materials: fakeMaterialsApi({ materials: { 2: [serEstarMaterial] } }) })
+    const apis = fakeApis({ auth: signedIn(), materials: fakeMaterialsApi({ materials: { 2: [serEstarMaterial] } }) })
     render(withI18n(() => <App apis={apis} history={history} />, 'en'))
 
     await screen.findByRole('heading', { level: 1, name: 'Ser, or estar?' })

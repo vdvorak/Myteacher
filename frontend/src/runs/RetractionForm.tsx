@@ -1,10 +1,18 @@
 import { createSignal, Show } from 'solid-js'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
+import { useConfirm } from '../shell/confirm'
 
-/** Asks for the reason the students are told, then retracts. */
-export function RetractionForm(props: { intro: MessageKey; action: MessageKey; onRetract: (reason: string) => Promise<void> }) {
+/** Asks for the reason the students are told, confirms, then retracts. */
+export function RetractionForm(props: {
+  intro: MessageKey
+  /** The confirmation's question. */
+  question: MessageKey
+  action: MessageKey
+  onRetract: (reason: string) => Promise<void>
+}) {
   const { t } = useI18n()
+  const confirm = useConfirm()
   const [reason, setReason] = createSignal('')
   const [busy, setBusy] = createSignal(false)
   const [failed, setFailed] = createSignal(false)
@@ -13,10 +21,14 @@ export function RetractionForm(props: { intro: MessageKey; action: MessageKey; o
     event.preventDefault()
     // `required` lets a reason of spaces through.
     if (reason().trim() === '') return
+    const told = reason().trim()
+    if (!(await confirm({ title: t(props.question), body: t('retraction.told', { reason: told }), action: t(props.action) }))) {
+      return
+    }
     setBusy(true)
     setFailed(false)
     try {
-      await props.onRetract(reason().trim())
+      await props.onRetract(told)
       setReason('')
     } catch {
       setFailed(true)
@@ -33,7 +45,7 @@ export function RetractionForm(props: { intro: MessageKey; action: MessageKey; o
         <input required maxLength={1000} value={reason()} onInput={(e) => setReason(e.currentTarget.value)} />
       </label>
       <div class="settings-actions">
-        <button type="submit" disabled={busy()}>
+        <button type="submit" class="button-danger" disabled={busy()}>
           {t(props.action)}
         </button>
       </div>

@@ -1,5 +1,6 @@
 import { createResource, createSignal, createUniqueId, For, Show } from 'solid-js'
 import { useApi } from '../api/context'
+import { useConfirm } from '../shell/confirm'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import { AccessConflict, courseRights, type AccessEntry, type AccessRefusal, type CourseRight } from './api'
@@ -171,37 +172,43 @@ function GrantForm(props: { busy: boolean; grant: (email: string, right: CourseR
   )
 }
 
-/** Giving the course away, confirmed in a second step because the owner may lose all access. */
+/** Giving the course away, confirmed first because the owner may lose all access. */
 function TransferForm(props: { courseId: number; onTransferred: (kept: CourseRight | null) => void }) {
   const { t } = useI18n()
   const api = useApi().courses
   const [email, setEmail] = createSignal('')
   const [kept, setKept] = createSignal<CourseRight | null>(null)
-  const [confirming, setConfirming] = createSignal(false)
   const [busy, setBusy] = createSignal(false)
   const [problem, setProblem] = createSignal<Problem | null>(null)
+  const confirm = useConfirm()
 
-  function ask(event: SubmitEvent) {
+  async function transfer(event: SubmitEvent) {
     event.preventDefault()
     setProblem(null)
-    if (email().trim() !== '') setConfirming(true)
-  }
-
-  async function transfer() {
+    const newOwner = email().trim()
+    if (newOwner === '') return
+    const confirmed = await confirm({
+      title: t('access.confirmHeading'),
+      body:
+        kept() === null
+          ? t('access.confirmNothing', { email: newOwner })
+          : t('access.confirmKeeping', { email: newOwner, right: t(accessNames[kept()!]) }),
+      action: t('access.confirmTransfer'),
+    })
+    if (!confirmed) return
     setBusy(true)
     try {
-      await api.transferOwnership(props.courseId, email().trim(), kept())
+      await api.transferOwnership(props.courseId, newOwner, kept())
       props.onTransferred(kept())
     } catch (error) {
       setProblem(error instanceof AccessConflict ? error.reason : 'failed')
-      setConfirming(false)
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <form class="settings-form" onSubmit={ask}>
+    <form class="settings-form" onSubmit={transfer}>
       <h3>{t('access.transferHeading')}</h3>
       <label>
         {t('access.newOwnerEmail')}
@@ -210,7 +217,7 @@ function TransferForm(props: { courseId: number; onTransferred: (kept: CourseRig
           inputMode="email"
           required
           maxLength={320}
-          disabled={confirming()}
+          disabled={busy()}
           value={email()}
           onInput={(e) => setEmail(e.currentTarget.value)}
         />
@@ -218,7 +225,7 @@ function TransferForm(props: { courseId: number; onTransferred: (kept: CourseRig
       <label>
         {t('access.youKeep')}
         <select
-          disabled={confirming()}
+          disabled={busy()}
           value={kept() ?? ''}
           onChange={(e) => setKept((e.currentTarget.value || null) as CourseRight | null)}
         >
@@ -226,31 +233,11 @@ function TransferForm(props: { courseId: number; onTransferred: (kept: CourseRig
           <RightOptions />
         </select>
       </label>
-      <Show
-        when={confirming()}
-        fallback={
-          <div class="settings-actions">
-            <button type="submit">{t('access.transfer')}</button>
-          </div>
-        }
-      >
-        <p>
-          {kept() === null
-            ? t('access.confirmNothing', { email: email().trim() })
-            : t('access.confirmKeeping', {
-                email: email().trim(),
-                right: t(accessNames[kept()!]),
-              })}
-        </p>
-        <div class="settings-actions">
-          <button type="button" class="danger" disabled={busy()} onClick={() => void transfer()}>
-            {t('access.confirmTransfer')}
-          </button>
-          <button type="button" disabled={busy()} onClick={() => setConfirming(false)}>
-            {t('access.cancel')}
-          </button>
-        </div>
-      </Show>
+      <div class="settings-actions">
+        <button type="submit" class="button-danger" disabled={busy()}>
+          {t('access.transfer')}
+        </button>
+      </div>
       <Show when={problem()}>
         {(current) => (
           <p role="alert">{t(current() === 'failed' ? 'courses.saveFailed' : refusals[current() as AccessRefusal])}</p>

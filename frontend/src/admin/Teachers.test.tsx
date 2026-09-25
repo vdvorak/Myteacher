@@ -1,4 +1,5 @@
 import { render, screen, within } from '@solidjs/testing-library'
+import { ConfirmProvider } from '../shell/confirm'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { withI18n } from '../lesson/testing'
@@ -11,7 +12,13 @@ const invited: Teacher = { id: 3, email: 'smith@skola.example', language: 'en', 
 
 function renderSection(options: Parameters<typeof fakeAdminApi>[2] = {}) {
   const api = fakeAdminApi(unconfigured, null, { teachers: [adminTeacher, novak, invited], ...options })
-  render(withI18n(() => <TeachersSection api={api} />))
+  render(
+    withI18n(() => (
+      <ConfirmProvider>
+        <TeachersSection api={api} />
+      </ConfirmProvider>
+    )),
+  )
   return api
 }
 
@@ -77,12 +84,26 @@ describe('teachers', () => {
     const user = userEvent.setup()
 
     await user.click(within(await row('novak@skola.example')).getByRole('button', { name: 'Deactivate' }))
+    expect(api.changeTeacher).not.toHaveBeenCalled()
+    const confirmation = screen.getByRole('alertdialog', { name: 'Deactivate novak@skola.example?' })
+    await user.click(within(confirmation).getByRole('button', { name: 'Deactivate' }))
     expect(within(await row('novak@skola.example')).getByText('Inactive')).toBeInTheDocument()
     await user.click(within(await row('novak@skola.example')).getByRole('button', { name: 'Reactivate' }))
 
     expect(within(await row('novak@skola.example')).getByText('Active')).toBeInTheDocument()
     expect(api.changeTeacher).toHaveBeenCalledWith(2, { active: false })
     expect(api.changeTeacher).toHaveBeenCalledWith(2, { active: true })
+  })
+
+  it('keeps a teacher active when the deactivation is cancelled', async () => {
+    const api = renderSection()
+    const user = userEvent.setup()
+
+    await user.click(within(await row('novak@skola.example')).getByRole('button', { name: 'Deactivate' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' }))
+
+    expect(api.changeTeacher).not.toHaveBeenCalled()
+    expect(within(await row('novak@skola.example')).getByText('Active')).toBeInTheDocument()
   })
 
   it('grants the admin role', async () => {

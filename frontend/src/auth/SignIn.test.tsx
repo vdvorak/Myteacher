@@ -6,7 +6,7 @@ import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import { sampleLesson, withI18n } from '../lesson/testing'
 import type { Locale } from '../i18n/messages'
-import { admin, fakeAuthApi } from './testing'
+import { admin, fakeAuthApi, findAccountMenu, openAccountMenu } from './testing'
 
 function renderApp(path: string, auth = fakeAuthApi(), locale: Locale = 'en') {
   const history = createMemoryHistory()
@@ -49,9 +49,10 @@ describe('sign-in', () => {
   it('lands a signed-in teacher in the shell that says who they are', async () => {
     const { history } = renderApp('/sign-in')
 
-    await signIn('admin@skola.example', 'correct horse battery')
+    const user = await signIn('admin@skola.example', 'correct horse battery')
 
-    expect(await screen.findByText('admin@skola.example')).toBeInTheDocument()
+    await openAccountMenu(user)
+    expect(screen.getByText('admin@skola.example')).toBeInTheDocument()
     expect(screen.getByText('Admin')).toBeInTheDocument()
     expect(history.get()).toBe('/')
   })
@@ -60,7 +61,8 @@ describe('sign-in', () => {
     const { auth } = renderApp('/', fakeAuthApi({ signedIn: admin }))
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('button', { name: 'Sign out' }))
+    await openAccountMenu(user)
+    await user.click(screen.getByRole('button', { name: 'Sign out' }))
 
     expect(auth.signOut).toHaveBeenCalled()
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
@@ -69,7 +71,7 @@ describe('sign-in', () => {
   it('takes a visitor who is already signed in past the form', async () => {
     const { history } = renderApp('/sign-in', fakeAuthApi({ signedIn: admin }))
 
-    expect(await screen.findByText('admin@skola.example')).toBeInTheDocument()
+    expect(await findAccountMenu()).toHaveAccessibleName('Account: admin@skola.example')
     expect(history.get()).toBe('/')
   })
 
@@ -86,7 +88,7 @@ describe('sign-in', () => {
 
     await signIn('admin@skola.example', 'correct horse battery')
 
-    expect(await screen.findByText('admin@skola.example')).toBeInTheDocument()
+    expect(await findAccountMenu()).toHaveAccessibleName('Account: admin@skola.example')
   })
 
   it('says so when a signed-in page cannot check the session', async () => {

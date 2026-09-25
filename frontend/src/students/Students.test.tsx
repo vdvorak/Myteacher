@@ -32,6 +32,7 @@ describe('students list', () => {
     const { history } = renderApp('/')
     const user = userEvent.setup()
 
+    await user.click(await screen.findByRole('link', { name: 'Classes and students' }))
     await user.click(await screen.findByRole('link', { name: 'Students' }))
 
     expect(history.get()).toBe('/students')
@@ -185,6 +186,9 @@ describe('student page', () => {
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: 'Deactivate' }))
+    expect(students.change).not.toHaveBeenCalled()
+    const confirmation = screen.getByRole('alertdialog', { name: 'Deactivate Jana Veselá?' })
+    await user.click(within(confirmation).getByRole('button', { name: 'Deactivate' }))
     expect(await screen.findByText('Inactive')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Reactivate' }))
 

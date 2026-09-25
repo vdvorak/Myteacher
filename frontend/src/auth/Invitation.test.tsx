@@ -6,7 +6,7 @@ import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import type { Locale } from '../i18n/messages'
 import { withI18n } from '../lesson/testing'
-import { fakeAuthApi } from './testing'
+import { fakeAuthApi, findAccountMenu } from './testing'
 
 function renderApp(path: string, auth = fakeAuthApi(), locale: Locale = 'en') {
   const history = createMemoryHistory()
@@ -29,7 +29,7 @@ describe('accepting an invitation', () => {
     expect(await screen.findByText('novak@skola.example')).toBeInTheDocument()
     await setPassword('the teacher password')
 
-    expect(await screen.findByRole('button', { name: 'Odhlásit se' })).toBeInTheDocument()
+    expect(await findAccountMenu()).toBeInTheDocument()
     expect(auth.acceptInvitation).toHaveBeenCalledWith('the-token', 'the teacher password')
     expect(history.get()).toBe('/')
   })

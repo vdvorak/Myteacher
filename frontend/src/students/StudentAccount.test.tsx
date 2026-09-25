@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { App } from '../App'
 import { fakeApis } from '../api/testing'
-import { fakeAuthApi, student } from '../auth/testing'
+import { fakeAuthApi, student, openAccountMenu } from '../auth/testing'
 import { withI18n } from '../lesson/testing'
 import { fakeSettingsApi } from '../settings/testing'
 
@@ -54,6 +54,7 @@ describe('a student on a phone', () => {
 
     expect(await screen.findByRole('heading', { name: 'Hello, Jana Veselá' })).toBeInTheDocument()
     expect(screen.getByText('Your lessons will appear here once your teacher sends you the first one.')).toBeInTheDocument()
+    await openAccountMenu(user)
     expect(screen.getByText('Student')).toBeInTheDocument()
     expect(history.get()).toBe('/')
   })
@@ -69,10 +70,12 @@ describe('a student on a phone', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('This account is inactive.')
   })
 
-  it('sees no teacher pages in the navigation', async () => {
+  it('has no teacher pages, and reaches their settings from the account menu', async () => {
     renderApp('/', fakeAuthApi({ signedIn: student }))
 
-    expect(await screen.findByRole('link', { name: 'Settings' })).toBeInTheDocument()
+    await openAccountMenu()
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings')
+    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Students' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Administration' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Open the sample lesson' })).not.toBeInTheDocument()

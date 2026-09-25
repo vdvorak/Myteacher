@@ -1,3 +1,5 @@
+import { screen } from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import type { AcceptResult, Account, AuthApi, InvitationState, SignInResult } from './api'
 
@@ -99,4 +101,13 @@ export function fakeAuthApi(
       return invited
     }),
   } satisfies AuthApi
+}
+
+/** The account menu's button, which the shell shows once someone is signed in. */
+export const findAccountMenu = () => screen.findByRole('button', { name: /^(Account|Účet): / })
+
+/** Open the account menu, where the language, the theme and signing out are. */
+export async function openAccountMenu(user = userEvent.setup()) {
+  await user.click(await findAccountMenu())
+  return user
 }

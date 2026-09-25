@@ -1,4 +1,5 @@
 import { createResource, createSignal, For, Match, Show, Switch } from 'solid-js'
+import { useConfirm } from '../shell/confirm'
 import { useI18n } from '../i18n/i18n'
 import { localeNames, locales, type Locale, type MessageKey } from '../i18n/messages'
 import { Conflict, type AdminApi, type InvitationResult, type Teacher, type TeacherChange } from './api'
@@ -72,6 +73,7 @@ export function TeachersSection(props: { api: AdminApi }) {
     })
   }
 
+  const confirm = useConfirm()
   const change = (teacher: Teacher, update: TeacherChange) =>
     run(async () => {
       replace(await props.api.changeTeacher(teacher.id, update))
@@ -136,7 +138,17 @@ export function TeachersSection(props: { api: AdminApi }) {
                         <button
                           type="button"
                           disabled={busy()}
-                          onClick={() => change(teacher, { active: teacher.state === 'inactive' })}
+                          onClick={async () => {
+                            const active = teacher.state === 'inactive'
+                            const confirmed =
+                              active ||
+                              (await confirm({
+                                title: t('teachers.confirmDeactivate', { name: teacher.email }),
+                                body: t('teachers.deactivateNote'),
+                                action: t('teachers.deactivate'),
+                              }))
+                            if (confirmed) await change(teacher, { active })
+                          }}
                         >
                           {teacher.state === 'inactive' ? t('teachers.reactivate') : t('teachers.deactivate')}
                         </button>

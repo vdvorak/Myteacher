@@ -7,6 +7,9 @@ import type { Student, StudentBasics } from './api'
 import { createActions, invitationOutcome, OutcomeMessage } from './outcome'
 import { ConsentSection } from './ConsentSection'
 import { StudentForm } from './StudentForm'
+import { useBreadcrumbs } from '../shell/breadcrumbs'
+import { useConfirm } from '../shell/confirm'
+import { PageHeader } from '../shell/PageHeader'
 import { stateNames, TeachersOnly } from './StudentsPage'
 
 /** One student: their basics, their invitation while it is open, and deactivation. */
@@ -24,6 +27,7 @@ function StudentDetail() {
   const params = useParams<{ studentId: string }>()
   const [student, { mutate }] = createResource(() => Number(params.studentId), (id) => api.get(id))
   const { busy, outcome, run } = createActions()
+  const confirm = useConfirm()
 
   const isInactive = (current: Student) => current.state === 'inactive' || current.state === 'awaiting_consent'
   const activationLabel = (current: Student) => {
@@ -66,16 +70,20 @@ function StudentDetail() {
       return { kind: 'done', message: 'students.revoked' }
     })
 
+  useBreadcrumbs(() => [
+    { label: t('nav.people'), href: '/students' },
+    { label: (!student.error && student()?.name) || '…' },
+  ])
+
   return (
     <section class="admin-section">
-      <A href="/students">{t('students.all')}</A>
       <Show when={student.error}>
         <p role="alert">{t('students.studentLoadFailed')}</p>
       </Show>
       <Show when={!student.error && student()}>
         {(current) => (
           <>
-            <h1>{current().name}</h1>
+            <PageHeader title={current().name} />
             <p>
               {t('teachers.state')}: <strong>{t(stateNames[current().state])}</strong>
             </p>
@@ -125,7 +133,17 @@ function StudentDetail() {
               <button
                 type="button"
                 disabled={busy()}
-                onClick={() => setActive(current(), isInactive(current()))}
+                onClick={async () => {
+                  const active = isInactive(current())
+                  const confirmed =
+                    active ||
+                    (await confirm({
+                      title: t('teachers.confirmDeactivate', { name: current().name }),
+                      body: t('teachers.deactivateNote'),
+                      action: t('teachers.deactivate'),
+                    }))
+                  if (confirmed) await setActive(current(), active)
+                }}
               >
                 {activationLabel(current())}
               </button>

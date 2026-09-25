@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import type { Account } from '../auth/api'
-import { admin, fakeAuthApi } from '../auth/testing'
+import { admin, fakeAuthApi, findAccountMenu, openAccountMenu } from '../auth/testing'
 import { withI18n } from '../lesson/testing'
 import { fakeSettingsApi } from './testing'
 import { THEME_KEY } from './theme'
@@ -23,7 +23,7 @@ describe('teacher settings', () => {
   it('applies the stored language once the teacher is signed in', async () => {
     renderApp('/', { signedIn: { ...admin, language: 'cs' } })
 
-    expect(await screen.findByRole('button', { name: 'Odhlásit se' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: `Účet: ${admin.email}` })).toBeInTheDocument()
     expect(document.documentElement.lang).toBe('cs')
   })
 
@@ -37,11 +37,11 @@ describe('teacher settings', () => {
     expect(settings.change).toHaveBeenCalledWith(admin.id, { language: 'cs' })
   })
 
-  it('stores the language chosen in the header too', async () => {
+  it('stores the language chosen in the account menu too', async () => {
     const { settings } = renderApp('/', { signedIn: admin })
-    const user = userEvent.setup()
+    const user = await openAccountMenu()
 
-    await user.selectOptions(await screen.findByLabelText('Language'), 'cs')
+    await user.selectOptions(screen.getByLabelText('Language'), 'cs')
 
     expect(settings.change).toHaveBeenCalledWith(admin.id, { language: 'cs' })
     expect(await screen.findByRole('button', { name: 'Odhlásit se' })).toBeInTheDocument()
@@ -78,9 +78,9 @@ describe('teacher settings', () => {
 
   it('returns to the browser language when the account signs out', async () => {
     renderApp('/', { signedIn: { ...admin, language: 'cs' } })
-    const user = userEvent.setup()
+    const user = await openAccountMenu()
 
-    await user.click(await screen.findByRole('button', { name: 'Odhlásit se' }))
+    await user.click(screen.getByRole('button', { name: 'Odhlásit se' }))
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     expect(document.documentElement.lang).toBe('en')
@@ -102,16 +102,16 @@ describe('teacher settings', () => {
         }),
     )
     renderApp('/', { signedIn: admin, settings })
-    const user = userEvent.setup()
+    const user = await openAccountMenu()
 
-    await user.selectOptions(await screen.findByLabelText('Language'), 'cs')
+    await user.selectOptions(screen.getByLabelText('Language'), 'cs')
     await user.click(screen.getByRole('button', { name: 'Odhlásit se' }))
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     finish()
 
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Account/ })).not.toBeInTheDocument()
   })
 
   it('is reachable from the navigation', async () => {
@@ -135,7 +135,7 @@ describe('theme', () => {
   it('applies the account theme once signed in and remembers it for the next page load', async () => {
     renderApp('/', { signedIn: { ...admin, theme: 'dark' } })
 
-    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument()
+    expect(await findAccountMenu()).toBeInTheDocument()
     expect(root.dataset.theme).toBe('dark')
     expect(localStorage.getItem(THEME_KEY)).toBe('dark')
   })
@@ -167,9 +167,9 @@ describe('theme', () => {
 
   it('returns a shared device to the system theme when the account signs out', async () => {
     renderApp('/', { signedIn: { ...admin, theme: 'dark' } })
-    const user = userEvent.setup()
+    const user = await openAccountMenu()
 
-    await user.click(await screen.findByRole('button', { name: 'Sign out' }))
+    await user.click(screen.getByRole('button', { name: 'Sign out' }))
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
     expect(root.dataset.theme).toBeUndefined()

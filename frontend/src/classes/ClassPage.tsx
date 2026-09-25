@@ -3,6 +3,8 @@ import { createEffect, createResource, createSignal, For, Show } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
+import { useBreadcrumbs } from '../shell/breadcrumbs'
+import { PageHeader } from '../shell/PageHeader'
 import { stateNames, TeachersOnly } from '../students/StudentsPage'
 import { NameTaken, type SchoolClass } from './api'
 
@@ -69,16 +71,17 @@ function ClassDetail() {
     if (await run(() => api.classes.addMember(current.id, Number(chosen())))) setChosen('')
   }
 
+  useBreadcrumbs(() => [{ label: t('nav.people'), href: '/classes' }, { label: loaded()?.name ?? '…' }])
+
   return (
     <section class="admin-section">
-      <A href="/classes">{t('classes.all')}</A>
       <Show when={klass.error}>
         <p role="alert">{t('classes.classLoadFailed')}</p>
       </Show>
       <Show when={loaded()}>
         {(current) => (
           <>
-            <h1>{current().name}</h1>
+            <PageHeader title={current().name} />
             <form class="settings-form" onSubmit={rename(current())}>
               <label>
                 {t('classes.name')}

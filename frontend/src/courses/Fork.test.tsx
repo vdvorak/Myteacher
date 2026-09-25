@@ -27,7 +27,8 @@ describe('forking a course', () => {
     const { courses, history } = renderCourse(forkable)
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('button', { name: 'Make my own copy' }))
+    await user.click(await screen.findByRole('button', { name: 'More actions' }))
+    await user.click(screen.getByRole('button', { name: 'Make my own copy' }))
 
     expect(courses.fork).toHaveBeenCalledWith(1)
     expect(await screen.findByRole('heading', { level: 1, name: `${forkable.name} (copy)` })).toBeInTheDocument()
@@ -40,7 +41,7 @@ describe('forking a course', () => {
   it('is not offered without the fork right', async () => {
     renderCourse({ ...forkable, access: 'view', can_fork: false })
 
-    await screen.findByRole('heading', { level: 1, name: spanish.name })
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'More actions' }))
     expect(screen.queryByRole('button', { name: 'Make my own copy' })).not.toBeInTheDocument()
   })
 
@@ -49,7 +50,8 @@ describe('forking a course', () => {
     courses.fork.mockRejectedValueOnce(new Error('offline'))
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('button', { name: 'Make my own copy' }))
+    await user.click(await screen.findByRole('button', { name: 'More actions' }))
+    await user.click(screen.getByRole('button', { name: 'Make my own copy' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The copy could not be made. Try again.')
   })

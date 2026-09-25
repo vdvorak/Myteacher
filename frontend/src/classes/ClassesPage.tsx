@@ -4,7 +4,9 @@ import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
 import { TeachersOnly } from '../students/StudentsPage'
+import { useBreadcrumbs } from '../shell/breadcrumbs'
 import { NameTaken } from './api'
+import { PeopleTabs } from './PeopleTabs'
 
 type Problem = 'nameTaken' | 'failed' | null
 
@@ -40,9 +42,12 @@ function ClassesList() {
     }
   }
 
+  useBreadcrumbs(() => [{ label: t('nav.people') }])
+
   return (
     <section class="admin-section" aria-labelledby="classes-heading">
       <h1 id="classes-heading">{t('classes.heading')}</h1>
+      <PeopleTabs />
       <Show when={classes.error}>
         <p role="alert">{t('classes.loadFailed')}</p>
       </Show>

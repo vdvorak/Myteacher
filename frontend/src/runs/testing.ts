@@ -51,7 +51,7 @@ export function fakeRunsApi(
 ) {
   let runs = options.runs ?? []
   const materials = options.materials ?? []
-  const releases: Record<number, Release[]> = { ...options.releases }
+  const releases: Record<number, Release[]> = structuredClone(options.releases ?? {})
   const classes = options.classes ?? [{ id: 1, name: '2.B 2026/27', memberIds: [jana.id] }]
   const students = options.students ?? [jana, petr]
   const jobs = options.jobs ?? fakeJobsApi()

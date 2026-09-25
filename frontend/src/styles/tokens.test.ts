@@ -93,6 +93,8 @@ describe('token layer', () => {
       ['warning', 'warning-surface'],
       ['text', 'correct-surface'],
       ['text', 'incorrect-surface'],
+      // A destructive button: surface-coloured text on the incorrect colour.
+      ['surface', 'incorrect'],
     ])('%s on %s reads at AA', (foreground, background) => {
       expect(contrast(colours[foreground], colours[background])).toBeGreaterThanOrEqual(4.5)
     })

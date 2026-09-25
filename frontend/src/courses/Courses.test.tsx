@@ -229,7 +229,8 @@ describe('course page', () => {
     const { history } = renderApp('/courses/1', { courses: [spanish] })
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('link', { name: 'All courses' }))
+    const crumbs = await screen.findByRole('navigation', { name: 'You are here' })
+    await user.click(await within(crumbs).findByRole('link', { name: 'Courses' }))
 
     expect(history.get()).toBe('/courses')
   })

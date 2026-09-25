@@ -185,8 +185,9 @@ describe('ownership transfer', () => {
     await user.type(dialog.getByRole('textbox', { name: 'New owner’s email' }), 'svoboda@skola.example')
     await user.click(dialog.getByRole('button', { name: 'Transfer ownership' }))
     expect(courses.transferOwnership).not.toHaveBeenCalled()
-    expect(dialog.getByText(/svoboda@skola.example will own the course.*no right/i)).toBeInTheDocument()
-    await user.click(dialog.getByRole('button', { name: 'Confirm the transfer' }))
+    const confirmation = screen.getByRole('alertdialog', { name: 'Transfer ownership of this course?' })
+    expect(confirmation).toHaveAccessibleDescription(/svoboda@skola.example will own the course.*no right/i)
+    await user.click(within(confirmation).getByRole('button', { name: 'Confirm the transfer' }))
 
     expect(courses.transferOwnership).toHaveBeenCalledWith(1, 'svoboda@skola.example', null)
     await waitFor(() => expect(history.get()).toBe('/courses'))
@@ -199,7 +200,7 @@ describe('ownership transfer', () => {
     await user.type(dialog.getByRole('textbox', { name: 'New owner’s email' }), 'svoboda@skola.example')
     await user.selectOptions(dialog.getByRole('combobox', { name: 'What you keep' }), 'edit')
     await user.click(dialog.getByRole('button', { name: 'Transfer ownership' }))
-    await user.click(dialog.getByRole('button', { name: 'Confirm the transfer' }))
+    await user.click(screen.getByRole('button', { name: 'Confirm the transfer' }))
 
     expect(courses.transferOwnership).toHaveBeenCalledWith(1, 'svoboda@skola.example', 'edit')
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Share the course' })).not.toBeInTheDocument())
@@ -212,9 +213,10 @@ describe('ownership transfer', () => {
 
     await user.type(dialog.getByRole('textbox', { name: 'New owner’s email' }), 'svoboda@skola.example')
     await user.click(dialog.getByRole('button', { name: 'Transfer ownership' }))
-    await user.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' }))
 
     expect(courses.transferOwnership).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(dialog.getByRole('button', { name: 'Transfer ownership' })).toBeInTheDocument()
   })
 })

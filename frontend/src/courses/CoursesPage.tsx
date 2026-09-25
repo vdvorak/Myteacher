@@ -3,6 +3,7 @@ import { createResource, createSignal, For, Show } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
+import { useBreadcrumbs } from '../shell/breadcrumbs'
 import { TeachersOnly } from '../students/StudentsPage'
 import type { CourseBasics } from './api'
 import { accessNames } from './AccessDialog'
@@ -33,6 +34,8 @@ function CoursesList() {
       setFailed(true)
     }
   }
+
+  useBreadcrumbs(() => [{ label: t('nav.courses') }])
 
   return (
     <section class="admin-section" aria-labelledby="courses-heading">

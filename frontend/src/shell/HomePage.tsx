@@ -2,12 +2,14 @@ import { Match, Switch } from 'solid-js'
 import { MyWork } from '../attempts/MyWork'
 import { useSession } from '../auth/session'
 import { useI18n } from '../i18n/i18n'
+import { useBreadcrumbs } from './breadcrumbs'
 
 const SAMPLE_LESSON = 'es-ser-estar'
 
 export function HomePage() {
   const { t } = useI18n()
   const session = useSession()
+  useBreadcrumbs(() => (session.account()?.kind === 'teacher' ? [{ label: t('nav.home') }] : []))
   return (
     <Switch>
       <Match when={session.account()?.kind === 'student' && session.account()}>

@@ -3,6 +3,9 @@ import { createEffect, createResource, createSignal, For, Show } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
+import { useBreadcrumbs } from '../shell/breadcrumbs'
+import { useConfirm } from '../shell/confirm'
+import { PageHeader } from '../shell/PageHeader'
 import { stateNames, TeachersOnly } from '../students/StudentsPage'
 import type { CourseRun, RosterStudent } from './api'
 import { ReleasesSection } from './ReleasesSection'
@@ -50,6 +53,8 @@ function RunDetail() {
     return (students.error ? [] : (students() ?? [])).filter((s) => !enrolled.has(s.id) && s.state !== 'erased')
   }
 
+  const confirm = useConfirm()
+
   async function change(action: () => Promise<CourseRun>) {
     setBusy(true)
     setFailed(false)
@@ -84,6 +89,11 @@ function RunDetail() {
 
   const via = (student: RosterStudent) => [...student.classes, ...(student.direct ? [t('runs.directly')] : [])].join(', ')
 
+  useBreadcrumbs(() => [
+    { label: t('nav.runs'), href: '/runs' },
+    { label: loaded()?.name ?? '…' },
+  ])
+
   return (
     <section class="admin-section">
       <Show when={run.error}>
@@ -92,11 +102,15 @@ function RunDetail() {
       <Show when={loaded()}>
         {(current) => (
           <>
-            <p>
-              {t('runs.course')}
-              <A href={`/courses/${current().course.id}`}>{current().course.name}</A>
-            </p>
-            <h1>{current().name}</h1>
+            <PageHeader
+              title={current().name}
+              meta={
+                <>
+                  {t('runs.course')}
+                  <A href={`/courses/${current().course.id}`}>{current().course.name}</A>
+                </>
+              }
+            />
             <form class="settings-form" onSubmit={rename(current())}>
               <label>
                 {t('runs.name')}
@@ -163,7 +177,14 @@ function RunDetail() {
                             <button
                               type="button"
                               disabled={busy()}
-                              onClick={() => change(() => api.unenrolClass(current().id, klass.id))}
+                              onClick={async () => {
+                                const removing = await confirm({
+                                  title: t('runs.confirmRemove', { name: klass.name }),
+                                  body: t('runs.removeClassNote'),
+                                  action: t('runs.remove'),
+                                })
+                                if (removing) await change(() => api.unenrolClass(current().id, klass.id))
+                              }}
                             >
                               {t('runs.remove')}
                             </button>
@@ -215,7 +236,14 @@ function RunDetail() {
                             <button
                               type="button"
                               disabled={busy()}
-                              onClick={() => change(() => api.unenrolStudent(current().id, student.id))}
+                              onClick={async () => {
+                                const removing = await confirm({
+                                  title: t('runs.confirmRemove', { name: student.name }),
+                                  body: t('runs.removeStudentNote'),
+                                  action: t('runs.remove'),
+                                })
+                                if (removing) await change(() => api.unenrolStudent(current().id, student.id))
+                              }}
                             >
                               {t('runs.remove')}
                             </button>

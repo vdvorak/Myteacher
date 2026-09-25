@@ -36,7 +36,7 @@ describe('classes list', () => {
     const { history } = renderApp('/')
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('link', { name: 'Classes' }))
+    await user.click(await screen.findByRole('link', { name: 'Classes and students' }))
 
     expect(history.get()).toBe('/classes')
     expect(within(await row('2.B 2026/27')).getByText('2')).toBeInTheDocument()

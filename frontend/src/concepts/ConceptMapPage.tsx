@@ -1,4 +1,4 @@
-import { A, useParams } from '@solidjs/router'
+import { useParams } from '@solidjs/router'
 import { createResource, createSignal, For, Index, Show } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
@@ -7,6 +7,8 @@ import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
 import { MaterialsSection } from '../materials/MaterialsSection'
+import { useCourseTrail } from '../courses/trail'
+import { PageHeader } from '../shell/PageHeader'
 import { TeachersOnly } from '../students/StudentsPage'
 import '../admin/admin.css'
 import '../courses/courses.css'
@@ -138,10 +140,11 @@ function ConceptMapDetail() {
     return false
   }
 
+  useCourseTrail(() => ({ courseId: courseId(), topicId: topicId() }))
+
   return (
     <section class="admin-section">
-      <A href={`/courses/${courseId()}`}>{course()?.name ?? t('concepts.backToCourse')}</A>
-      <h1>{topic()?.name ?? t('concepts.heading')}</h1>
+      <PageHeader title={topic()?.name ?? t('concepts.heading')} meta={course()?.name} />
       <Show when={canEdit()}>
         <TopicInterviewPanel
           courseId={courseId()}

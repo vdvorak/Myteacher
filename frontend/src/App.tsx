@@ -25,8 +25,10 @@ import { SignInPage } from './auth/SignInPage'
 import { PreviewPage } from './preview/PreviewPage'
 import { ReleaseResultsPage } from './runs/ReleaseResultsPage'
 import { RunPage } from './runs/RunPage'
+import { RunsPage } from './runs/RunsPage'
 import { StudentResultsPage } from './runs/StudentResultsPage'
 import { HomePage } from './shell/HomePage'
+import { ConfirmProvider } from './shell/confirm'
 import { Shell } from './shell/Shell'
 import { SettingsPage } from './settings/SettingsPage'
 import { StudentPage } from './students/StudentPage'
@@ -53,11 +55,11 @@ const routes = () => (
     <Route path="/invitation" component={InvitationPage} />
     <Route path="/forgot-password" component={ForgotPasswordPage} />
     <Route path="/reset-password" component={ResetPasswordPage} />
-    <Route path="/preview/courses/:courseId/topics/:topicId/documents/:documentId" component={DocumentPreviewPage} />
-    <Route path="/preview/courses/:courseId/topics/:topicId/materials/:materialId" component={MaterialPreviewPage} />
     <Route path="/preview/:lessonId" component={PreviewRoute} />
     <Route path="/" component={Shell}>
       <Route path="/" component={HomePage} />
+      <Route path="/preview/courses/:courseId/topics/:topicId/documents/:documentId" component={DocumentPreviewPage} />
+      <Route path="/preview/courses/:courseId/topics/:topicId/materials/:materialId" component={MaterialPreviewPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/students" component={StudentsPage} />
       <Route path="/students/:studentId" component={StudentPage} />
@@ -66,6 +68,7 @@ const routes = () => (
       <Route path="/courses" component={CoursesPage} />
       <Route path="/courses/:courseId" component={CoursePage} />
       <Route path="/courses/:courseId/topics/:topicId" component={ConceptMapPage} />
+      <Route path="/runs" component={RunsPage} />
       <Route path="/runs/:runId" component={RunPage} />
       <Route path="/runs/:runId/releases/:releaseId" component={ReleaseResultsPage} />
       <Route path="/runs/:runId/releases/:releaseId/students/:studentId" component={StudentResultsPage} />
@@ -80,7 +83,9 @@ const routes = () => (
 export function App(props: { apis: Apis; history?: MemoryHistory }) {
   const root = (section: RouteSectionProps) => (
     <ApiProvider apis={props.apis}>
-      <SessionProvider>{section.children}</SessionProvider>
+      <SessionProvider>
+        <ConfirmProvider page={() => section.location.pathname}>{section.children}</ConfirmProvider>
+      </SessionProvider>
     </ApiProvider>
   )
   return props.history ? (

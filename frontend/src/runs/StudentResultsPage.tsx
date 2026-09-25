@@ -1,12 +1,14 @@
-import { A, useParams } from '@solidjs/router'
+import { useParams } from '@solidjs/router'
 import { createResource, createSignal, For, Show } from 'solid-js'
 import { useApi } from '../api/context'
 import { progressOf, type AssessmentReview, type Attempt } from '../attempts/api'
 import { useI18n } from '../i18n/i18n'
 import { ApiError } from '../lesson/api'
 import { LessonPlayer, type LessonApi } from '../lesson/LessonPlayer'
+import { PageHeader } from '../shell/PageHeader'
 import { TeachersOnly } from '../students/StudentsPage'
 import { RetractionForm } from './RetractionForm'
+import { useRunTrail } from './trail'
 
 // A read-only player asks nothing of its backend.
 const nothingToAsk: LessonApi = {
@@ -158,11 +160,15 @@ function StudentResults() {
   const [detail, { refetch }] = createResource(ids, ([runId, releaseId, studentId]) =>
     api.studentResults(runId, releaseId, studentId),
   )
+  useRunTrail(() => ({
+    runId: Number(params.runId),
+    releaseId: Number(params.releaseId),
+    page: (!detail.error && detail()?.student.name) || '…',
+  }))
   const date = (at: string) => new Date(at).toLocaleString(locale())
 
   return (
     <>
-      <A href={`/runs/${params.runId}/releases/${params.releaseId}`}>{t('results.backToResults')}</A>
       <Show when={detail.error}>
         <p role="alert">
           {detail.error instanceof ApiError && detail.error.status === 404 ? t('results.notFound') : t('results.loadFailed')}
@@ -171,13 +177,14 @@ function StudentResults() {
       <Show when={!detail.error && detail()}>
         {(loaded) => (
           <>
-            <h1>{loaded().student.name}</h1>
+            <PageHeader title={loaded().student.name} />
             <Show when={!loaded().student.in_run}>
               <p class="settings-note">{t('results.notInRun')}</p>
             </Show>
             <Show when={loaded().attempts.some((attempt) => attempt.retracted_at === null)}>
               <RetractionForm
                 intro="retraction.attemptIntro"
+                question="retraction.confirmAttempt"
                 action="retraction.retractAttempt"
                 onRetract={async (reason) => {
                   await api.retractAttempt(ids()[0], ids()[1], ids()[2], reason)

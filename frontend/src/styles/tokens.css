@@ -25,6 +25,9 @@
   --radius: 0.75rem;
   --border-width: 1px;
   --content-width: 42rem; /* reading width for forms and text; the app shell content is wider */
+  --shell-content-width: 72rem;
+  --sidebar-width: 14.5rem;
+  --tap-target: 2.75rem; /* 44px, the smallest touch target */
 
   --color-background: #ece7e3;
   --color-surface: #f6f2ef;

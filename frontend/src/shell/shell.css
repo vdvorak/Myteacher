@@ -1,8 +1,198 @@
-.shell-account {
+/* The app shell: sidebar and content for teachers, a plain page for students. */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.app-sidebar {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-3);
+  border-right: var(--border-width) solid var(--color-border);
+  background: var(--color-surface-sunken);
+}
+
+.app-brand {
+  padding: 0 var(--space-3);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-caption);
+}
+
+.app-sidebar nav {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.app-sidebar ul {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-sidebar a,
+.nav-reserved {
   display: flex;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.app-sidebar a:hover {
+  background: var(--color-surface);
+}
+
+.app-sidebar a.active {
+  background: var(--color-accent-surface);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.nav-group {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.nav-group-label {
+  margin: 0;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-small);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-caption);
+  color: var(--color-text-muted);
+}
+
+.nav-reserved {
+  border: var(--border-width) dashed var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.nav-later {
+  font-size: var(--font-size-small);
+}
+
+.nav-bottom {
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.app-main {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  min-width: 0;
+}
+
+.app-topbar {
+  display: flex;
   align-items: center;
   gap: var(--space-3);
+  padding: var(--space-3) var(--space-6);
+  border-bottom: var(--border-width) solid var(--color-border);
+  font-size: var(--font-size-small);
+}
+
+.student-topbar {
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+  border-bottom: none;
+}
+
+.app-menu-button {
+  display: none;
+}
+
+.student-home-link {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.app-content {
+  width: 100%;
+  max-width: var(--shell-content-width);
+  padding: var(--space-6);
+}
+
+.breadcrumbs {
+  flex: 1;
+  min-width: 0;
+}
+
+.breadcrumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.breadcrumbs li + li::before {
+  content: '/';
+  margin-right: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.breadcrumbs a {
+  color: var(--color-text-muted);
+}
+
+/* The account menu and "More actions": a button with a panel under it. */
+.disclosure {
+  position: relative;
+}
+
+.account-menu {
+  margin-left: auto;
+}
+
+.disclosure-button {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.account-menu .disclosure-button {
+  display: grid;
+  place-items: center;
+  width: var(--tap-target);
+  height: var(--tap-target);
+  padding: 0;
+  border-radius: 50%;
+  font-weight: 600;
+}
+
+.disclosure-panel {
+  position: absolute;
+  right: 0;
+  z-index: 10;
+  display: grid;
+  gap: var(--space-3);
+  min-width: calc(var(--sidebar-width) + var(--space-8));
+  margin-top: var(--space-2);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  font-size: var(--font-size-body);
+}
+
+.account-panel {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.account-panel p {
+  margin: 0;
 }
 
 .shell-roles {
@@ -19,12 +209,140 @@
   border-radius: var(--radius);
 }
 
-.shell-nav {
+/* The page header: title and meta on the left, the main action and "More actions" on the right. */
+.page-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.page-heading h1 {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: 650;
+}
+
+.page-meta {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.page-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Tabs linking the pages of one section, e.g. Classes and Students. */
+.section-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border);
 }
 
-.shell-nav a[aria-current='page'] {
-  font-weight: bold;
+.section-tabs a {
+  padding: var(--space-2) 0;
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.section-tabs a[aria-current='page'] {
+  border-bottom: calc(var(--border-width) * 2) solid var(--color-accent);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Buttons in a panel are its items, quieter than the page's main action. */
+.disclosure-panel button:not(.button-danger) {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+}
+
+.account-panel label {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.account-panel select {
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.app-scrim {
+  display: none;
+}
+
+/* Narrow screens: the sidebar opens from a menu button, over the content. */
+@media (max-width: 64rem) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-sidebar {
+    display: none;
+  }
+
+  .app-shell[data-nav-open='true'] .app-sidebar {
+    display: grid;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: var(--sidebar-width);
+    overflow-y: auto;
+    box-shadow: var(--shadow-card);
+  }
+
+  .app-shell[data-nav-open='true'] .app-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: color-mix(in srgb, var(--color-background) 70%, transparent);
+  }
+
+  .app-menu-button {
+    display: inline-block;
+    border-color: var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  .app-topbar {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .app-content {
+    padding: var(--space-4);
+  }
+}
+
+/* Printing a preview prints the page, not the app around it. */
+@media print {
+  .app-shell {
+    display: block;
+  }
+
+  .app-sidebar,
+  .app-topbar {
+    display: none !important;
+  }
+
+  .app-content {
+    max-width: none;
+    padding: 0;
+  }
 }

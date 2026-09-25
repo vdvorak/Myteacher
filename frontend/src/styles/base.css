@@ -50,3 +50,55 @@ button:disabled {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* A quieter button beside the main one. */
+.button-secondary {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+/* A destructive action: retraction, erasure, deactivation, giving a course away. */
+.button-danger {
+  border-color: var(--color-incorrect);
+  background: var(--color-incorrect);
+  color: var(--color-surface);
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-background) 70%, transparent);
+}
+
+.dialog {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: var(--content-width);
+  padding: var(--space-6);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.dialog-danger {
+  border-top: calc(var(--border-width) * 4) solid var(--color-incorrect);
+}
+
+.dialog h2,
+.dialog p {
+  margin: 0;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

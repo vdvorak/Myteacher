@@ -5,10 +5,12 @@ import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import { ApiError } from '../lesson/api'
 import '../admin/admin.css'
+import { PageHeader } from '../shell/PageHeader'
 import { TeachersOnly } from '../students/StudentsPage'
 import { finished, type Job } from '../jobs/api'
 import { JobStatus } from '../jobs/JobStatus'
 import { RetractionForm } from './RetractionForm'
+import { useRunTrail } from './trail'
 import { AssessmentRefused, type OpenAnswers, type ResultCell } from './api'
 
 const cellNames: Record<ResultCell, MessageKey> = {
@@ -124,14 +126,11 @@ function ReleaseResults() {
   const params = useParams<{ runId: string; releaseId: string }>()
   const ids = () => [Number(params.runId), Number(params.releaseId)] as const
   const [results, { refetch }] = createResource(ids, ([runId, releaseId]) => api.results(runId, releaseId))
-  const [run] = createResource(() => Number(params.runId), (id) => api.get(id))
+  useRunTrail(() => ({ runId: Number(params.runId), releaseId: Number(params.releaseId) }))
   const number = (index: number) => t('results.exercise', { number: index + 1 })
 
   return (
     <>
-      <Show when={!run.error && run()}>
-        {(loaded) => <A href={`/runs/${loaded().id}`}>{t('results.backToRun', { run: loaded().name })}</A>}
-      </Show>
       <Show when={results.error}>
         <p role="alert">
           {results.error instanceof ApiError && results.error.status === 404 ? t('results.notFound') : t('results.loadFailed')}
@@ -140,8 +139,7 @@ function ReleaseResults() {
       <Show when={!results.error && results()}>
         {(loaded) => (
           <>
-            <h1>{loaded().release.title}</h1>
-            <p class="settings-note">{loaded().release.topic}</p>
+            <PageHeader title={loaded().release.title} meta={loaded().release.topic} />
             <Show when={loaded().release.retraction_reason}>
               {(reason) => <p role="status">{t('retraction.retracted', { reason: reason() })}</p>}
             </Show>
@@ -234,6 +232,7 @@ function ReleaseResults() {
               <h2>{t('retraction.retractRelease')}</h2>
               <RetractionForm
                 intro="retraction.releaseIntro"
+                question="retraction.confirmRelease"
                 action="retraction.retractRelease"
                 onRetract={async (reason) => {
                   await api.retractRelease(ids()[0], ids()[1], reason)

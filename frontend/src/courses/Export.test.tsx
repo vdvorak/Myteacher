@@ -1,5 +1,6 @@
 import { createMemoryHistory } from '@solidjs/router'
 import { render, screen } from '@solidjs/testing-library'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '../App'
 import { fakeApis } from '../api/testing'
@@ -22,7 +23,8 @@ describe('exporting a course', () => {
   it('downloads the course archive', async () => {
     renderCourse(spanish)
 
-    const link = await screen.findByRole('link', { name: 'Export the course' })
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'More actions' }))
+    const link = screen.getByRole('link', { name: 'Export the course' })
     expect(link).toHaveAttribute('href', '/api/courses/1/export')
     expect(link).toHaveAttribute('download')
   })
@@ -30,6 +32,7 @@ describe('exporting a course', () => {
   it('is open to a teacher who may only view the course', async () => {
     renderCourse({ ...spanish, access: 'view', can_edit: false, can_manage_access: false })
 
-    expect(await screen.findByRole('link', { name: 'Export the course' })).toBeInTheDocument()
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('link', { name: 'Export the course' })).toBeInTheDocument()
   })
 })

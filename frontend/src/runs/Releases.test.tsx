@@ -124,6 +124,7 @@ describe('releases of a run', () => {
     await user.click(within(screen.getByRole('group', { name: 'Chosen students' })).getByLabelText('Jana Veselá'))
     // Petr, preselected as the material's target, leaves with the class.
     await user.click(within(await screen.findByRole('table', { name: 'Enrolled classes' })).getByRole('button', { name: 'Remove' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove' }))
     await screen.findByText('No classes enrolled.')
     await user.click(screen.getByRole('button', { name: 'Release' }))
 
@@ -137,6 +138,7 @@ describe('releases of a run', () => {
     await user.selectOptions(await screen.findByLabelText('Material'), String(preterite.id))
     await user.click(screen.getByLabelText('Chosen students'))
     await user.click(within(await screen.findByRole('table', { name: 'Enrolled classes' })).getByRole('button', { name: 'Remove' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove' }))
     await screen.findByText('No classes enrolled.')
 
     expect(screen.getByRole('button', { name: 'Release' })).toBeDisabled()

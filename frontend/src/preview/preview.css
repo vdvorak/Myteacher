@@ -20,3 +20,10 @@
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-caption);
 }
+
+/* A preview inside the app shell: the print button above the document. */
+.preview-page {
+  display: grid;
+  gap: var(--space-6);
+  max-width: var(--content-width);
+}

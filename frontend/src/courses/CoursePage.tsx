@@ -1,8 +1,10 @@
-import { A, useNavigate, useParams } from '@solidjs/router'
+import { useNavigate, useParams } from '@solidjs/router'
 import { createResource, createSignal, Show } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
+import { useBreadcrumbs } from '../shell/breadcrumbs'
+import { PageHeader } from '../shell/PageHeader'
 import { TeachersOnly } from '../students/StudentsPage'
 import { AccessDialog } from './AccessDialog'
 import type { Course, CourseBasics, CourseRight } from './api'
@@ -83,9 +85,10 @@ function CourseDetail() {
     }
   }
 
+  useBreadcrumbs(() => [{ label: t('nav.courses'), href: '/courses' }, { label: loaded()?.name ?? '' }])
+
   return (
     <section class="admin-section">
-      <A href="/courses">{t('courses.all')}</A>
       <Show when={course.error}>
         <p role="alert">{t('courses.courseLoadFailed')}</p>
       </Show>
@@ -93,25 +96,30 @@ function CourseDetail() {
       <Show when={loaded()?.id} keyed>
         {(id) => (
           <>
-            <h1>{loaded()?.name}</h1>
+            <PageHeader
+              title={loaded()?.name}
+              meta={loaded()?.subject}
+              more={
+                <>
+                  <Show when={loaded()!.can_fork}>
+                    <button type="button" disabled={forking()} onClick={() => void forkCourse(id)}>
+                      {t('courses.fork')}
+                    </button>
+                  </Show>
+                  {/* The browser saves the archive the server names; anyone who may view the course may export it. */}
+                  <a href={`/api/courses/${id}/export`} download="">
+                    {t('courses.export')}
+                  </a>
+                  <p class="settings-note">{t('courses.exportNote')}</p>
+                </>
+              }
+            />
             <Show when={!loaded()!.can_edit}>
               <p class="settings-note">{t('courses.readOnly')}</p>
             </Show>
             <Show when={loaded()!.forked_from_id !== null}>
               <p class="settings-note">{t('courses.forkNote')}</p>
             </Show>
-            <div class="settings-actions">
-              <Show when={loaded()!.can_fork}>
-                <button type="button" disabled={forking()} onClick={() => void forkCourse(id)}>
-                  {t('courses.fork')}
-                </button>
-              </Show>
-              {/* The browser saves the archive the server names; anyone who may view the course may export it. */}
-              <a href={`/api/courses/${id}/export`} download="">
-                {t('courses.export')}
-              </a>
-            </div>
-            <p class="settings-note">{t('courses.exportNote')}</p>
             <Show when={forkFailed()}>
               <p role="alert">{t('courses.forkFailed')}</p>
             </Show>

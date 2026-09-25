@@ -2,7 +2,7 @@ import { useParams } from '@solidjs/router'
 import { createResource, Match, Switch } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
-import { LanguageSwitch } from '../i18n/LanguageSwitch'
+import { useCourseTrail } from '../courses/trail'
 import { ApiError } from '../lesson/api'
 import '../preview/preview.css'
 import '../preview/print.css'
@@ -18,18 +18,20 @@ export function DocumentPreviewPage() {
     ([courseId, topicId, documentId]) => api.get(courseId, topicId, documentId),
   )
 
+  useCourseTrail(() => ({
+    courseId: Number(params.courseId),
+    topicId: Number(params.topicId),
+    page: (!document.error && document()?.title) || t('documents.previewHeading'),
+  }))
+
   return (
-    <div class="page">
-      <header class="page-header">
-        <span class="page-caption">{t('documents.previewHeading')}</span>
-        <LanguageSwitch />
-      </header>
+    <div class="preview-page">
       <div class="print-toolbar">
-        <button type="button" disabled={!document()} onClick={() => window.print()}>
+        <button type="button" disabled={document.error !== undefined || !document()} onClick={() => window.print()}>
           {t('print.print')}
         </button>
       </div>
-      <main>
+      <div>
         <Switch>
           <Match when={document.error}>
             <p role="alert">
@@ -43,7 +45,7 @@ export function DocumentPreviewPage() {
             <p>{t('preview.loading')}</p>
           </Match>
         </Switch>
-      </main>
+      </div>
     </div>
   )
 }

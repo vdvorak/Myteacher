@@ -291,10 +291,25 @@ describe('retracting', () => {
 
     await user.type(await screen.findByLabelText('Reason for the students'), 'Released by mistake.')
     await user.click(screen.getByRole('button', { name: 'Retract the release' }))
+    expect(runs.retractRelease).not.toHaveBeenCalled()
+    const confirmation = screen.getByRole('alertdialog', { name: 'Retract this release from every student?' })
+    expect(confirmation).toHaveAccessibleDescription('Students are told: “Released by mistake.”')
+    await user.click(within(confirmation).getByRole('button', { name: 'Retract the release' }))
 
     expect(runs.retractRelease).toHaveBeenCalledWith(7, 3, 'Released by mistake.')
     expect(await screen.findByText('Retracted: Released by mistake.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Retract the release' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the release when the retraction is cancelled', async () => {
+    const { runs, user } = open('/runs/7/releases/3')
+
+    await user.type(await screen.findByLabelText('Reason for the students'), 'Released by mistake.')
+    await user.click(screen.getByRole('button', { name: 'Retract the release' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' }))
+
+    expect(runs.retractRelease).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Reason for the students')).toHaveValue('Released by mistake.')
   })
 
   it('marks a retracted release among the run’s releases', async () => {
@@ -317,6 +332,8 @@ describe('retracting', () => {
 
     await user.type(await screen.findByLabelText('Reason for the students'), 'A typo in exercise 2.')
     await user.click(screen.getByRole('button', { name: 'Retract the attempt' }))
+    const confirmation = screen.getByRole('alertdialog', { name: 'Retract this student’s attempt?' })
+    await user.click(within(confirmation).getByRole('button', { name: 'Retract the attempt' }))
 
     expect(runs.retractAttempt).toHaveBeenCalledWith(7, 3, jana.id, 'A typo in exercise 2.')
     const kept = await screen.findByRole('region', { name: 'Attempt 1' })
@@ -338,6 +355,7 @@ describe('retracting', () => {
     runs.studentResults.mockRejectedValueOnce(new Error('offline'))
 
     await user.click(screen.getByRole('button', { name: 'Retract the attempt' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Retract the attempt' }))
 
     await vi.waitFor(() => expect(runs.retractAttempt).toHaveBeenCalledTimes(1))
     expect(screen.queryByText('The retraction failed. Try again.')).not.toBeInTheDocument()

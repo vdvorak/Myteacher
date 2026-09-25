@@ -5,6 +5,8 @@ import { useSession } from '../auth/session'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import '../admin/admin.css'
+import { PeopleTabs } from '../classes/PeopleTabs'
+import { useBreadcrumbs } from '../shell/breadcrumbs'
 import type { Student, StudentBasics } from './api'
 import { createActions, invitationOutcome, OutcomeMessage } from './outcome'
 import { StudentForm } from './StudentForm'
@@ -51,9 +53,12 @@ function StudentsList() {
       return invitationOutcome(student.email, { invitation_sent, error }, true)
     })
 
+  useBreadcrumbs(() => [{ label: t('nav.people') }])
+
   return (
     <section class="admin-section" aria-labelledby="students-heading">
       <h1 id="students-heading">{t('students.heading')}</h1>
+      <PeopleTabs />
       <Show when={students.error}>
         <p role="alert">{t('students.loadFailed')}</p>
       </Show>

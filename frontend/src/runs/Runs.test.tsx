@@ -105,11 +105,33 @@ describe('run page', () => {
     expect(await rowOf('Roster', 'Petr Malý')).toBeInTheDocument()
 
     await user.click(within(await rowOf('Enrolled classes', '2.B 2026/27')).getByRole('button', { name: 'Remove' }))
+    expect(runs.unenrolClass).not.toHaveBeenCalled()
+    await user.click(
+      within(screen.getByRole('alertdialog', { name: 'Remove 2.B 2026/27 from the run?' })).getByRole('button', {
+        name: 'Remove',
+      }),
+    )
     await user.click(within(await rowOf('Enrolled students', 'Petr Malý')).getByRole('button', { name: 'Remove' }))
+    await user.click(
+      within(screen.getByRole('alertdialog', { name: 'Remove Petr Malý from the run?' })).getByRole('button', {
+        name: 'Remove',
+      }),
+    )
 
     expect(runs.unenrolClass).toHaveBeenCalledWith(7, 1)
     expect(runs.unenrolStudent).toHaveBeenCalledWith(7, petr.id)
     expect(await screen.findByText('No students in this run yet.')).toBeInTheDocument()
+  })
+
+  it('keeps a class enrolled when removing it is cancelled', async () => {
+    const { runs } = renderApp('/runs/7', { runs: [run({ classIds: [1] })] })
+    const user = userEvent.setup()
+
+    await user.click(within(await rowOf('Enrolled classes', '2.B 2026/27')).getByRole('button', { name: 'Remove' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' }))
+
+    expect(runs.unenrolClass).not.toHaveBeenCalled()
+    expect(await rowOf('Enrolled classes', '2.B 2026/27')).toBeInTheDocument()
   })
 
   it('offers only classes and students not enrolled yet', async () => {

@@ -7,6 +7,7 @@ import '../admin/admin.css'
 import { useChooseLanguage } from './language'
 import { themes, useChooseTheme, type Theme } from './theme'
 import { ProviderKeys } from './ProviderKeys'
+import { useBreadcrumbs } from '../shell/breadcrumbs'
 
 type Outcome = 'saved' | 'failed' | null
 
@@ -18,6 +19,7 @@ export function SettingsPage() {
   const chooseLanguage = useChooseLanguage()
   const chooseTheme = useChooseTheme()
   const theme = () => session.account()?.theme ?? 'system'
+  useBreadcrumbs(() => [{ label: t('nav.settings') }])
   const accountId = () => session.account()?.id
   const [settings, { mutate }] = createResource(accountId, (id) => api.read(id))
   const [digestTime, setDigestTime] = createSignal('')
