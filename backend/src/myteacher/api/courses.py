@@ -4,7 +4,15 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_serializer, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    field_serializer,
+    field_validator,
+)
 
 from myteacher.accounts.models import Account
 from myteacher.api.deps import Db, Now, requires
@@ -52,6 +60,16 @@ class CourseSummary(BaseModel):
         )
 
 
+class CourseSetup(BaseModel):
+    """What the course's steps are read from."""
+
+    interview_finished: bool
+    brief_confirmed: bool
+    # Sources whose text was read, so the assistant can use them.
+    read_sources: int
+    sources_skipped: bool
+
+
 class CourseOut(CourseSummary):
     owner_id: int
     created_at: datetime
@@ -64,6 +82,7 @@ class CourseOut(CourseSummary):
     can_fork: bool
     # The course this one was forked from; None when it was not, or the origin is gone.
     forked_from_id: int | None
+    setup: CourseSetup
 
     @field_serializer("created_at")
     def _utc(self, at: datetime) -> str:
@@ -77,6 +96,7 @@ class CourseOut(CourseSummary):
             created_at=course.created_at,
             brief=courses.brief_of(course),
             can_edit=can_edit_course(actor, course),
+            setup=CourseSetup(**courses.setup_of(course)),
             can_manage_access=can_manage_course_access(actor, course),
             can_fork=can_fork_course(actor, course),
             forked_from_id=course.forked_from_id,
@@ -102,8 +122,12 @@ class CourseChange(BaseModel):
     subject: Text | None = None
     taught_language: LanguageTag | None = None
     instruction_language: LanguageTag | None = None
+    brief_confirmed: StrictBool | None = None
+    sources_skipped: StrictBool | None = None
 
-    @field_validator("name", "subject", "instruction_language")
+    @field_validator(
+        "name", "subject", "instruction_language", "brief_confirmed", "sources_skipped"
+    )
     @classmethod
     def _cannot_be_unset(cls, value: object) -> object:
         # Validators skip defaults, so this only refuses an explicit null.

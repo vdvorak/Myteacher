@@ -27,6 +27,8 @@ export interface ReferenceDocumentSummary {
   title: string | null
   version: number | null
   created_at: string
+  /** Whether the teacher kept or wrote the latest version; a new draft is not reviewed yet. */
+  reviewed: boolean
   /** The latest generation job. */
   job: Job | null
 }

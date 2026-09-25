@@ -3,11 +3,11 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from sqlalchemy import JSON, ForeignKey, String, Text
+from sqlalchemy import JSON, ForeignKey, String, Text, select
 from sqlalchemy.orm import Mapped, mapped_column
 
 from myteacher import erasure
-from myteacher.persistence import Base, InstanceOwned, UTCDateTime
+from myteacher.persistence import Base, InstanceOwned, InstanceSession, UTCDateTime
 
 
 class GenerationRecord(InstanceOwned, Base):
@@ -68,6 +68,17 @@ class GenerationReaction(InstanceOwned, Base):
     # What the reaction concerned, such as the version an edit produced.
     detail: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+def reviewed(db: InstanceSession, generation_id: int | None) -> bool:
+    """Whether the teacher saw to what a version holds: they wrote it (no generation), or kept
+    what the assistant generated as it is."""
+    if generation_id is None:
+        return True
+    kept = select(GenerationReaction.id).where(
+        GenerationReaction.generation_id == generation_id, GenerationReaction.kind == "kept"
+    )
+    return db.scalar(kept.limit(1)) is not None
 
 
 # The record and the teacher's reactions stay for the prompt's quality signal; the student's

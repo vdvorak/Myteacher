@@ -10,6 +10,8 @@ export interface MaterialSummary {
   title: string | null
   version: number | null
   created_at: string
+  /** Whether the teacher kept or wrote the latest version; a new draft is not reviewed yet. */
+  reviewed: boolean
   /** The latest generation job, until its result landed. */
   job: Job | null
   /** Stored for planning; they do not change what is generated yet. */

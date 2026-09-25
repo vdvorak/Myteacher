@@ -43,12 +43,14 @@ function renderCourse(options: { course?: Course; access?: AccessEntry[]; path?:
   return { courses, history }
 }
 
+/** The access tab of the course; named as before, when access was a dialog. */
 async function openDialog() {
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: 'Share the course' }))
+  const steps = await screen.findByRole('navigation', { name: 'Course steps' })
+  await user.click(within(steps).getByRole('link', { name: 'Access' }))
   return {
     user,
-    dialog: within(await screen.findByRole('dialog', { name: 'Course access' })),
+    dialog: within(await screen.findByRole('region', { name: 'Course access' })),
   }
 }
 
@@ -157,23 +159,14 @@ describe('course access list', () => {
     )
   })
 
-  it('is closed again', async () => {
-    renderCourse()
-    const { user, dialog } = await openDialog()
-
-    await user.click(dialog.getByRole('button', { name: 'Close' }))
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
   it.each([
     ['an editor', editor],
     ['a viewer', viewer],
   ])('is not offered to %s', async (_who, course) => {
     renderCourse({ course })
 
-    await screen.findByRole('heading', { name: 'Španělština 2.B' })
-    expect(screen.queryByRole('button', { name: 'Share the course' })).not.toBeInTheDocument()
+    const steps = await screen.findByRole('navigation', { name: 'Course steps' })
+    expect(within(steps).queryByRole('link', { name: 'Access' })).not.toBeInTheDocument()
   })
 })
 
@@ -203,8 +196,11 @@ describe('ownership transfer', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm the transfer' }))
 
     expect(courses.transferOwnership).toHaveBeenCalledWith(1, 'svoboda@skola.example', 'edit')
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Share the course' })).not.toBeInTheDocument())
-    expect(screen.getByRole('button', { name: 'Save course' })).toBeInTheDocument()
+    // An editor now: access is no longer theirs to manage, the course still theirs to change.
+    const steps = await screen.findByRole('navigation', { name: 'Course steps' })
+    await waitFor(() => expect(within(steps).queryByRole('link', { name: 'Access' })).not.toBeInTheDocument())
+    await user.click(within(steps).getByRole('link', { name: /Brief/ }))
+    expect(await screen.findByRole('textbox', { name: 'Level' })).toBeEnabled()
   })
 
   it('is cancelled before it happens', async () => {
@@ -227,19 +223,20 @@ describe('a course seen with a right', () => {
 
     expect(await screen.findByRole('heading', { name: 'Španělština 2.B' })).toBeInTheDocument()
     expect(screen.getByText('You can view this course but not change it.')).toBeInTheDocument()
-    expect(screen.getByLabelText('Course name')).toBeDisabled()
     expect(screen.getByRole('textbox', { name: 'Level' })).toBeDisabled()
     expect(screen.getByRole('textbox', { name: 'Level' })).toHaveValue('A2')
     expect(screen.getByLabelText('Feedback')).toBeDisabled()
-    expect(screen.queryByRole('button', { name: 'Save course' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save Level' })).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.queryByRole('button', { name: 'Edit the basics' })).not.toBeInTheDocument()
   })
 
   it('is editable for an editor', async () => {
     renderCourse({ course: editor })
 
-    expect(await screen.findByRole('button', { name: 'Save course' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Level' })).toBeEnabled()
+    expect(await screen.findByRole('textbox', { name: 'Level' })).toBeEnabled()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('button', { name: 'Edit the basics' })).toBeInTheDocument()
     expect(screen.queryByText('You can view this course but not change it.')).not.toBeInTheDocument()
   })
 

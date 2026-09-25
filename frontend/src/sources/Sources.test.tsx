@@ -27,7 +27,7 @@ function renderSources(
 ) {
   const course = options.course ?? spanish
   const history = createMemoryHistory()
-  history.set({ value: `/courses/${course.id}` })
+  history.set({ value: `/courses/${course.id}?tab=sources` })
   const jobs = fakeJobsApi()
   const sources = fakeSourcesApi({
     sources: { [course.id]: options.sources ?? [textbook] },
@@ -49,8 +49,17 @@ function renderSources(
 const section = async () => within(await screen.findByRole('region', { name: 'Sources' }))
 const item = async (name: string) => within(await (await section()).findByRole('article', { name }))
 
+/** Open the one place to add a source, on the kind given. */
+async function adding(kind: 'A file' | 'A web page' | 'Pasted text', user = userEvent.setup()) {
+  const sources = await section()
+  const open = sources.queryByRole('button', { name: 'Add a source' })
+  if (open) await user.click(open)
+  await user.click(sources.getByRole('radio', { name: kind }))
+  return user
+}
+
 async function upload(file: File, options: { ocr?: boolean } = {}) {
-  const user = userEvent.setup()
+  const user = await adding('A file')
   const sources = await section()
   await user.upload(sources.getByLabelText('File'), file)
   if (options.ocr) await user.click(sources.getByRole('checkbox', { name: /read images and scanned pdfs/i }))
@@ -214,6 +223,7 @@ describe('course sources', () => {
     const source = await item('Učebnice, kapitola 1.pdf')
 
     expect((await section()).queryByLabelText('File')).not.toBeInTheDocument()
+    expect((await section()).queryByRole('button', { name: 'Add a source' })).not.toBeInTheDocument()
     expect(source.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
     expect(source.getByRole('checkbox', { name: 'Visible to students' })).toBeDisabled()
     await user.click(source.getByRole('button', { name: 'Show the text' }))
@@ -239,7 +249,7 @@ describe('web pages as sources', () => {
   }
 
   async function addPage(url: string, name = '') {
-    const user = userEvent.setup()
+    const user = await adding('A web page')
     const sources = await section()
     await user.type(sources.getByRole('textbox', { name: 'Web page address' }), url)
     if (name) await user.type(sources.getByRole('textbox', { name: 'Name (optional)' }), name)
@@ -320,7 +330,7 @@ describe('web pages as sources', () => {
 
 describe('pasted text as a source', () => {
   async function paste(name: string, text: string) {
-    const user = userEvent.setup()
+    const user = await adding('Pasted text')
     const sources = await section()
     await user.type(sources.getByRole('textbox', { name: 'Name' }), name)
     await user.type(sources.getByRole('textbox', { name: 'Text' }), text)
@@ -343,7 +353,7 @@ describe('pasted text as a source', () => {
 
   it('adds nothing without a name or without text', async () => {
     renderSources({ sources: [] })
-    const user = userEvent.setup()
+    const user = await adding('Pasted text')
     const sources = await section()
     const add = sources.getByRole('button', { name: 'Add the text' })
 

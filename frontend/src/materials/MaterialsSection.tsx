@@ -2,6 +2,7 @@ import { A } from '@solidjs/router'
 import { createResource, createSignal, For, Show } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
+import { DraftBadge } from '../shell/DraftBadge'
 import '../documents/documents.css'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
@@ -40,7 +41,14 @@ const asProblem = (error: unknown): Problem =>
   error instanceof MaterialRefused ? { kind: 'refused', reason: error.reason } : { kind: 'failed' }
 
 /** The classroom material of a topic: exercises generated from its approved concept map. */
-export function MaterialsSection(props: { courseId: number; topicId: number; canEdit: boolean; mapApproved: boolean }) {
+export function MaterialsSection(props: {
+  courseId: number
+  topicId: number
+  canEdit: boolean
+  mapApproved: boolean
+  /** The list changed: the topic's counts follow. */
+  onChanged?: () => void
+}) {
   const { t } = useI18n()
   const apis = useApi()
   const api = apis.materials
@@ -70,6 +78,7 @@ export function MaterialsSection(props: { courseId: number; topicId: number; can
   async function reload() {
     try {
       setList(reconcile(await api.list(props.courseId, props.topicId), { key: 'id' }))
+      props.onChanged?.()
     } catch {
       setProblem({ kind: 'failed' })
     }
@@ -227,7 +236,11 @@ function MaterialCard(props: {
     <article class="document-card" aria-labelledby={headingId}>
       <h3 id={headingId}>{props.material.title ?? t('materials.untitled')}</h3>
       <Show when={props.material.version}>
-        {(version) => <p class="settings-note">{t('materials.version', { version: version() })}</p>}
+        {(version) => (
+          <p class="settings-note">
+            <DraftBadge reviewed={props.material.reviewed} /> <span>{t('materials.version', { version: version() })}</span>
+          </p>
+        )}
       </Show>
       <Show when={latest()?.instruction}>
         {(text) => (
@@ -270,13 +283,9 @@ function MaterialCard(props: {
               {t('materials.retry')}
             </button>
           </Show>
-          <Show when={props.material.version !== null}>
-            <button
-              type="button"
-              disabled={busy()}
-              // Read again: keeping also forgets a failed rework.
-              onClick={async () => setKept(await act(() => api.keep(...ids())))}
-            >
+          {/* Marking reviewed also forgets a failed rework of a version already reviewed. */}
+          <Show when={props.material.version !== null && (!props.material.reviewed || failure())}>
+            <button type="button" disabled={busy()} onClick={async () => setKept(await act(() => api.keep(...ids())))}>
               {t('materials.keep')}
             </button>
           </Show>

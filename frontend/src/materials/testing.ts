@@ -26,6 +26,7 @@ export const serEstarMaterial: Material = {
   title: sampleLesson.title,
   version: 1,
   created_at: '2026-09-24T08:00:00Z',
+  reviewed: false,
   job: null,
   target_student_ids: [],
   lesson: sampleLesson,
@@ -75,6 +76,8 @@ export function fakeMaterialsApi(
         lesson: step.lesson,
         answer_key: step.answer_key,
         job: null,
+        // A new generated version is a draft again.
+        reviewed: false,
       })
       material.versions.push({
         number,
@@ -103,6 +106,7 @@ export function fakeMaterialsApi(
           title: null,
           version: null,
           created_at: '2026-09-24T08:00:00Z',
+          reviewed: false,
           job: null,
           target_student_ids: [...new Set(targetStudentIds)].sort((a, b) => a - b),
           lesson: null,
@@ -137,6 +141,7 @@ export function fakeMaterialsApi(
       const material = find(topicId, materialId)
       // Moving on from a failed rework forgets it.
       if (material.job?.state === 'failed') material.job = null
+      material.reviewed = true
     }),
     discard: vi.fn(async (_courseId: number, topicId: number, materialId: number) => {
       find(topicId, materialId)

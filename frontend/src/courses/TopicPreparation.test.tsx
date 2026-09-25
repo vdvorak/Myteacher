@@ -32,7 +32,7 @@ function renderCourse(
 ) {
   const course = options.course ?? spanish
   const history = createMemoryHistory()
-  history.set({ value: `/courses/${course.id}` })
+  history.set({ value: `/courses/${course.id}?tab=topics` })
   const jobs = fakeJobsApi()
   const courses = fakeCoursesApi({ courses: [course], topics: { [course.id]: topics } })
   const concepts = fakeConceptsApi({

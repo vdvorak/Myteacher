@@ -2,6 +2,7 @@ import { A } from '@solidjs/router'
 import { createResource, createSignal, For, Index, Show } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
+import { DraftBadge } from '../shell/DraftBadge'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import { finished } from '../jobs/api'
@@ -53,7 +54,14 @@ const asProblem = (error: unknown): Problem =>
   error instanceof DocumentRefused ? { kind: 'refused', reason: error.reason } : { kind: 'failed' }
 
 /** The reference documents of a topic: generated from its approved concept map, previewed and printed. */
-export function DocumentsSection(props: { courseId: number; topicId: number; canEdit: boolean; mapApproved: boolean }) {
+export function DocumentsSection(props: {
+  courseId: number
+  topicId: number
+  canEdit: boolean
+  mapApproved: boolean
+  /** The list changed: the topic's counts follow. */
+  onChanged?: () => void
+}) {
   const { t } = useI18n()
   const api = useApi().documents
   const [list, setList] = createStore<ReferenceDocumentSummary[]>([])
@@ -72,6 +80,7 @@ export function DocumentsSection(props: { courseId: number; topicId: number; can
   async function reload() {
     try {
       setList(reconcile(await api.list(props.courseId, props.topicId), { key: 'id' }))
+      props.onChanged?.()
     } catch {
       setProblem({ kind: 'failed' })
     }
@@ -182,7 +191,8 @@ function DocumentCard(props: {
       <Show when={props.document.version}>
         {(version) => (
           <p class="settings-note">
-            {t('documents.kindAndVersion', { kind: t(kindNames[props.document.kind]), version: version() })}
+            <DraftBadge reviewed={props.document.reviewed} />{' '}
+            <span>{t('documents.kindAndVersion', { kind: t(kindNames[props.document.kind]), version: version() })}</span>
           </p>
         )}
       </Show>
@@ -213,13 +223,11 @@ function DocumentCard(props: {
             >
               {t('documents.edit')}
             </button>
-            <button
-              type="button"
-              disabled={busy()}
-              onClick={async () => setKept(await act(() => api.keep(...ids()), false))}
-            >
-              {t('documents.keep')}
-            </button>
+            <Show when={!props.document.reviewed}>
+              <button type="button" disabled={busy()} onClick={async () => setKept(await act(() => api.keep(...ids())))}>
+                {t('documents.keep')}
+              </button>
+            </Show>
           </Show>
           <Show
             when={confirming()}

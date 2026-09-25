@@ -4,12 +4,53 @@ from datetime import datetime
 
 from sqlalchemy import func, select
 
-from myteacher.courses.models import Course, Topic
+from myteacher.courses.models import (
+    ClassroomMaterial,
+    Concept,
+    ConceptMap,
+    Course,
+    ReferenceDocument,
+    Topic,
+)
 from myteacher.persistence import InstanceSession
 
 
 class OrderMismatch(Exception):
     """The new order does not name every topic of the course exactly once."""
+
+
+def progress_of(db: InstanceSession, course: Course) -> dict[int, tuple[str, int, int]]:
+    """How far each topic's preparation got: its concept map ("none", "draft" or "approved"),
+    and how many reference documents and classroom materials it holds."""
+    ids = select(Topic.id).where(Topic.course_id == course.id)
+    current = (
+        select(func.count())
+        .where(Concept.concept_map_id == ConceptMap.id, Concept.retired_at.is_(None))
+        .scalar_subquery()
+    )
+    held_maps = select(ConceptMap.topic_id, ConceptMap.state, current).where(
+        ConceptMap.topic_id.in_(ids)
+    )
+    # A map with no concepts yet, say while the first proposal runs, is no map to approve.
+    maps = {topic_id: state for topic_id, state, concepts in db.execute(held_maps) if concepts}
+
+    def counts(model: type[ReferenceDocument] | type[ClassroomMaterial]) -> dict[int, int]:
+        held = (
+            select(model.topic_id, func.count())
+            .where(model.topic_id.in_(ids), model.discarded_at.is_(None))
+            .group_by(model.topic_id)
+        )
+        return {topic_id: count for topic_id, count in db.execute(held)}
+
+    documents, materials = counts(ReferenceDocument), counts(ClassroomMaterial)
+    return {
+        topic_id: (
+            maps.get(topic_id, "none"),
+            documents.get(topic_id, 0),
+            materials.get(topic_id, 0),
+        )
+        for topic_id in db.scalars(ids)
+    }
 
 
 def topics_of(db: InstanceSession, course: Course) -> list[Topic]:

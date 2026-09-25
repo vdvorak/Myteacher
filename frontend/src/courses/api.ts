@@ -43,6 +43,18 @@ export interface CourseSummary extends CourseBasics {
   access: CourseRight | 'owner'
 }
 
+/** Only the fields present change. */
+export type CourseChange = Partial<CourseBasics> & Partial<Pick<CourseSetup, 'brief_confirmed' | 'sources_skipped'>>
+
+/** What the course's steps are read from. */
+export interface CourseSetup {
+  interview_finished: boolean
+  brief_confirmed: boolean
+  /** Sources whose text was read, so the assistant can use them. */
+  read_sources: number
+  sources_skipped: boolean
+}
+
 export interface Course extends CourseSummary {
   owner_id: number
   created_at: string
@@ -55,6 +67,7 @@ export interface Course extends CourseSummary {
   can_fork: boolean
   /** The course this one was forked from; null when it was not, or the origin is gone. */
   forked_from_id: number | null
+  setup: CourseSetup
 }
 
 export interface AccessEntry {
@@ -104,6 +117,11 @@ export interface Topic {
   diagnostic_wanted: boolean
   additions: TopicAdditions
   diagnostic_offer: DiagnosticOffer | null
+  /** How far its preparation got. */
+  concept_map: 'none' | 'draft' | 'approved'
+  /** Reference documents and classroom materials it holds. */
+  documents: number
+  materials: number
 }
 
 export interface InterviewQuestion {
@@ -179,7 +197,7 @@ export interface CoursesApi {
   list(): Promise<CourseSummary[]>
   get(id: number): Promise<Course>
   create(basics: CourseBasics): Promise<Course>
-  change(id: number, change: Partial<CourseBasics>): Promise<Course>
+  change(id: number, change: CourseChange): Promise<Course>
   /** Only the fields given change. */
   changeBrief(id: number, change: Partial<CourseBrief>): Promise<CourseBrief>
   /** Each topic call answers with the course's whole ordered topic list. */

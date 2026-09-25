@@ -66,7 +66,7 @@ def test_the_archive_is_a_versioned_document_with_the_source_files(teacher, cour
     assert ".myteacher.zip" in exported.headers["content-disposition"]
     document, files = unpacked(exported)
     assert document["format"] == "myteacher-course"
-    assert document["version"] == 1
+    assert document["version"] == 2
     assert document["exported_at"].endswith("Z")
     [source] = document["sources"]
     assert source["name"] == "Učebnice 3.txt"
@@ -84,6 +84,8 @@ def test_the_course_brief_and_topics_are_in_the_archive(teacher, course):
         "subject": "Spanish",
         "taught_language": "es",
         "instruction_language": "cs",
+        "brief_done": False,
+        "sources_skipped": False,
     }
     assert document["brief"]["feedback_mode"] == "immediate"
     first, second = document["topics"]
@@ -184,9 +186,27 @@ def test_the_document_reads_back_as_the_archive_format(teacher, course):
     document, _ = unpacked(export(teacher, course["course"]))
 
     archive = Archive.model_validate(document)
-    assert archive.version == 1
+    assert archive.version == 2
     with pytest.raises(ValueError):
-        Archive.model_validate({**document, "version": 2})
+        Archive.model_validate({**document, "version": 3})
+
+
+def test_an_archive_of_the_first_version_still_reads(teacher, course):
+    from myteacher.courses.archive import Archive
+
+    document, _ = unpacked(export(teacher, course["course"]))
+    first = {
+        **document,
+        "version": 1,
+        "course": {
+            k: v
+            for k, v in document["course"].items()
+            if k not in ("brief_done", "sources_skipped")
+        },
+    }
+
+    archive = Archive.model_validate(first)
+    assert (archive.course.brief_done, archive.course.sources_skipped) == (False, False)
 
 
 def test_material_lessons_are_named_by_archive_keys_not_database_ids(teacher, course):

@@ -47,6 +47,7 @@ export const spanish: Course = {
   can_manage_access: true,
   can_fork: true,
   forked_from_id: null,
+  setup: { interview_finished: false, brief_confirmed: false, read_sources: 0, sources_skipped: false },
 }
 
 export const noAdditions: TopicAdditions = { goals: null, prior_knowledge: null, emphasis: null, notes: null }
@@ -56,6 +57,9 @@ export const topicFixture = (topic: Pick<Topic, 'id' | 'name' | 'position'> & Pa
   diagnostic_wanted: false,
   additions: noAdditions,
   diagnostic_offer: null,
+  concept_map: 'none',
+  documents: 0,
+  materials: 0,
   ...topic,
 })
 
@@ -249,6 +253,7 @@ export function fakeCoursesApi(
         can_manage_access: true,
         can_fork: true,
         forked_from_id: null,
+        setup: { interview_finished: false, brief_confirmed: false, read_sources: 0, sources_skipped: false },
       }),
     ),
     fork: vi.fn(async (id: number) =>
@@ -263,10 +268,20 @@ export function fakeCoursesApi(
           can_manage_access: true,
           can_fork: true,
           forked_from_id: id,
+          setup: { interview_finished: false, brief_confirmed: false, read_sources: 0, sources_skipped: false },
         }),
       ),
     ),
-    change: vi.fn(async (id, change) => store({ ...find(id), ...change })),
+    change: vi.fn(async (id, change) => {
+      const { brief_confirmed, sources_skipped, ...basics } = change
+      const course = find(id)
+      const setup = {
+        ...course.setup,
+        ...(brief_confirmed === undefined ? {} : { brief_confirmed }),
+        ...(sources_skipped === undefined ? {} : { sources_skipped }),
+      }
+      return store({ ...course, ...basics, setup })
+    }),
     changeBrief: vi.fn(async (id, change) => {
       const course = find(id)
       const brief = { ...course.brief, ...change }

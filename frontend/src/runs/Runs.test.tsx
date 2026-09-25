@@ -51,7 +51,7 @@ const rowOf = async (tableName: string, text: string) => (await table(tableName)
 
 describe('runs of a course', () => {
   it('lists the runs the teacher started, with their roster sizes', async () => {
-    renderApp(`/courses/${spanish.id}`, { runs: [run({ classIds: [1] })] })
+    renderApp(`/courses/${spanish.id}?tab=runs`, { runs: [run({ classIds: [1] })] })
 
     const link = await screen.findByRole('link', { name: 'Španělština 2.B 2026/27' })
     expect(link).toHaveAttribute('href', '/runs/7')
@@ -59,7 +59,7 @@ describe('runs of a course', () => {
   })
 
   it('starts a named run and opens it', async () => {
-    const { runs, history } = renderApp(`/courses/${spanish.id}`)
+    const { runs, history } = renderApp(`/courses/${spanish.id}?tab=runs`)
     const user = userEvent.setup()
 
     await user.type(await screen.findByLabelText('Run name'), 'Španělština 2.A 2026/27')
@@ -71,9 +71,9 @@ describe('runs of a course', () => {
   })
 
   it('offers starting a run to editors only', async () => {
-    renderApp(`/courses/${spanish.id}`, { course: { ...spanish, access: 'view', can_edit: false } })
+    renderApp(`/courses/${spanish.id}?tab=runs`, { course: { ...spanish, access: 'view', can_edit: false } })
 
-    expect(await screen.findByRole('heading', { name: 'Runs' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Course runs' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Start a run' })).not.toBeInTheDocument()
   })
 })

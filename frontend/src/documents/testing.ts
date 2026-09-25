@@ -20,6 +20,7 @@ export const cheatSheet: ReferenceDocument = {
   title: 'Pretérito indefinido',
   version: 1,
   created_at: '2026-09-24T08:00:00Z',
+  reviewed: false,
   job: null,
   passages: [
     {
@@ -76,6 +77,7 @@ export function fakeDocumentsApi(
         passages: step.passages,
         version: 1,
         unsourced_passages: step.passages.filter((p) => p.unsourced).length,
+        reviewed: false,
       })
       document.job = { ...job, state: 'succeeded', progress: null }
       return { state: 'succeeded', error_kind: null, raw_output: null }
@@ -98,6 +100,7 @@ export function fakeDocumentsApi(
         title: null,
         version: null,
         created_at: '2026-09-24T08:00:00Z',
+        reviewed: false,
         job: null,
         passages: [],
         unsourced_passages: 0,
@@ -127,12 +130,14 @@ export function fakeDocumentsApi(
           passages,
           version: (document.version ?? 0) + 1,
           unsourced_passages: passages.filter((p) => p.unsourced).length,
+          // The teacher wrote it.
+          reviewed: true,
         })
         return structuredClone(document)
       },
     ),
     keep: vi.fn(async (_courseId: number, topicId: number, documentId: number) => {
-      find(topicId, documentId)
+      find(topicId, documentId).reviewed = true
     }),
     discard: vi.fn(async (_courseId: number, topicId: number, documentId: number) => {
       find(topicId, documentId)

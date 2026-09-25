@@ -6,7 +6,8 @@ under `sources/`. Records refer to each other by keys made for the archive, neve
 identifiers. Who owns the course and whom it is shared with are not part of it, and neither is
 anything about students (ADR 0008): the targets of classroom material stay behind. Neither are
 the transcripts of the course and topic interviews, generation records or retired concepts: what
-the interviews established is in the brief and the topics' additions.
+the interviews established is in the brief and the topics' additions, and whether they finished in
+the course's `brief_done` (version 2).
 
 A later slice that adds to the format raises `VERSION`; a reader refuses versions it does not know.
 Importing builds a new course from an archive with identifiers of its own; a fork is an export
@@ -48,7 +49,7 @@ from myteacher.lesson.schema import LessonDocument
 from myteacher.persistence import InstanceSession
 
 FORMAT = "myteacher-course"
-VERSION = 1
+VERSION = 2
 DOCUMENT_NAME = "course.json"
 
 UtcTime = Annotated[
@@ -74,6 +75,9 @@ class ArchiveCourse(_Model):
     subject: Name
     taught_language: str | None
     instruction_language: str
+    # Version 2: the steps a teacher confirmed, and a brief its interview finished.
+    brief_done: bool = False
+    sources_skipped: bool = False
 
 
 class ArchiveSource(_Model):
@@ -193,7 +197,8 @@ class ArchiveTopic(_Model):
 
 class Archive(_Model):
     format: Literal["myteacher-course"]
-    version: Literal[1]
+    # 1 lacks the course's confirmed steps.
+    version: Literal[1, 2]
     exported_at: UtcTime
     course: ArchiveCourse
     brief: CourseBrief
@@ -327,6 +332,7 @@ def export(db: InstanceSession, course: Course, *, now: datetime) -> bytes:
         if stored is not None and archived.file is not None:
             files[archived.file] = stored.content
         archived_sources.append(archived)
+    setup = courses.setup_of(course)
     archive = Archive(
         format=FORMAT,
         version=VERSION,
@@ -336,6 +342,8 @@ def export(db: InstanceSession, course: Course, *, now: datetime) -> bytes:
             subject=course.subject,
             taught_language=course.taught_language,
             instruction_language=course.instruction_language,
+            brief_done=setup["interview_finished"] or setup["brief_confirmed"],
+            sources_skipped=course.sources_skipped,
         ),
         brief=courses.brief_of(course),
         sources=archived_sources,
@@ -541,6 +549,8 @@ def import_course(
         now=now,
     )
     course.forked_from_id = forked_from.id if forked_from else None
+    course.brief_confirmed = basics.brief_done
+    course.sources_skipped = basics.sources_skipped
     courses.change_brief(course, archive.brief.model_dump(mode="json"))
     source_ids: dict[str, int] = {}
     for s in archive.sources:

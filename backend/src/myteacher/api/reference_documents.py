@@ -15,6 +15,7 @@ from myteacher.accounts.models import Account
 from myteacher.api.courses import course_for, editable_course
 from myteacher.api.deps import Db, Now, requires
 from myteacher.api.jobs import JobOut
+from myteacher.assistant import generations
 from myteacher.assistant.service import paying_credential
 from myteacher.courses import concepts, documents, topics
 from myteacher.courses.documents import Content
@@ -52,6 +53,8 @@ class DocumentOut(BaseModel):
     title: str | None
     version: int | None
     created_at: datetime
+    # Whether the teacher kept or wrote the latest version; a new draft is not reviewed yet.
+    reviewed: bool
     # The latest generation job.
     job: JobOut | None
 
@@ -96,6 +99,7 @@ def _summary(db: InstanceSession, document: ReferenceDocument) -> dict:
         "kind": document.kind,
         "title": version.title if version else None,
         "version": version.number if version else None,
+        "reviewed": version is not None and generations.reviewed(db, version.generation_id),
         "created_at": document.created_at,
         "job": JobOut.of(job) if job else None,
     }

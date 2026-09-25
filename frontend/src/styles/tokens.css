@@ -23,6 +23,7 @@
   --space-8: 2rem;
 
   --radius: 0.75rem;
+  --radius-pill: 999px;
   --border-width: 1px;
   --content-width: 42rem; /* reading width for forms and text; the app shell content is wider */
   --shell-content-width: 72rem;

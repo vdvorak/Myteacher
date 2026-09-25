@@ -346,3 +346,166 @@
     padding: 0;
   }
 }
+
+/* Step tabs: numbered steps with their state, then the other tabs after a divider. */
+.step-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.step-tabs ol,
+.step-tabs ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-tabs ul {
+  padding-left: var(--space-4);
+  border-left: var(--border-width) solid var(--color-border);
+}
+
+.step-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  padding: var(--space-2) 0;
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.step-tab[aria-current='page'] {
+  border-bottom: calc(var(--border-width) * 2) solid var(--color-accent);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.step-mark {
+  display: grid;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 50%;
+  font-size: var(--font-size-small);
+}
+
+.step-tab[data-state='done'] .step-mark {
+  border-color: var(--color-correct-surface);
+  background: var(--color-correct-surface);
+  color: var(--color-correct);
+}
+
+.step-tab[data-state='next'] .step-mark {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.step-note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-weight: 400;
+}
+
+/* The next-step bar under the tabs. */
+.next-step {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-accent-surface);
+  font-size: var(--font-size-small);
+}
+
+.next-step p {
+  margin: 0;
+}
+
+/* A link that looks like the main button. */
+.button-link {
+  display: inline-block;
+  padding: var(--space-2) var(--space-4);
+  border: var(--border-width) solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  text-decoration: none;
+}
+
+.button-link:hover {
+  color: var(--color-accent-text);
+}
+
+/* A locked step says what unlocks it. */
+.step-locked {
+  padding: var(--space-4);
+  border: var(--border-width) dashed var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+}
+
+/* Draft states of what the assistant produced. */
+.badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-small);
+}
+
+.badge[data-tone='attention'] {
+  background: var(--color-warning-surface);
+  color: var(--color-warning);
+}
+
+.badge[data-tone='done'] {
+  background: var(--color-correct-surface);
+  color: var(--color-correct);
+}
+
+.badge[data-tone='quiet'] {
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+}
+
+.step-tab[data-state='locked'] .step-mark {
+  border-style: dashed;
+}
+
+/* A form opened on demand, standing out from the page. */
+.panel {
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+/* Destructive actions, set apart from routine ones. */
+.danger-zone {
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-incorrect);
+  border-radius: var(--radius);
+}
+
+/* A step's heading with its main action beside it. */
+.step-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.step-heading h2 {
+  margin: 0;
+}

@@ -39,6 +39,9 @@ def test_topics_are_added_at_the_end_in_order(teacher):
         "diagnostic_wanted": False,
         "additions": {"goals": None, "prior_knowledge": None, "emphasis": None, "notes": None},
         "diagnostic_offer": None,
+        "concept_map": "none",
+        "documents": 0,
+        "materials": 0,
     }
     assert topics == [
         {"id": topics[0]["id"], "name": "Presente", "position": 0, **fresh},

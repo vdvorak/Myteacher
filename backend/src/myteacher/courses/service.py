@@ -2,11 +2,12 @@
 
 from datetime import datetime
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import object_session
 
 from myteacher.accounts.models import Account
 from myteacher.courses.brief import CourseBrief
-from myteacher.courses.models import Course, CourseAccess, CourseBriefRow
+from myteacher.courses.models import Course, CourseAccess, CourseBriefRow, Interview, Source
 from myteacher.persistence import InstanceSession
 
 
@@ -52,6 +53,22 @@ def create_course(
     db.add(course)
     db.flush()
     return course
+
+
+def setup_of(course: Course) -> dict[str, object]:
+    """The facts the course's steps are read from."""
+    db = object_session(course)
+    assert db is not None, "a course is read from a session"
+    finished = select(Interview.id).where(
+        Interview.course_id == course.id, Interview.state == "finished"
+    )
+    read = select(func.count()).where(Source.course_id == course.id, Source.text.is_not(None))
+    return {
+        "interview_finished": db.scalar(finished.limit(1)) is not None,
+        "brief_confirmed": course.brief_confirmed,
+        "read_sources": db.scalar(read) or 0,
+        "sources_skipped": course.sources_skipped,
+    }
 
 
 def brief_of(course: Course) -> CourseBrief:

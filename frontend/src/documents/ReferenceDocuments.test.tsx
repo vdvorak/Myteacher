@@ -49,7 +49,7 @@ function renderApp(
   return { documents }
 }
 
-const renderTopic = (options: Parameters<typeof renderApp>[1] = {}) => renderApp('/courses/1/topics/2', options)
+const renderTopic = (options: Parameters<typeof renderApp>[1] = {}) => renderApp('/courses/1/topics/2?tab=documents', options)
 const section = async () => within(await screen.findByRole('region', { name: 'Reference documents' }))
 const item = async (title: string) => within(await (await section()).findByRole('article', { name: title }))
 
@@ -74,9 +74,8 @@ describe('reference documents of a topic', () => {
   it('asks for an approved concept map first', async () => {
     renderTopic({ map: preteritMap })
 
-    const documentsSection = await section()
-    expect(documentsSection.getByText('Approve the concept map to generate documents from it.')).toBeInTheDocument()
-    expect(documentsSection.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
+    expect(await screen.findByText('This step opens once the concept map is approved: everything here is made from it.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
   })
 
   it('says why a generation failed and tries it again', async () => {
@@ -138,15 +137,18 @@ describe('reference documents of a topic', () => {
     expect(document.getByRole('textbox', { name: 'Passage 3' })).toHaveValue('Use it for finished actions. Mine.')
   })
 
-  it('records that the teacher keeps a document as it is', async () => {
+  it('marks a new document reviewed, recording that the teacher keeps it', async () => {
     const { documents } = renderTopic({ documents: [cheatSheet] })
     const user = userEvent.setup()
     const document = await item('Pretérito indefinido')
+    expect(document.getByText('New')).toBeInTheDocument()
 
-    await user.click(document.getByRole('button', { name: 'Keep as it is' }))
+    await user.click(document.getByRole('button', { name: 'Mark as reviewed' }))
 
     expect(documents.keep).toHaveBeenCalledWith(1, 2, 31)
-    expect(await document.findByRole('status')).toHaveTextContent('Noted: kept as it is.')
+    expect(await document.findByRole('status')).toHaveTextContent('Marked as reviewed.')
+    expect(await document.findByText('Reviewed')).toBeInTheDocument()
+    expect(document.queryByRole('button', { name: 'Mark as reviewed' })).not.toBeInTheDocument()
   })
 
   it('discards a document after confirming', async () => {

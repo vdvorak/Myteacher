@@ -24,6 +24,13 @@ function renderApp(path: string, options: { signedIn?: Account; courses?: Course
 
 const briefField = (name: string) => screen.findByRole('textbox', { name })
 
+/** The basics are edited from More actions. */
+async function editBasics(user = userEvent.setup()) {
+  await user.click(await screen.findByRole('button', { name: 'More actions' }))
+  await user.click(screen.getByRole('button', { name: 'Edit the basics' }))
+  return user
+}
+
 describe('course list', () => {
   it('is in a teacher’s navigation and lists their courses', async () => {
     const { history } = renderApp('/')
@@ -75,6 +82,7 @@ describe('course page', () => {
     renderApp('/courses/1')
 
     expect(await screen.findByRole('heading', { name: 'Španělština 2.B' })).toBeInTheDocument()
+    await editBasics()
     expect(screen.getByLabelText('Language taught')).toHaveValue('es')
     expect(screen.getByLabelText('Language of explanations')).toHaveValue('cs')
     expect(await briefField('Level')).toHaveValue('A2')
@@ -86,7 +94,7 @@ describe('course page', () => {
 
   it('changes the language of explanations without touching the language taught', async () => {
     const { courses } = renderApp('/courses/1')
-    const user = userEvent.setup()
+    const user = await editBasics()
 
     await user.selectOptions(await screen.findByLabelText('Language of explanations'), 'es')
     await user.click(screen.getByRole('button', { name: 'Save course' }))

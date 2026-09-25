@@ -29,6 +29,10 @@ class Course(InstanceOwned, Base):
     # The course this one was forked from, for lineage; a fork never follows it. Forgotten when
     # the origin is deleted.
     forked_from_id: Mapped[int | None] = mapped_column(ForeignKey("course.id", ondelete="SET NULL"))
+    # The teacher took the brief as done without finishing the interview.
+    brief_confirmed: Mapped[bool] = mapped_column(default=False)
+    # The teacher chose to go on without sources.
+    sources_skipped: Mapped[bool] = mapped_column(default=False)
 
     brief: Mapped["CourseBriefRow"] = relationship(lazy="joined")
     # The teachers the owner shared the course with; the owner is never on it.

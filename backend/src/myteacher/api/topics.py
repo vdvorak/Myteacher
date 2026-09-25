@@ -2,7 +2,7 @@
 
 Every change answers with the whole ordered list, so the client never guesses an order."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
@@ -46,6 +46,10 @@ class TopicOut(BaseModel):
     # What the topic adds to the course brief.
     additions: AdditionsOut
     diagnostic_offer: DiagnosticOfferOut | None
+    concept_map: Literal["none", "draft", "approved"]
+    # Not discarded ones.
+    documents: int
+    materials: int
 
 
 class TopicIn(BaseModel):
@@ -97,6 +101,7 @@ class TopicOrder(BaseModel):
 
 
 def _listed(db: InstanceSession, course: Course) -> list[TopicOut]:
+    progress = topics.progress_of(db, course)
     return [
         TopicOut(
             id=topic.id,
@@ -109,6 +114,9 @@ def _listed(db: InstanceSession, course: Course) -> list[TopicOut]:
             )
             if topic.diagnostic_offer
             else None,
+            concept_map=progress[topic.id][0],
+            documents=progress[topic.id][1],
+            materials=progress[topic.id][2],
         )
         for topic in topics.topics_of(db, course)
     ]

@@ -1,5 +1,5 @@
-import { useParams } from '@solidjs/router'
-import { createResource, createSignal, For, Index, Show } from 'solid-js'
+import { useParams, useSearchParams } from '@solidjs/router'
+import { createEffect, createResource, createSignal, For, Index, Match, Show, Switch } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
 import { DocumentsSection } from '../documents/DocumentsSection'
@@ -9,6 +9,7 @@ import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
 import { MaterialsSection } from '../materials/MaterialsSection'
 import { useCourseTrail } from '../courses/trail'
 import { PageHeader } from '../shell/PageHeader'
+import { NextStep, StepTabs, type StepState, type Tab } from '../shell/StepTabs'
 import { TeachersOnly } from '../students/StudentsPage'
 import '../admin/admin.css'
 import '../courses/courses.css'
@@ -57,7 +58,17 @@ const otherMessages: Record<'failed' | 'loadFailed' | 'nameRequired', MessageKey
 
 const working = (map: ConceptMap | null) => map?.job?.state === 'queued' || map?.job?.state === 'running'
 
-/** The concept map of one topic: proposed by the assistant, edited and approved by the teacher. */
+type TopicTab = 'additions' | 'map' | 'documents' | 'materials'
+const topicTabs: TopicTab[] = ['additions', 'map', 'documents', 'materials']
+const topicTabLabels: Record<TopicTab, MessageKey> = {
+  additions: 'topicTabs.additions',
+  map: 'topicTabs.map',
+  documents: 'topicTabs.documents',
+  materials: 'topicTabs.materials',
+}
+
+/** One topic as steps: what it adds to the brief, its concept map, then what is made from the
+ * approved map for teaching. */
 export function ConceptMapPage() {
   return (
     <TeachersOnly>
@@ -71,6 +82,7 @@ function ConceptMapDetail() {
   const apis = useApi()
   const api = apis.concepts
   const params = useParams<{ courseId: string; topicId: string }>()
+  const [search] = useSearchParams<{ tab?: string }>()
   const courseId = () => Number(params.courseId)
   const topicId = () => Number(params.topicId)
   const [course] = createResource(courseId, (id) => apis.courses.get(id))
@@ -142,161 +154,232 @@ function ConceptMapDetail() {
 
   useCourseTrail(() => ({ courseId: courseId(), topicId: topicId() }))
 
+  const approved = () => map()?.state === 'approved'
+  const holds = () => ({ documents: topic()?.documents ?? 0, materials: topic()?.materials ?? 0 })
+  const additionsGiven = () => Object.values(topic()?.additions ?? {}).some((value) => value)
+  // What the topic already holds stays within reach while its map is reopened for changes.
+  const reachable = (id: 'documents' | 'materials') => approved() || holds()[id] > 0
+  const stepState = (id: TopicTab): StepState => {
+    if (id === 'additions') return additionsGiven() ? 'done' : 'open'
+    if (id === 'map') return approved() ? 'done' : 'next'
+    if (!reachable(id)) return 'locked'
+    if (!approved()) return 'open'
+    if (id === 'documents') return holds().documents > 0 ? 'done' : 'open'
+    return holds().materials > 0 ? 'done' : 'next'
+  }
+  const tabs = (): Tab[] =>
+    topicTabs.map((id, index) => ({ id, label: t(topicTabLabels[id]), step: { number: index + 1, state: stepState(id) } }))
+  // The step to do when the topic opened; the page stays there as steps get done.
+  const [landed, setLanded] = createSignal<{ topic: number; tab: TopicTab }>()
+  createEffect(() => {
+    if (loaded() && landed()?.topic !== topicId()) setLanded({ topic: topicId(), tab: approved() ? 'materials' : 'map' })
+  })
+  /** The tab in the address, or else the step that was next when the topic opened. */
+  const current = (): TopicTab => {
+    const asked = topicTabs.find((id) => id === search.tab)
+    if (asked) return asked
+    const opened = landed()
+    return opened?.topic === topicId() ? opened.tab : approved() ? 'materials' : 'map'
+  }
+  const href = (id: string) => `/courses/${courseId()}/topics/${topicId()}?tab=${id}`
+  const suggestion = (): { sentence: string; action: { label: string; href: string } } | undefined => {
+    if (!loaded() || !course()) return undefined
+    if (!approved()) {
+      return {
+        sentence: t(map()?.concepts.length ? 'nextStep.reviewMap' : 'nextStep.proposeMap'),
+        action: { label: t('nextStep.openMap'), href: href('map') },
+      }
+    }
+    if (holds().materials === 0) {
+      return { sentence: t('nextStep.createMaterial'), action: { label: t('nextStep.openMaterials'), href: href('materials') } }
+    }
+    return {
+      sentence: t('nextStep.release'),
+      action: { label: t('nextStep.openRuns'), href: `/courses/${courseId()}?tab=runs` },
+    }
+  }
+  const lockedNote = (
+    <p class="step-locked">{t('topicTabs.lockedUntilApproved')}</p>
+  )
+
   return (
     <section class="admin-section">
       <PageHeader title={topic()?.name ?? t('concepts.heading')} meta={course()?.name} />
-      <Show when={canEdit()}>
-        <TopicInterviewPanel
-          courseId={courseId()}
-          topicId={topicId()}
-          onFinished={() => {
-            // A finished interview starts proposing the map.
-            void refetch()
-            void refetchTopics()
-          }}
-        />
-      </Show>
-      <Show when={course() && topic()}>
-        {(shown) => (
-          <AdditionsSection courseId={courseId()} topic={shown()} canEdit={canEdit()} onChanged={setTopics} />
-        )}
-      </Show>
-      <section class="settings-form" aria-labelledby="concepts-heading">
-        <h2 id="concepts-heading">{t('concepts.heading')}</h2>
-        <Show when={loaded() && course()}>
-          <p class="settings-note">
-            {t(
-              map()?.state === 'approved'
-                ? 'concepts.approved'
-                : map()?.concepts.length
-                  ? 'concepts.draft'
-                  : 'concepts.none',
-            )}
-          </p>
-          <Show when={working(map()) && map()!.job} keyed>
-            {(job) => (
-              <JobStatus
-                job={job}
-                onFinished={() => {
-                  // A proposal may bring a diagnostic offer, which is part of the topic.
-                  void refetch()
-                  void refetchTopics()
-                }}
-              />
-            )}
-          </Show>
-          <Show when={failedJob()}>
-            {(job) => <JobFailureMessage kind={job().error_kind ?? 'other'} rawOutput={job().raw_output} />}
-          </Show>
-          <Show when={canPropose()}>
-            <div class="settings-actions">
-              <button type="button" disabled={busy()} onClick={propose}>
-                {t(map()?.concepts.length ? 'concepts.proposeAgain' : 'concepts.propose')}
-              </button>
-            </div>
-            <Show when={map()?.concepts.length}>
-              <p class="settings-note">{t('concepts.proposalReplaces')}</p>
-            </Show>
-          </Show>
-          <Show when={map()?.concepts.length}>
-            <Show
-              when={editable()}
-              fallback={
-                <ol class="concept-list" aria-label={t('concepts.heading')}>
-                  <For each={map()!.concepts}>{(concept) => <ConceptView concept={concept} all={map()!.concepts} />}</For>
-                </ol>
-              }
-            >
-              <ol class="concept-list" aria-label={t('concepts.heading')}>
-                <For each={map()!.concepts}>
-                  {(concept) => (
-                    <ConceptEditor
-                      concept={concept}
-                      all={map()!.concepts}
-                      busy={busy()}
-                      chosen={selected().includes(concept.id)}
-                      onChoose={(chosen) => choose(concept, chosen)}
-                      onSave={(changed) => (requireName(changed.name ?? concept.name) ? change(concept, changed) : false)}
-                      onRemove={() => remove(concept)}
-                      onSplit={(parts) => (parts.every((p) => requireName(p.name)) ? split(concept, parts) : false)}
-                    />
-                  )}
-                </For>
-              </ol>
-            </Show>
-          </Show>
-          <Show when={editable() && chosenConcepts().length >= 2}>
-            <MergeForm
-              concepts={chosenConcepts()}
-              busy={busy()}
-              onMerge={async (merged) => {
-                if (!requireName(merged.name)) return false
-                const ids = chosenConcepts().map((c) => c.id)
-                return run(() => api.merge(courseId(), topicId(), ids, merged))
+      <StepTabs label={t('topicTabs.label')} tabs={tabs()} current={current()} href={href} />
+      <NextStep sentence={suggestion()?.sentence} action={suggestion()?.action} here={href(current())} />
+      <Switch>
+        <Match when={current() === 'additions'}>
+          <Show when={canEdit()}>
+            <TopicInterviewPanel
+              courseId={courseId()}
+              topicId={topicId()}
+              onFinished={() => {
+                // A finished interview starts proposing the map.
+                void refetch()
+                void refetchTopics()
               }}
             />
           </Show>
-          <Show when={canEdit() && (map() === null || editable())}>
-            <NewConceptForm
-              busy={busy()}
-              onAdd={(draft) =>
-                requireName(draft.name) ? run(() => api.add(courseId(), topicId(), { ...draft, prerequisite_ids: [] })) : false
-              }
-            />
+          <Show when={course() && topic()}>
+            {(shown) => (
+              <AdditionsSection courseId={courseId()} topic={shown()} canEdit={canEdit()} onChanged={setTopics} />
+            )}
           </Show>
-          <Show when={editable() && map()!.concepts.length > 0}>
-            <p class="settings-note">{t('concepts.approveNote')}</p>
-            <div class="settings-actions">
-              <button type="button" disabled={busy()} onClick={() => run(() => api.approve(courseId(), topicId(), map()!.version))}>
-                {t('concepts.approve')}
-              </button>
+        </Match>
+        <Match when={current() === 'map'}>
+          <section class="settings-form" aria-labelledby="concepts-heading">
+            <div class="step-heading">
+              <h2 id="concepts-heading">{t('concepts.heading')}</h2>
+              {/* Approving is the step's main action, at its head rather than under a long list. */}
+              <Show when={editable() && map()!.concepts.length > 0}>
+                <button type="button" disabled={busy()} onClick={() => run(() => api.approve(courseId(), topicId(), map()!.version))}>
+                  {t('concepts.approve')}
+                </button>
+              </Show>
             </div>
-          </Show>
-          <Show when={canEdit() && map()?.state === 'approved'}>
-            <div class="settings-actions">
-              <button type="button" disabled={busy()} onClick={() => run(() => api.reopen(courseId(), topicId()))}>
-                {t('concepts.reopen')}
-              </button>
-            </div>
-          </Show>
-        </Show>
-        <Show when={problem()}>
-          {(shown) => {
-            const value = shown()
-            if (value.kind === 'refused' && value.reason === 'no_provider_key') return <JobFailureMessage kind="no_key" />
-            return (
-              <p role="alert">
-                {t(value.kind === 'refused' ? refusalMessages[value.reason as keyof typeof refusalMessages] : otherMessages[value.kind])}
+            <Show when={loaded() && course()}>
+              <Show when={editable() && map()!.concepts.length > 0}>
+                <p class="settings-note">{t('concepts.approveNote')}</p>
+              </Show>
+              <p class="settings-note">
+                {t(
+                  map()?.state === 'approved'
+                    ? 'concepts.approved'
+                    : map()?.concepts.length
+                      ? 'concepts.draft'
+                      : 'concepts.none',
+                )}
               </p>
-            )
-          }}
-        </Show>
-      </section>
-      <Show when={course() && topic()}>
-        {(shown) => (
-          <DiagnosticOfferSection
-            courseId={courseId()}
-            topic={shown()}
-            canEdit={canEdit()}
-            onChanged={setTopics}
-            onStale={() => void refetchTopics()}
-          />
-        )}
-      </Show>
-      <Show when={loaded() && course()}>
-        <DocumentsSection
-          courseId={courseId()}
-          topicId={topicId()}
-          canEdit={canEdit()}
-          mapApproved={map()?.state === 'approved'}
-        />
-        <MaterialsSection
-          courseId={courseId()}
-          topicId={topicId()}
-          canEdit={canEdit()}
-          mapApproved={map()?.state === 'approved'}
-        />
-      </Show>
+              <Show when={working(map()) && map()!.job} keyed>
+                {(job) => (
+                  <JobStatus
+                    job={job}
+                    onFinished={() => {
+                      // A proposal may bring a diagnostic offer, which is part of the topic.
+                      void refetch()
+                      void refetchTopics()
+                    }}
+                  />
+                )}
+              </Show>
+              <Show when={failedJob()}>
+                {(job) => <JobFailureMessage kind={job().error_kind ?? 'other'} rawOutput={job().raw_output} />}
+              </Show>
+              <Show when={canPropose()}>
+                <div class="settings-actions">
+                  <button type="button" disabled={busy()} onClick={propose}>
+                    {t(map()?.concepts.length ? 'concepts.proposeAgain' : 'concepts.propose')}
+                  </button>
+                </div>
+                <Show when={map()?.concepts.length}>
+                  <p class="settings-note">{t('concepts.proposalReplaces')}</p>
+                </Show>
+              </Show>
+              <Show when={map()?.concepts.length}>
+                <Show
+                  when={editable()}
+                  fallback={
+                    <ol class="concept-list" aria-label={t('concepts.heading')}>
+                      <For each={map()!.concepts}>{(concept) => <ConceptView concept={concept} all={map()!.concepts} />}</For>
+                    </ol>
+                  }
+                >
+                  <ol class="concept-list" aria-label={t('concepts.heading')}>
+                    <For each={map()!.concepts}>
+                      {(concept) => (
+                        <ConceptEditor
+                          concept={concept}
+                          all={map()!.concepts}
+                          busy={busy()}
+                          chosen={selected().includes(concept.id)}
+                          onChoose={(chosen) => choose(concept, chosen)}
+                          onSave={(changed) => (requireName(changed.name ?? concept.name) ? change(concept, changed) : false)}
+                          onRemove={() => remove(concept)}
+                          onSplit={(parts) => (parts.every((p) => requireName(p.name)) ? split(concept, parts) : false)}
+                        />
+                      )}
+                    </For>
+                  </ol>
+                </Show>
+              </Show>
+              <Show when={editable() && chosenConcepts().length >= 2}>
+                <MergeForm
+                  concepts={chosenConcepts()}
+                  busy={busy()}
+                  onMerge={async (merged) => {
+                    if (!requireName(merged.name)) return false
+                    const ids = chosenConcepts().map((c) => c.id)
+                    return run(() => api.merge(courseId(), topicId(), ids, merged))
+                  }}
+                />
+              </Show>
+              <Show when={canEdit() && (map() === null || editable())}>
+                <NewConceptForm
+                  busy={busy()}
+                  onAdd={(draft) =>
+                    requireName(draft.name) ? run(() => api.add(courseId(), topicId(), { ...draft, prerequisite_ids: [] })) : false
+                  }
+                />
+              </Show>
+              <Show when={canEdit() && map()?.state === 'approved'}>
+                <div class="settings-actions">
+                  <button type="button" disabled={busy()} onClick={() => run(() => api.reopen(courseId(), topicId()))}>
+                    {t('concepts.reopen')}
+                  </button>
+                </div>
+              </Show>
+            </Show>
+            <Show when={problem()}>
+              {(shown) => {
+                const value = shown()
+                if (value.kind === 'refused' && value.reason === 'no_provider_key') return <JobFailureMessage kind="no_key" />
+                return (
+                  <p role="alert">
+                    {t(value.kind === 'refused' ? refusalMessages[value.reason as keyof typeof refusalMessages] : otherMessages[value.kind])}
+                  </p>
+                )
+              }}
+            </Show>
+          </section>
+          <Show when={course() && topic()}>
+            {(shown) => (
+              <DiagnosticOfferSection
+                courseId={courseId()}
+                topic={shown()}
+                canEdit={canEdit()}
+                onChanged={setTopics}
+                onStale={() => void refetchTopics()}
+              />
+            )}
+          </Show>
+        </Match>
+        <Match when={current() === 'documents'}>
+          <Show when={loaded() && course()}>
+            <Show when={reachable('documents')} fallback={lockedNote}>
+              <DocumentsSection
+                courseId={courseId()}
+                topicId={topicId()}
+                canEdit={canEdit()}
+                mapApproved={approved()}
+                onChanged={() => void refetchTopics()}
+              />
+            </Show>
+          </Show>
+        </Match>
+        <Match when={current() === 'materials'}>
+          <Show when={loaded() && course()}>
+            <Show when={reachable('materials')} fallback={lockedNote}>
+              <MaterialsSection
+                courseId={courseId()}
+                topicId={topicId()}
+                canEdit={canEdit()}
+                mapApproved={approved()}
+                onChanged={() => void refetchTopics()}
+              />
+            </Show>
+          </Show>
+        </Match>
+      </Switch>
     </section>
   )
 }

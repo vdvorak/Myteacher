@@ -15,6 +15,7 @@ from myteacher.accounts.models import Account
 from myteacher.api.courses import course_for, editable_course
 from myteacher.api.deps import Db, Now, requires
 from myteacher.api.jobs import JobOut
+from myteacher.assistant import generations
 from myteacher.assistant.service import paying_credential
 from myteacher.courses import concepts, materials, topics
 from myteacher.courses.materials import Content
@@ -51,6 +52,8 @@ class MaterialOut(BaseModel):
     title: str | None
     version: int | None
     created_at: datetime
+    # Whether the teacher kept or wrote the latest version; a new draft is not reviewed yet.
+    reviewed: bool
     # The latest generation job, until its result landed.
     job: JobOut | None
     # Stored for planning; they do not change what is generated yet.
@@ -128,6 +131,7 @@ def _summary(db: InstanceSession, material: ClassroomMaterial) -> dict:
         "id": material.id,
         "title": version.lesson["title"] if version else None,
         "version": version.number if version else None,
+        "reviewed": version is not None and generations.reviewed(db, version.generation_id),
         "created_at": material.created_at,
         "job": JobOut.of(job) if job else None,
         "target_student_ids": materials.targets_of(db, material),

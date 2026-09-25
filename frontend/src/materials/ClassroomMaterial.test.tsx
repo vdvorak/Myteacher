@@ -44,7 +44,7 @@ function renderApp(
   return { materials }
 }
 
-const renderTopic = (options: Parameters<typeof renderApp>[1] = {}) => renderApp('/courses/1/topics/2', options)
+const renderTopic = (options: Parameters<typeof renderApp>[1] = {}) => renderApp('/courses/1/topics/2?tab=materials', options)
 const section = async () => within(await screen.findByRole('region', { name: 'Classroom material' }))
 const item = async (title: string) => within(await (await section()).findByRole('article', { name: title }))
 
@@ -89,9 +89,8 @@ describe('classroom material of a topic', () => {
   it('asks for an approved concept map first', async () => {
     renderTopic({ map: preteritMap })
 
-    const materialSection = await section()
-    expect(materialSection.getByText('Approve the concept map to generate material from it.')).toBeInTheDocument()
-    expect(materialSection.queryByRole('button', { name: 'Generate material' })).not.toBeInTheDocument()
+    expect(await screen.findByText('This step opens once the concept map is approved: everything here is made from it.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Generate material' })).not.toBeInTheDocument()
   })
 
   it('says why a generation failed and tries it again', async () => {
@@ -140,7 +139,7 @@ describe('classroom material of a topic', () => {
     await user.type(material.getByRole('textbox', { name: 'Instruction' }), 'Shorter.')
     await user.click(material.getByRole('button', { name: 'Rework' }))
     await waitFor(async () => expect((await item('Ser, or estar?')).getByText(/run out of credit/)).toBeInTheDocument())
-    await user.click((await item('Ser, or estar?')).getByRole('button', { name: 'Keep as it is' }))
+    await user.click((await item('Ser, or estar?')).getByRole('button', { name: 'Mark as reviewed' }))
 
     await waitFor(async () =>
       expect((await item('Ser, or estar?')).queryByText(/run out of credit/)).not.toBeInTheDocument(),
@@ -148,15 +147,18 @@ describe('classroom material of a topic', () => {
     expect((await item('Ser, or estar?')).getByText('Version 1')).toBeInTheDocument()
   })
 
-  it('records that the teacher keeps the material as it is', async () => {
+  it('marks new material reviewed, recording that the teacher keeps it', async () => {
     const { materials } = renderTopic({ materials: [serEstarMaterial] })
     const user = userEvent.setup()
     const material = await item('Ser, or estar?')
+    expect(material.getByText('New')).toBeInTheDocument()
 
-    await user.click(material.getByRole('button', { name: 'Keep as it is' }))
+    await user.click(material.getByRole('button', { name: 'Mark as reviewed' }))
 
     expect(materials.keep).toHaveBeenCalledWith(1, 2, 41)
-    expect(await material.findByRole('status')).toHaveTextContent('Noted: kept as it is.')
+    expect(await material.findByRole('status')).toHaveTextContent('Marked as reviewed.')
+    expect(await material.findByText('Reviewed')).toBeInTheDocument()
+    expect(material.queryByRole('button', { name: 'Mark as reviewed' })).not.toBeInTheDocument()
   })
 
   it('discards material after confirming', async () => {

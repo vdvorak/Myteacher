@@ -28,7 +28,7 @@ const proposal: ScriptedProposal = {
 function renderMap(options: { map?: ConceptMap; course?: Course; proposals?: ScriptedProposal[]; path?: string } = {}) {
   const course = options.course ?? spanish
   const history = createMemoryHistory()
-  history.set({ value: options.path ?? `/courses/${course.id}/topics/2` })
+  history.set({ value: options.path ?? `/courses/${course.id}/topics/2?tab=map` })
   const jobs = fakeJobsApi()
   const courses = fakeCoursesApi({ courses: [course], topics: { [course.id]: topics } })
   const concepts = fakeConceptsApi({ maps: options.map ? { 2: options.map } : {}, proposals: options.proposals, jobs })
@@ -47,11 +47,11 @@ const shownNames = async () =>
 
 describe('concept map of a topic', () => {
   it('is reached from the topic in the course', async () => {
-    const { history } = renderMap({ path: '/courses/1' })
+    const { history } = renderMap({ path: '/courses/1?tab=topics' })
     const user = userEvent.setup()
 
     const topicRow = (await screen.findByDisplayValue('Pretérito indefinido')).closest('li')!
-    await user.click(within(topicRow).getByRole('link', { name: 'Concept map' }))
+    await user.click(within(topicRow).getByRole('link', { name: 'Open the topic' }))
 
     expect(history.get()).toBe('/courses/1/topics/2')
     expect(await screen.findByRole('heading', { name: 'Pretérito indefinido' })).toBeInTheDocument()

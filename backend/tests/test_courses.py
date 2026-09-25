@@ -76,6 +76,12 @@ def test_a_teacher_creates_a_course_with_an_empty_brief(teacher, clock):
         "can_manage_access": True,
         "can_fork": True,
         "forked_from_id": None,
+        "setup": {
+            "interview_finished": False,
+            "brief_confirmed": False,
+            "read_sources": 0,
+            "sources_skipped": False,
+        },
     }
     assert teacher.get(f"/api/courses/{body['id']}").json() == body
 

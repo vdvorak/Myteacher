@@ -20,7 +20,7 @@ const topics: Topic[] = [
 
 function renderCourse(course: Course = spanish) {
   const history = createMemoryHistory()
-  history.set({ value: `/courses/${course.id}` })
+  history.set({ value: `/courses/${course.id}?tab=topics` })
   const courses = fakeCoursesApi({ courses: [course], topics: { [course.id]: topics } })
   const apis = fakeApis({ auth: fakeAuthApi({ signedIn: teacher }), courses })
   render(withI18n(() => <App apis={apis} history={history} />, 'en'))
@@ -157,22 +157,25 @@ describe('topics of a course', () => {
     const { courses } = renderCourse()
     courses.reorderTopics.mockRejectedValueOnce(new ApiError(409))
     const user = userEvent.setup()
+    const moveUp = within(await item('Imperfecto')).getByRole('button', { name: 'Move up' })
+    const readBefore = courses.topics.mock.calls.length
 
-    await user.click(within(await item('Imperfecto')).getByRole('button', { name: 'Move up' }))
+    await user.click(moveUp)
 
     expect(await screen.findByRole('alert')).toHaveTextContent('The topics changed meanwhile and were reloaded.')
-    expect(courses.topics).toHaveBeenCalledTimes(2)
+    expect(courses.topics).toHaveBeenCalledTimes(readBefore + 1)
   })
 
   it('shows the topics read-only to a teacher who may only view the course', async () => {
     renderCourse({ ...spanish, can_edit: false })
 
     const list = await screen.findByRole('list', { name: 'Topics' })
-    expect(within(list).getAllByRole('listitem').map((li) => li.textContent)).toEqual([
-      'Presente (diagnostic lesson wanted)',
+    expect(within(list).getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Presente',
       'Pretérito indefinido',
       'Imperfecto',
     ])
+    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('Presente (diagnostic lesson wanted)')
     expect(within(list).queryByRole('button')).not.toBeInTheDocument()
     expect(within(list).queryByRole('textbox')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('New topic')).not.toBeInTheDocument()

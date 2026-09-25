@@ -31,11 +31,17 @@ const offered: ScriptedProposal = {
 }
 
 function renderTopic(
-  options: { course?: Course; topic?: Partial<Topic>; topicScript?: ScriptedTopicStep[]; proposals?: ScriptedProposal[] } = {},
+  options: {
+    course?: Course
+    topic?: Partial<Topic>
+    topicScript?: ScriptedTopicStep[]
+    proposals?: ScriptedProposal[]
+    tab?: 'additions' | 'map'
+  } = {},
 ) {
   const course = options.course ?? spanish
   const history = createMemoryHistory()
-  history.set({ value: `/courses/${course.id}/topics/2` })
+  history.set({ value: `/courses/${course.id}/topics/2?tab=${options.tab ?? 'additions'}` })
   const jobs = fakeJobsApi()
   const topic = topicFixture({ id: 2, name: 'Pretérito indefinido', position: 0, ...options.topic })
   const courses = fakeCoursesApi({
@@ -82,6 +88,9 @@ describe('topic interview', () => {
     const panel = await interviewPanel()
     await user.click(await panel.findByRole('button', { name: 'Use the recommendation' }))
     await user.click(panel.getByRole('button', { name: 'Send answers' }))
+    // The proposal it started waits in the next step.
+    const next = await screen.findByRole('complementary', { name: 'Next step' })
+    await user.click(await within(next).findByRole('link', { name: 'Open the concept map' }))
 
     expect(await screen.findByDisplayValue('estar')).toBeInTheDocument()
     expect(await (await offerSection()).findByText(offered.diagnostic_offer!)).toBeInTheDocument()
@@ -146,7 +155,7 @@ describe('what a topic adds to the brief', () => {
 
 describe('diagnostic offer', () => {
   it('comes with a proposal and sets the flag only when accepted', async () => {
-    const { courses } = renderTopic({ proposals: [offered] })
+    const { courses } = renderTopic({ proposals: [offered], tab: 'map' })
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: 'Propose concepts' }))
@@ -160,7 +169,7 @@ describe('diagnostic offer', () => {
   })
 
   it('is declined, leaving the flag as it was', async () => {
-    const { courses } = renderTopic({ topic: { diagnostic_offer: { reason: 'They met it before.', answer: null } } })
+    const { courses } = renderTopic({ topic: { diagnostic_offer: { reason: 'They met it before.', answer: null } }, tab: 'map' })
     const user = userEvent.setup()
 
     await user.click((await offerSection()).getByRole('button', { name: 'Decline' }))
@@ -174,6 +183,7 @@ describe('diagnostic offer', () => {
     renderTopic({
       course: { ...spanish, can_edit: false },
       topic: { diagnostic_offer: { reason: 'They met it before.', answer: null } },
+      tab: 'map',
     })
 
     const offer = await offerSection()

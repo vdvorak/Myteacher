@@ -1,4 +1,4 @@
-import { createResource, createSignal, For, Show } from 'solid-js'
+import { createResource, createSignal, For, Match, Show, Switch } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
@@ -33,7 +33,16 @@ const problemMessage = (problem: Exclude<Problem, null>): MessageKey =>
 const webAddress = /^https?:\/\/[^\s/?#]+/i
 
 /** The files a course is grounded in, with the text read from each. */
-export function SourcesSection(props: { courseId: number; canEdit: boolean }) {
+/** What the teacher adds: a file, a web page or pasted text. */
+type AddedKind = 'file' | 'page' | 'text'
+const addedKinds: AddedKind[] = ['file', 'page', 'text']
+const addedKindLabels: Record<AddedKind, MessageKey> = {
+  file: 'sources.kindFile',
+  page: 'sources.kindPage',
+  text: 'sources.kindText',
+}
+
+export function SourcesSection(props: { courseId: number; canEdit: boolean; onChanged?: () => void }) {
   const { t } = useI18n()
   const api = useApi().sources
   const [sources, setSources] = createStore<Source[]>([])
@@ -46,10 +55,13 @@ export function SourcesSection(props: { courseId: number; canEdit: boolean }) {
     },
   )
   const [problem, setProblem] = createSignal<Problem>(null)
+  const [adding, setAdding] = createSignal(false)
+  const [addKind, setAddKind] = createSignal<AddedKind>('file')
 
   async function reload() {
     try {
       setSources(reconcile(await api.list(props.courseId), { key: 'id' }))
+      props.onChanged?.()
     } catch {
       setProblem('failed')
     }
@@ -95,17 +107,60 @@ export function SourcesSection(props: { courseId: number; canEdit: boolean }) {
         </Show>
       </Show>
       <Show when={props.canEdit}>
-        <UploadForm upload={(file, ocr) => start(() => api.upload(props.courseId, file, ocr))} />
-        <PageForm
-          add={(url, name) => {
-            if (!webAddress.test(url)) {
-              setProblem('badUrl')
-              return Promise.resolve(false)
-            }
-            return start(() => api.addPage(props.courseId, url, name))
-          }}
-        />
-        <TextForm add={(name, text) => start(() => api.addText(props.courseId, name, text))} />
+        <Show
+          when={adding()}
+          fallback={
+            <div class="settings-actions">
+              <button type="button" onClick={() => setAdding(true)}>
+                {t('sources.addSource')}
+              </button>
+            </div>
+          }
+        >
+          {/* One place to add a source, of the kind the teacher picks. */}
+          <div class="settings-form panel">
+            <fieldset class="source-kinds">
+              <legend>{t('sources.kind')}</legend>
+              <For each={addedKinds}>
+                {(kind) => (
+                  <label class="settings-check">
+                    <input
+                      type="radio"
+                      name="source-kind"
+                      checked={kind === addKind()}
+                      onChange={() => setAddKind(kind)}
+                    />
+                    {t(addedKindLabels[kind])}
+                  </label>
+                )}
+              </For>
+            </fieldset>
+            <Switch>
+              <Match when={addKind() === 'file'}>
+                <UploadForm upload={(file, ocr) => start(() => api.upload(props.courseId, file, ocr))} />
+              </Match>
+              <Match when={addKind() === 'page'}>
+                <PageForm
+                  add={(url, name) => {
+                    if (!webAddress.test(url)) {
+                      setProblem('badUrl')
+                      return Promise.resolve(false)
+                    }
+                    return start(() => api.addPage(props.courseId, url, name))
+                  }}
+                />
+              </Match>
+              <Match when={addKind() === 'text'}>
+                <TextForm add={(name, text) => start(() => api.addText(props.courseId, name, text))} />
+              </Match>
+            </Switch>
+            <div class="settings-actions">
+              <button type="button" class="button-secondary" onClick={() => setAdding(false)}>
+                {t('sources.closeAdding')}
+              </button>
+            </div>
+          </div>
+        </Show>
       </Show>
       <Show when={problem()}>{(current) => <p role="alert">{t(problemMessage(current()))}</p>}</Show>
     </section>

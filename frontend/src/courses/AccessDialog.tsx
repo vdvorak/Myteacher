@@ -23,7 +23,6 @@ type Problem = AccessRefusal | 'failed'
 /** The owner's dialog for sharing a course: the access list, and the ownership transfer. */
 export function AccessDialog(props: {
   courseId: number
-  onClose: () => void
   /** The actor gave the course away, keeping the right named or none. */
   onTransferred: (kept: CourseRight | null) => void
 }) {
@@ -53,7 +52,7 @@ export function AccessDialog(props: {
   }
 
   return (
-    <div class="erasure-dialog access-dialog" role="dialog" aria-labelledby={headingId}>
+    <section class="settings-form access-panel" aria-labelledby={headingId}>
       <h2 id={headingId}>{t('access.heading')}</h2>
       <p class="settings-note">{t('access.intro')}</p>
       <Show when={list.error}>
@@ -118,13 +117,11 @@ export function AccessDialog(props: {
           <p role="alert">{t(current() === 'failed' ? 'courses.saveFailed' : refusals[current() as AccessRefusal])}</p>
         )}
       </Show>
-      <TransferForm courseId={props.courseId} onTransferred={props.onTransferred} />
-      <div class="settings-actions">
-        <button type="button" onClick={() => props.onClose()}>
-          {t('access.close')}
-        </button>
+      {/* Giving the course away stands apart from sharing it: it may leave the owner no right. */}
+      <div class="danger-zone">
+        <TransferForm courseId={props.courseId} onTransferred={props.onTransferred} />
       </div>
-    </div>
+    </section>
   )
 }
 

@@ -22,7 +22,7 @@ const problemMessages: Record<NonNullable<Problem>, MessageKey> = {
 }
 
 /** The topics of a course in teaching order: changed by editors, read by viewers. */
-export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
+export function TopicsSection(props: { courseId: number; canEdit: boolean; onChanged?: (topics: Topic[]) => void }) {
   const { t } = useI18n()
   const api = useApi().courses
   // Reconciled by id, so a topic keeps its row (and focus) when the list is reordered.
@@ -66,6 +66,7 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
 
   const show = (topics: Topic[]) => {
     setList(reconcile(topics, { key: 'id' }))
+    props.onChanged?.(topics)
     void reloadStatuses()
   }
   const progressOf = (topic: Topic) => (
@@ -147,6 +148,23 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
   return (
     <section class="settings-form" aria-labelledby="topics-heading">
       <h2 id="topics-heading">{t('topics.heading')}</h2>
+      <Show when={props.canEdit && list.length > 0}>
+        <p class="settings-note">{t('topics.prepareNote')}</p>
+        <div class="settings-actions">
+          <button type="button" disabled={preparing()} onClick={prepare}>
+            {t('topics.prepare')}
+          </button>
+        </div>
+        <Show when={prepared()}>
+          {(counts) => <p role="status">{t('topics.prepared', counts())}</p>}
+        </Show>
+        <Show when={prepareProblem() === 'no_key'}>
+          <JobFailureMessage kind="no_key" />
+        </Show>
+        <Show when={prepareProblem() === 'failed'}>
+          <p role="alert">{t('courses.saveFailed')}</p>
+        </Show>
+      </Show>
       <Show when={loaded()}>
         <Show when={list.length > 0} fallback={<p>{t('topics.none')}</p>}>
           <Show
@@ -158,6 +176,7 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
                     <li>
                       <A href={`/courses/${props.courseId}/topics/${topic.id}`}>{topic.name}</A>
                       {topic.diagnostic_wanted ? ` (${t('topics.diagnosticNote')})` : ''}
+                      <TopicSummary topic={topic} />
                       {progressOf(topic)}
                     </li>
                   )}
@@ -197,9 +216,10 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
                       />
                       {t('topics.diagnosticWanted')}
                     </label>
+                    <TopicSummary topic={topic} />
                     {progressOf(topic)}
                     <div class="settings-actions">
-                      <A href={`/courses/${props.courseId}/topics/${topic.id}`}>{t('topics.conceptMap')}</A>
+                      <A href={`/courses/${props.courseId}/topics/${topic.id}`}>{t('topics.open')}</A>
                       <button type="button" disabled={busy() || index() === 0} onClick={() => move(index(), -1)}>
                         {t('topics.moveUp')}
                       </button>
@@ -233,23 +253,6 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
           </Show>
         </Show>
       </Show>
-      <Show when={props.canEdit && list.length > 0}>
-        <p class="settings-note">{t('topics.prepareNote')}</p>
-        <div class="settings-actions">
-          <button type="button" disabled={preparing()} onClick={prepare}>
-            {t('topics.prepare')}
-          </button>
-        </div>
-        <Show when={prepared()}>
-          {(counts) => <p role="status">{t('topics.prepared', counts())}</p>}
-        </Show>
-        <Show when={prepareProblem() === 'no_key'}>
-          <JobFailureMessage kind="no_key" />
-        </Show>
-        <Show when={prepareProblem() === 'failed'}>
-          <p role="alert">{t('courses.saveFailed')}</p>
-        </Show>
-      </Show>
       <Show when={props.canEdit}>
         <form class="topic-name" onSubmit={add}>
           <label>
@@ -269,6 +272,26 @@ export function TopicsSection(props: { courseId: number; canEdit: boolean }) {
         )}
       </Show>
     </section>
+  )
+}
+
+const mapBadges: Record<Topic['concept_map'], { label: MessageKey; tone: string }> = {
+  none: { label: 'topics.map.none', tone: 'quiet' },
+  draft: { label: 'topics.map.draft', tone: 'attention' },
+  approved: { label: 'topics.map.approved', tone: 'done' },
+}
+
+/** How far a topic's preparation got: its concept map, and what it holds for teaching. */
+function TopicSummary(props: { topic: Topic }) {
+  const { t } = useI18n()
+  const badge = () => mapBadges[props.topic.concept_map]
+  return (
+    <p class="topic-summary">
+      <span class="badge" data-tone={badge().tone}>
+        {t(badge().label)}
+      </span>{' '}
+      {t('topics.holds', { documents: props.topic.documents, materials: props.topic.materials })}
+    </p>
   )
 }
 
