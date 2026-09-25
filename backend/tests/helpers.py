@@ -1,4 +1,5 @@
 import re
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from myteacher.persistence import make_engine
@@ -44,6 +45,13 @@ def link_token(text: str) -> str:
     match = re.search(r"https?://\S+#([A-Za-z0-9_-]+)", text)
     assert match, text
     return match.group(1)
+
+
+@dataclass
+class CutOff:
+    """A scripted answer the provider cut off at its output limit, with what came through."""
+
+    output: dict
 
 
 class ScriptedModels:
@@ -111,6 +119,9 @@ class ScriptedModels:
                 output = output()
             if isinstance(output, Exception):
                 raise output
+            if isinstance(output, CutOff):
+                call = ToolCallPart(info.output_tools[0].name, output.output)
+                return ModelResponse(parts=[call], finish_reason="length")
             return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, output)])
 
         return FunctionModel(answer)

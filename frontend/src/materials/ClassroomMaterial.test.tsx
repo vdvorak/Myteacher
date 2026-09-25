@@ -139,6 +139,19 @@ describe('classroom material of a topic', () => {
     expect(materials.regenerate).not.toHaveBeenCalled()
   })
 
+  it('says an answer cut off as too long asks for less', async () => {
+    renderTopic({ script: [{ fail: 'too_long' }] })
+    const user = userEvent.setup()
+
+    await user.click((await section()).getByRole('button', { name: 'Generate material' }))
+
+    await waitFor(async () =>
+      expect(
+        (await item('Classroom material')).getByText(/was too long and got cut off\. Ask for less, for example fewer exercises/),
+      ).toBeInTheDocument(),
+    )
+  })
+
   it('says why a rework failed until the teacher moves on', async () => {
     renderTopic({ materials: [serEstarMaterial], script: [{ fail: 'quota' }] })
     const user = userEvent.setup()

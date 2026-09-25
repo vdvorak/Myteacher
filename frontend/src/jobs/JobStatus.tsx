@@ -13,6 +13,7 @@ const failureMessages: Record<JobFailure, MessageKey> = {
   transient: 'jobs.failed.transient',
   other: 'jobs.failed.other',
   invalid_output: 'jobs.failed.invalid_output',
+  too_long: 'jobs.failed.too_long',
   no_key: 'jobs.failed.no_key',
   interrupted: 'jobs.failed.interrupted',
   no_text: 'jobs.failed.no_text',

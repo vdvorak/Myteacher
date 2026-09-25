@@ -8,6 +8,8 @@ export type JobFailure =
   | 'transient'
   | 'other'
   | 'invalid_output'
+  /** The answer was cut off at the output limit: asking for less helps, retrying as it is does not. */
+  | 'too_long'
   | 'no_key'
   | 'interrupted'
   /** An extraction found no text: a scan or an image read without OCR. */

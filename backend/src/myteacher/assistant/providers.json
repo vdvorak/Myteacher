@@ -3,7 +3,8 @@
   "anthropic": {
     "label": "Anthropic",
     "strong_model": "claude-opus-5-5",
-    "fast_model": "claude-haiku-4-5"
+    "fast_model": "claude-haiku-4-5",
+    "sets_max_tokens": true
   },
   "openai": {
     "label": "OpenAI",

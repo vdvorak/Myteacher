@@ -354,7 +354,9 @@ def _inputs(
     return inputs
 
 
-GENERATE = Task(TASK_KIND, Content, slot="strong", timeout_s=300)
+# A lesson with its exercises and answer key is long: code, passages, a dozen exercises. The
+# request is not streamed, so the limit stays one the model writes within the timeout.
+GENERATE = Task(TASK_KIND, Content, slot="strong", timeout_s=600, max_tokens=20_000)
 
 
 def generation(

@@ -198,7 +198,8 @@ def assessing(release_id: int) -> Work:
                     student_id=student_id,
                 )
             except AssistantFailed as failure:
-                if failure.kind != "invalid_output":
+                # An assessment that does not fit, or was cut off, is the teacher's to make.
+                if failure.kind not in ("invalid_output", "too_long"):
                     raise
                 db.get_one(Assessment, assessment_id).assistant_failed = True
                 db.commit()

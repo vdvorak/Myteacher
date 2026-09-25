@@ -293,7 +293,13 @@ def generation(document_id: int) -> Work:
         assert course is not None and teacher is not None
         sources = sources_of(db, course)
         cited = source_inputs(sources)
-        task = Task(TASK_KIND, output_type({s["id"] for s in cited}), slot="strong", timeout_s=300)
+        task = Task(
+            TASK_KIND,
+            output_type({s["id"] for s in cited}),
+            slot="strong",
+            timeout_s=600,
+            max_tokens=20_000,
+        )
         content, generation_id = await generate_recorded(
             ctx.assistant,
             db,

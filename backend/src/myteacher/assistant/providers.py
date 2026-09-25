@@ -27,6 +27,9 @@ class ProviderInfo:
     label: str
     strong_model: str
     fast_model: str
+    # The provider's own answer limit is low (4096 with Anthropic), so each task sets its own;
+    # others answer up to the model's limit, reasoning included, and are left to it.
+    sets_max_tokens: bool = False
 
 
 def _load() -> dict[str, ProviderInfo]:

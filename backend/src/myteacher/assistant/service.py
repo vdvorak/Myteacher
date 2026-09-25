@@ -18,6 +18,8 @@ from pydantic import BaseModel
 from pydantic_ai import Agent, capture_run_messages
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import BinaryContent, ModelResponse, TextPart, ToolCallPart
+from pydantic_ai.models.wrapper import WrapperModel
+from pydantic_ai.settings import ModelSettings
 
 from myteacher.accounts.models import Account
 from myteacher.assistant import credentials, prompts
@@ -30,9 +32,9 @@ from myteacher.secret_box import SecretBox, UndecryptableSecret
 logger = logging.getLogger(__name__)
 
 Slot = Literal["strong", "fast"]
-# Provider problems, plus: output invalid even after the retry, no key to pay with, and a job
-# cut off by a restart.
-FailureKind = ProviderProblem | Literal["invalid_output", "no_key", "interrupted"]
+# Provider problems, plus: output invalid even after the retry, an answer cut off at the output
+# limit, no key to pay with, and a job cut off by a restart.
+FailureKind = ProviderProblem | Literal["invalid_output", "too_long", "no_key", "interrupted"]
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,9 @@ class Task[Out: BaseModel]:
     slot: Slot
     # Per model request; a hung connection fails the job instead of keeping it running.
     timeout_s: int = 120
+    # How long the answer may be, where the provider's own limit is low (4096 with Anthropic):
+    # a cut-off answer can never validate.
+    max_tokens: int = 8_000
 
 
 @dataclass(frozen=True)
@@ -64,6 +69,25 @@ def paying_credential(db: InstanceSession, teacher: Account) -> ProviderCredenti
     """The teacher's credential for the first provider in the provider table they hold a key for."""
     held = {row.provider: row for row in credentials.credentials_of(db, teacher)}
     return next((held[provider] for provider in PROVIDERS if provider in held), None)
+
+
+class _CutOff(Exception):
+    """The provider stopped the answer at the output limit."""
+
+    def __init__(self, response: ModelResponse):
+        super().__init__("cut off at the output limit")
+        self.response = response
+
+
+class _StopWhenCutOff(WrapperModel):
+    """Fails a request whose answer was cut off at the output limit, before pydantic-ai spends its
+    retry on output that would be cut off the same way."""
+
+    async def request(self, messages, model_settings, model_request_parameters) -> ModelResponse:
+        response = await super().request(messages, model_settings, model_request_parameters)
+        if response.finish_reason == "length":
+            raise _CutOff(response)
+        return response
 
 
 def _raw_output(messages: list[Any]) -> str | None:
@@ -166,19 +190,26 @@ async def generate_recorded[Out: BaseModel](
             raise AssistantFailed("authentication") from None
         db.commit()
         agent = Agent(
-            ctx.model_factory(credential.provider, model_name, api_key),
+            _StopWhenCutOff(ctx.model_factory(credential.provider, model_name, api_key)),
             output_type=task.output_type,
             instructions=prompt.text,
             # One retry on output that does not validate, then the call fails.
             retries=1,
         )
+        settings: ModelSettings = {"timeout": task.timeout_s}
+        provider = PROVIDERS.get(credential.provider)
+        if provider is not None and provider.sets_max_tokens:
+            settings["max_tokens"] = task.max_tokens
         with capture_run_messages() as messages:
             try:
                 user_prompt = json.dumps(inputs, ensure_ascii=False)
                 result = await agent.run(
                     [user_prompt, *attachments] if attachments else user_prompt,
-                    model_settings={"timeout": task.timeout_s},
+                    model_settings=settings,
                 )
+            except _CutOff as cut:
+                record.raw_output = _raw_output([cut.response])
+                raise AssistantFailed("too_long", record.raw_output) from None
             except UnexpectedModelBehavior:
                 record.raw_output = _raw_output(messages)
                 raise AssistantFailed("invalid_output", record.raw_output) from None

@@ -34,7 +34,8 @@ class JobOut(BaseModel):
     # What the job is doing now: "waiting", "asking_assistant" or "extracting"; None once ended.
     progress: str | None
     result: dict[str, Any] | None
-    # Why it failed: a provider problem, "invalid_output", "no_key", "interrupted", "other", or
+    # Why it failed: a provider problem, "invalid_output", "too_long" (the answer was cut off at
+    # the output limit), "no_key", "interrupted", "other", or
     # for an extraction "no_text" or "unreadable_file", and for a web page also "unreachable",
     # "page_error", "not_a_page", "too_large" or "blocked_address".
     error_kind: str | None

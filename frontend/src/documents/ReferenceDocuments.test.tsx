@@ -78,6 +78,17 @@ describe('reference documents of a topic', () => {
     expect(screen.queryByRole('button', { name: 'Generate' })).not.toBeInTheDocument()
   })
 
+  it('says an answer cut off as too long asks for less', async () => {
+    renderTopic({ script: [{ fail: 'too_long' }] })
+    const user = userEvent.setup()
+
+    await user.click((await section()).getByRole('button', { name: 'Generate' }))
+
+    await waitFor(async () =>
+      expect((await item('Grammar cheat sheet')).getByText(/was too long and got cut off/)).toBeInTheDocument(),
+    )
+  })
+
   it('says why a generation failed and tries it again', async () => {
     const { documents } = renderTopic({ script: [{ fail: 'quota' }, written] })
     const user = userEvent.setup()
