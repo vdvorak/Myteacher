@@ -11,6 +11,15 @@ describe('message catalogue', () => {
     }
   })
 
+  it('addresses students with “ty” in Czech (#97)', () => {
+    // The student's pages, and what a student meets in the account menu.
+    const studentFacing =
+      /^(home\.student|work\.|lesson\.|exercise\.|openText\.|shortAnswer\.|matching\.|ordering\.|selection\.|cloze\.|review\.|auth\.signOutFailed|settings\.theme|settings\.languageFailed)/
+    const formal = /\b(Zkuste|zkuste|Vaš|vaš|vám|Vám|váš|Váš|Můžete|můžete|najdete|Dobrý den|Vyberte|vyberte|Přiřaďte|Klepejte)/
+    const offending = Object.entries(messages.cs).filter(([key, text]) => studentFacing.test(key) && formal.test(text))
+    expect(offending).toEqual([])
+  })
+
   it('starts in the browser language when it is supported', () => {
     expect(browserLocale(['cs-CZ', 'en'])).toBe('cs')
     expect(browserLocale(['de-DE', 'en-GB'])).toBe('en')

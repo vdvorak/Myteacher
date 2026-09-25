@@ -10,6 +10,8 @@ export interface StudentRelease {
   id: number
   title: string
   topic: string
+  /** The course's name. */
+  course: string
   /** The run's name. */
   run: string
   released_at: string
@@ -19,6 +21,17 @@ export interface StudentRelease {
   late: boolean
   /** The last submitted attempt, which is the one that counts. */
   counting_attempt_id: number | null
+  /** Of the attempt being worked on: exercises answered, of how many. */
+  progress: { answered: number; total: number } | null
+  /** Of the attempt that counts, as the student sees it: points of how many exercises, and the
+   * written answers still waiting for results to be published. */
+  score: { points: number; total: number; pending: number } | null
+  /** Results were published since the student last looked. */
+  new_assessment: boolean
+  /** Why the student's latest attempt, or the whole release, was retracted. */
+  retraction: { reason: string; whole_release: boolean } | null
+  /** Whether a new attempt may be started now. */
+  can_start: boolean
 }
 
 /** An assessment as the run teacher sees it. */
@@ -67,12 +80,8 @@ export interface Attempt {
 }
 
 export interface ReleaseDetail extends StudentRelease, Omit<ReleaseSettings, 'due_at'> {
-  /** Whether a new attempt may be started now. */
-  can_start: boolean
   /** The attempt being worked on, or else the one that counts. */
   attempt: Attempt | null
-  /** Why the student's latest attempt, or the whole release, was retracted. */
-  retraction: { reason: string; whole_release: boolean } | null
 }
 
 export type AttemptRefusal = 'no_more_attempts' | 'past_due'

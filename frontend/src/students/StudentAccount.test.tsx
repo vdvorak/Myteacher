@@ -53,7 +53,7 @@ describe('a student on a phone', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('heading', { name: 'Hello, Jana Veselá' })).toBeInTheDocument()
-    expect(screen.getByText('Your lessons will appear here once your teacher sends you the first one.')).toBeInTheDocument()
+    expect(await screen.findByText('Your work will appear here once your teacher sends you some.')).toBeInTheDocument()
     await openAccountMenu(user)
     expect(screen.getByText('Student')).toBeInTheDocument()
     expect(history.get()).toBe('/')

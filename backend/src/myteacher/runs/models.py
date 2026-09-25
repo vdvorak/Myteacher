@@ -123,6 +123,8 @@ class Attempt(InstanceOwned, Base):
     retracted_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     retracted_by_id: Mapped[int | None] = mapped_column(ForeignKey("account.id"))
     retraction_reason: Mapped[str | None] = mapped_column(Text)
+    # When the student last looked at the attempt, so results published later are new to them.
+    results_seen_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
 
 
 class AttemptDraft(InstanceOwned, Base):
@@ -178,6 +180,8 @@ class Assessment(InstanceOwned, Base):
     # What the student was last shown of the assistant's assessment and the override, once the
     # teacher published results; later changes wait for the next publishing.
     published: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    # When what the student sees last changed by publishing.
+    published_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
 
 
 class AssessmentConcept(InstanceOwned, Base):

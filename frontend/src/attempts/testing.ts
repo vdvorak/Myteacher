@@ -35,12 +35,16 @@ export function releaseOf(fields: Partial<ReleaseDetail> = {}): ReleaseDetail {
     id: 1,
     title: 'Ser, or estar?',
     topic: 'Ser y estar',
-    run: 'Španělština 2.B',
+    course: 'Španělština 2.B',
+    run: 'Španělština 2.B 2026/27',
     released_at: '2026-09-24T08:00:00Z',
     due_at: null,
     state: 'not_started',
     late: false,
     counting_attempt_id: null,
+    progress: null,
+    score: null,
+    new_assessment: false,
     can_start: true,
     attempt: null,
     retraction: null,
@@ -72,9 +76,15 @@ export function fakeAttemptsApi(options: { releases?: ReleaseDetail[]; lesson?: 
     grader.assess(exerciseId, answer, { reveal: true })
   const api = {
     releases: vi.fn(async () =>
-      [...releases.values()].map(({ attempt: _a, can_start: _c, ...summary }) => clone(summary)),
+      [...releases.values()].map(({ attempt: _a, ...summary }) => clone(summary)),
     ),
-    release: vi.fn(async (id: number) => clone(find(id))),
+    release: vi.fn(async (id: number) => {
+      const found = find(id)
+      const shown = clone(found)
+      // Like the backend: once looked at, what was published is no longer new.
+      found.new_assessment = false
+      return shown
+    }),
     start: vi.fn(async (releaseId: number) => {
       const release = find(releaseId)
       if (release.attempt && !release.attempt.submitted_at) return clone(release.attempt)

@@ -142,7 +142,7 @@ def publish_results(run_id: int, release_id: int, db: Db, now: Now, actor: Teach
     run = taught_run(db, actor, run_id)
     released = _release(db, run, release_id)
     attempts.close_past_due_of(db, released, now)
-    return Published(published=open_assessment.publish(db, released))
+    return Published(published=open_assessment.publish(db, released, now))
 
 
 @router.get("/runs/{run_id}/releases/{release_id}/open-answers")

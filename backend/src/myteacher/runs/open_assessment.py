@@ -267,9 +267,10 @@ def unpublished(row: Assessment) -> bool:
     return shown is not None and shown != row.published
 
 
-def publish(db: InstanceSession, released: MaterialRelease) -> int:
+def publish(db: InstanceSession, released: MaterialRelease, now: datetime) -> int:
     """Show the students what changed since the last publishing; returns how many changed."""
     changed = [row for row in assessments_of(db, released) if unpublished(row)]
     for row in changed:
         row.published = to_publish(row)
+        row.published_at = now
     return len(changed)

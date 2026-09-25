@@ -222,12 +222,18 @@ def test_a_student_sees_the_releases_meant_for_them(teacher, course, clock):
             "id": for_everyone,
             "title": MATERIAL["title"],
             "topic": "Pretérito indefinido",
+            "course": "Španělština 2.B",
             "run": "Španělština 2.B 2026/27",
             "released_at": "2026-09-24T08:00:00Z",
             "due_at": "2026-10-01T18:00:00Z",
             "state": "not_started",
             "late": False,
             "counting_attempt_id": None,
+            "progress": None,
+            "score": None,
+            "new_assessment": False,
+            "retraction": None,
+            "can_start": True,
         }
     ]
 

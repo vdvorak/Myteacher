@@ -6,6 +6,8 @@ import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import type { Account } from '../auth/api'
 import { fakeAuthApi, student } from '../auth/testing'
+import lectura from '../../../schema/fixtures/es-lectura.public.json'
+import type { LessonPublic } from '../generated/lesson'
 import { atTheEndLesson, sampleLesson, withI18n } from '../lesson/testing'
 import { ApiError } from '../lesson/api'
 import { AttemptRefused, type ReleaseDetail } from './api'
@@ -26,34 +28,17 @@ function open(path: string, releases: ReleaseDetail[], lesson = sampleLesson) {
 
 const exercise = (prompt: RegExp) => screen.getByRole('group', { name: prompt })
 
+/** Past the intro that comes before work not begun. */
+async function begin(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: 'Start' }))
+}
+
 describe('a student’s work', () => {
-  it('lists what is released to them, with where they stand and the due date', async () => {
-    open('/', [
-      releaseOf({ id: 1, title: 'Ser, or estar?', due_at: '2026-10-01T18:00:00Z' }),
-      releaseOf({ id: 2, title: 'Pretérito', state: 'submitted', late: true, due_at: '2026-09-20T18:00:00Z' }),
-    ])
-
-    const list = within(await screen.findByRole('list', { name: 'Your work' }))
-    const first = list.getByRole('link', { name: 'Ser, or estar?' }).closest('li')!
-    expect(first).toHaveTextContent('Ser y estar · Španělština 2.B')
-    expect(first).toHaveTextContent('Not started')
-    expect(first).toHaveTextContent(`Due ${new Date('2026-10-01T18:00:00Z').toLocaleString('en')}`)
-    expect(list.getByRole('link', { name: 'Ser, or estar?' })).toHaveAttribute('href', '/work/1')
-    const second = list.getByRole('link', { name: 'Pretérito' }).closest('li')!
-    expect(second).toHaveTextContent('Submitted')
-    expect(second).toHaveTextContent('Submitted late')
-    expect(second).not.toHaveTextContent('Due')
-  })
-
-  it('says when nothing is released yet', async () => {
-    open('/', [])
-
-    expect(await screen.findByText(/Your lessons will appear here/)).toBeInTheDocument()
-  })
-
-  it('starts an attempt on opening and answers through it', async () => {
+  it('starts an attempt from the intro and answers through it', async () => {
     const { attempts, user } = open('/work/1', [releaseOf()])
 
+    expect(attempts.start).not.toHaveBeenCalled()
+    await begin(user)
     await user.click(await screen.findByRole('radio', { name: 'está' }))
     await user.click(within(exercise(/Madrid/)).getByRole('button', { name: 'Confirm' }))
 
@@ -65,6 +50,7 @@ describe('a student’s work', () => {
 
   it('saves the answers one at a time, the latest last', async () => {
     const { attempts, user } = open('/work/1', [releaseOf()])
+    await begin(user)
     const saved: (() => void)[] = []
     attempts.saveDraft.mockImplementation(() => new Promise<void>((resolve) => saved.push(resolve)))
 
@@ -96,6 +82,7 @@ describe('a student’s work', () => {
       [releaseOf({ feedback_mode: 'at_the_end', attempts: 'repeated' })],
       atTheEndLesson,
     )
+    await begin(user)
 
     await user.click(await screen.findByRole('radio', { name: 'está' }))
     await user.click(screen.getByRole('radio', { name: 'somos' }))
@@ -144,11 +131,12 @@ describe('a student’s work', () => {
   })
 
   it('tells why an attempt was retracted and starts a new one', async () => {
-    const { attempts } = open('/work/1', [releaseOf({ retraction: { reason: 'A typo in exercise 2.', whole_release: false } })])
+    const { attempts, user } = open('/work/1', [releaseOf({ retraction: { reason: 'A typo in exercise 2.', whole_release: false } })])
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Your teacher retracted your attempt: A typo in exercise 2. You can start again.',
     )
+    await begin(user)
     expect(attempts.start).toHaveBeenCalledWith(1)
     expect(await screen.findByRole('radio', { name: 'está' })).toBeEnabled()
   })
@@ -193,6 +181,7 @@ describe('a student’s work', () => {
     await user.click(within(exercise(/Madrid/)).getByRole('button', { name: 'Confirm' }))
 
     expect(await screen.findByText(/Your teacher retracted your attempt: A typo in exercise 2\./)).toBeInTheDocument()
+    await begin(user)
     await vi.waitFor(() => expect(attempts.start).toHaveBeenCalledWith(1))
   })
 
@@ -270,6 +259,7 @@ describe('a student’s work', () => {
       [releaseOf({ feedback_mode: 'at_the_end', attempts: 'repeated' })],
       atTheEndLesson,
     )
+    await begin(user)
     await user.click(await screen.findByRole('radio', { name: 'es' }))
     await user.click(screen.getByRole('radio', { name: 'somos' }))
     await user.click(screen.getByRole('button', { name: 'Submit answers' }))
@@ -303,5 +293,80 @@ describe('a student’s work', () => {
     open('/work/9', [])
 
     expect(await screen.findByRole('alert')).toHaveTextContent('This work is not for you, or it is no longer available.')
+  })
+})
+
+describe('the steps around the exercises', () => {
+  it('says before the start how the work goes', async () => {
+    open('/work/1', [
+      releaseOf({
+        feedback_mode: 'at_the_end',
+        attempts: 'repeated',
+        due_at: '2026-10-01T18:00:00Z',
+        late_submissions: 'refuse',
+        show_solutions: false,
+      }),
+    ])
+
+    const intro = within(await screen.findByRole('region', { name: 'Before you start' }))
+    expect(intro.getByText('You submit all your answers at once and see how you did after.')).toBeInTheDocument()
+    expect(intro.getByText('You can do it again; the last one you submit counts.')).toBeInTheDocument()
+    expect(
+      intro.getByText(`Submit by ${new Date('2026-10-01T18:00:00Z').toLocaleString('en')}. Late work is not accepted.`),
+    ).toBeInTheDocument()
+    expect(intro.getByText('The solutions of wrong answers stay hidden.')).toBeInTheDocument()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+  })
+
+  it('says when there is no due date', async () => {
+    open('/work/1', [releaseOf()])
+
+    expect(await screen.findByText('There is no due date.')).toBeInTheDocument()
+  })
+
+  it('shows the result only after the second round the first pass earned', async () => {
+    const { user } = open('/work/1', [releaseOf({ feedback_mode: 'at_the_end' })], atTheEndLesson)
+    await begin(user)
+
+    await user.click(await screen.findByRole('radio', { name: 'es' }))
+    await user.click(screen.getByRole('radio', { name: 'somos' }))
+    await user.click(screen.getByRole('button', { name: 'Submit answers' }))
+
+    expect(await screen.findByRole('button', { name: 'Start the second round' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Submitted' })).not.toBeInTheDocument()
+  })
+
+  it('resumes work begun without the intro', async () => {
+    open('/work/1', [releaseOf({ state: 'in_progress', attempt: attemptOf(sampleLesson) })])
+
+    expect(await screen.findByRole('radio', { name: 'está' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Before you start' })).not.toBeInTheDocument()
+  })
+
+  it('ends with the result, saying when written answers will be assessed, and the way back', async () => {
+    // Only a written exercise: nothing comes back in a second round.
+    const writing: LessonPublic = {
+      ...atTheEndLesson,
+      blocks: (lectura as LessonPublic).blocks.filter((block) => block.type === 'free_text'),
+    }
+    const attempt = attemptOf(writing, { submitted_at: '2026-09-24T08:30:00Z' })
+    attempt.first.submitted = true
+    const essay = { type: 'free_text' as const, text: 'Vivo en Brno.' }
+    attempt.first.answers = {
+      'your-neighbourhood': {
+        draft: essay,
+        tries: [
+          {
+            answer: essay,
+            result: { status: 'pending', exercise_id: 'your-neighbourhood', reason: 'not_deterministically_assessable' },
+          },
+        ],
+      },
+    }
+    open('/work/1', [releaseOf({ feedback_mode: 'at_the_end', state: 'submitted', can_start: false, attempt })], writing)
+
+    const result = within(await screen.findByRole('region', { name: 'Submitted' }))
+    expect(result.getByText(/Your teacher will assess your written answers/)).toBeInTheDocument()
+    expect(result.getByRole('link', { name: 'Back to your work' })).toHaveAttribute('href', '/')
   })
 })

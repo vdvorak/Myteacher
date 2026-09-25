@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_serializer
 
 from myteacher.accounts.models import Account
 from myteacher.api.deps import Db, Now, requires
-from myteacher.courses.models import ClassroomMaterial, ClassroomMaterialVersion, Topic
+from myteacher.courses.models import ClassroomMaterial, ClassroomMaterialVersion, Course, Topic
 from myteacher.lesson.assessment import AnswerMismatch
 from myteacher.lesson.schema import (
     AssessmentPending,
@@ -39,10 +39,32 @@ def _utc(at: datetime | None) -> str | None:
     return at.isoformat().replace("+00:00", "Z") if at is not None else None
 
 
+class Progress(BaseModel):
+    answered: int
+    total: int
+
+
+class Score(BaseModel):
+    # What the student sees: the points of the first pass, of how many exercises, and how many
+    # written answers still wait for results to be published.
+    points: float
+    total: int
+    pending: int
+
+
+class RetractionNotice(BaseModel):
+    # What the teacher told the student.
+    reason: str
+    # The whole release was retracted, not just the student's attempt.
+    whole_release: bool
+
+
 class StudentRelease(BaseModel):
     id: int
     title: str
     topic: str
+    # The course's name.
+    course: str
     # The run's name.
     run: str
     released_at: datetime
@@ -52,6 +74,16 @@ class StudentRelease(BaseModel):
     late: bool
     # The last submitted attempt, which is the one that counts.
     counting_attempt_id: int | None
+    # Of the attempt being worked on.
+    progress: Progress | None
+    # Of the attempt that counts.
+    score: Score | None
+    # Results were published for the attempt that counts since the student last looked.
+    new_assessment: bool
+    # Why the student's latest attempt, or the release, was retracted.
+    retraction: RetractionNotice | None
+    # Whether a new attempt may be started now.
+    can_start: bool
 
     @field_serializer("released_at", "due_at")
     def _utc(self, at: datetime | None) -> str | None:
@@ -142,24 +174,13 @@ class AttemptOut(BaseModel):
         return _utc(at)
 
 
-class RetractionNotice(BaseModel):
-    # What the teacher told the student.
-    reason: str
-    # The whole release was retracted, not just the student's attempt.
-    whole_release: bool
-
-
 class ReleaseDetail(StudentRelease):
     feedback_mode: FeedbackMode
     attempts: Literal["one", "repeated"]
     late_submissions: Literal["accept", "refuse"]
     show_solutions: bool
-    # Whether a new attempt may be started now.
-    can_start: bool
     # The attempt being worked on, or else the one that counts.
     attempt: AttemptOut | None
-    # Why the student's latest attempt, or the release, was retracted.
-    retraction: RetractionNotice | None
 
 
 class SubmissionIn(BaseModel):
@@ -257,22 +278,32 @@ def attempt_out(
 
 
 def _summary(
-    db: InstanceSession, released: MaterialRelease, standing: attempts.Standing
+    db: InstanceSession, released: MaterialRelease, student: Account, standing: attempts.Standing
 ) -> StudentRelease:
     version = db.get_one(ClassroomMaterialVersion, released.version_id)
     topic = db.get_one(Topic, db.get_one(ClassroomMaterial, released.material_id).topic_id)
     run = runs.get_run(db, released.run_id)
     assert run is not None
+    counting = standing.counting
+    progress = attempts.progress(db, released, standing.open) if standing.open else None
+    score = attempts.score(db, released, counting) if counting else None
+    notice = attempts.retraction_notice(db, released, student)
     return StudentRelease(
         id=released.id,
         title=version.lesson["title"],
         topic=topic.name,
+        course=db.get_one(Course, run.course_id).name,
         run=run.name,
         released_at=released.released_at,
         due_at=released.due_at,
         state=standing.state,
         late=standing.counting.late if standing.counting else False,
         counting_attempt_id=standing.counting.id if standing.counting else None,
+        progress=Progress(answered=progress[0], total=progress[1]) if progress else None,
+        score=Score(points=score[0], total=score[1], pending=score[2]) if score else None,
+        new_assessment=counting is not None and attempts.new_results(db, counting),
+        retraction=RetractionNotice(reason=notice[0], whole_release=notice[1]) if notice else None,
+        can_start=standing.can_start,
     )
 
 
@@ -280,7 +311,7 @@ def _summary(
 def my_releases(db: Db, now: Now, actor: Student) -> list[StudentRelease]:
     """The material released to the student in the runs they are on, the latest first."""
     return [
-        _summary(db, released, attempts.standing(db, released, actor, now))
+        _summary(db, released, actor, attempts.standing(db, released, actor, now))
         for released in attempts.releases_for(db, actor)
     ]
 
@@ -290,19 +321,18 @@ def my_release(release_id: int, db: Db, now: Now, actor: Student) -> ReleaseDeta
     released = _release_or_404(db, actor, release_id)
     standing = attempts.standing(db, released, actor, now)
     shown = standing.open or standing.counting
+    summary = _summary(db, released, actor, standing)
+    # The student looks at the attempt that counts now: what was published so far is no longer
+    # new. Shown another attempt, being worked on, they have not seen its results yet.
+    if standing.counting is not None and shown is standing.counting:
+        standing.counting.results_seen_at = now
     return ReleaseDetail(
-        **_summary(db, released, standing).model_dump(),
+        **summary.model_dump(),
         feedback_mode=released.feedback_mode,  # type: ignore[arg-type]
         attempts=released.attempts,  # type: ignore[arg-type]
         late_submissions=released.late_submissions,  # type: ignore[arg-type]
         show_solutions=released.show_solutions,
-        can_start=standing.can_start,
         attempt=attempt_out(db, shown, released) if shown else None,
-        retraction=(
-            RetractionNotice(reason=notice[0], whole_release=notice[1])
-            if (notice := attempts.retraction_notice(db, released, actor))
-            else None
-        ),
     )
 
 

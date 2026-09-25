@@ -172,7 +172,7 @@ def test_retracted_open_answers_are_not_assessed_or_published(teacher, course, m
 # Retracting a release
 
 
-def test_a_retracted_release_disappears_from_students_and_retracts_every_attempt(teacher, course):
+def test_a_retracted_release_stays_with_its_reason_and_retracts_every_attempt(teacher, course):
     release_id, jana_attempt = submitted(teacher, course)
     as_student(teacher, OTHER_STUDENT)
     petr_attempt = started(teacher, release_id)["id"]
@@ -184,7 +184,11 @@ def test_a_retracted_release_disappears_from_students_and_retracts_every_attempt
     assert retracted.json()["retraction_reason"] == REASON
     assert retracted.json()["retracted_at"] == "2026-09-24T08:00:00Z"
     as_student(teacher)
-    assert my_releases(teacher) == []
+    [listed] = my_releases(teacher)
+    assert (listed["retraction"], listed["state"]) == (
+        {"reason": REASON, "whole_release": True},
+        "not_started",
+    )
     detail = my_release(teacher, release_id)
     assert detail["retraction"] == {"reason": REASON, "whole_release": True}
     assert (detail["attempt"], detail["can_start"]) == (None, False)

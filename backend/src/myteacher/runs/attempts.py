@@ -102,7 +102,7 @@ class Unanswered(Exception):
 
 def releases_for(db: InstanceSession, student: Account) -> list[MaterialRelease]:
     """The releases meant for the student in the runs they are on, the latest first; a
-    retracted one is gone from the list."""
+    retracted one stays, so the student sees why it went."""
     chosen = exists().where(
         ReleaseStudent.release_id == MaterialRelease.id, ReleaseStudent.student_id == student.id
     )
@@ -112,7 +112,6 @@ def releases_for(db: InstanceSession, student: Account) -> list[MaterialRelease]
             .where(
                 MaterialRelease.run_id.in_(runs.runs_of_student(db, student)),
                 or_(MaterialRelease.audience == "run", chosen),
-                MaterialRelease.retracted_at.is_(None),
             )
             .order_by(MaterialRelease.released_at.desc(), MaterialRelease.id.desc())
         )
@@ -196,6 +195,48 @@ def past_due(released: MaterialRelease, now: datetime) -> bool:
         and now > released.due_at
         and released.late_submissions == "refuse"
     )
+
+
+def progress(db: InstanceSession, released: MaterialRelease, attempt: Attempt) -> tuple[int, int]:
+    """How many exercises of the attempt's first pass are answered, tried or drafted, of how
+    many."""
+    listed = exercises(lesson_of(db, released), attempt, "first")
+    drafts = drafts_of(db, attempt, "first")
+    tries = tries_of(db, attempt, "first")
+    answered = sum(e.id in tries or (e.id in drafts and not _blank(drafts[e.id])) for e in listed)
+    return answered, len(listed)
+
+
+def score(
+    db: InstanceSession, released: MaterialRelease, attempt: Attempt
+) -> tuple[float, int, int]:
+    """The first pass's score as its student sees it: the points, of how many exercises, and
+    how many written answers still wait for results to be published."""
+    listed = exercises(lesson_of(db, released), attempt, "first")
+    tries = tries_of(db, attempt, "first")
+    points, pending = 0.0, 0
+    for exercise in listed:
+        last = tries.get(exercise.id, [None])[-1]
+        if last is None:
+            continue
+        # A published assessment or override is what the student sees, closed answers included.
+        if last.published and last.published.get("score") is not None:
+            points += last.published["score"]
+        elif last.status != "pending":
+            points += last.score or 0.0
+        else:
+            pending += 1
+    return points, len(listed), pending
+
+
+def new_results(db: InstanceSession, attempt: Attempt) -> bool:
+    """Whether results were published for the attempt since its student last looked at it."""
+    published = select(Assessment.id).where(
+        Assessment.attempt_id == attempt.id, Assessment.published_at.is_not(None)
+    )
+    if attempt.results_seen_at is not None:
+        published = published.where(Assessment.published_at > attempt.results_seen_at)
+    return db.scalar(published.limit(1)) is not None
 
 
 # Starting

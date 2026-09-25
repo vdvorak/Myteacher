@@ -1,0 +1,123 @@
+/* The student's work on a phone: one card per piece, one button each. */
+.student-home {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.student-home h2 {
+  margin: 0 0 var(--space-3);
+}
+
+.work-cards {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.work-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.work-card[data-state='overdue'] {
+  border-color: var(--color-incorrect);
+}
+
+.work-card h3 {
+  margin: 0;
+  font-weight: 650;
+}
+
+.work-card p {
+  margin: 0;
+}
+
+.work-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.work-due[data-tone='incorrect'] {
+  color: var(--color-incorrect);
+  font-weight: 600;
+}
+
+.work-due[data-tone='warning'] {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.work-new {
+  background: var(--color-accent-surface);
+  color: var(--color-accent);
+}
+
+.work-notice {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-warning-surface);
+  color: var(--color-warning);
+}
+
+.work-score {
+  font-size: var(--font-size-title);
+  font-weight: 650;
+}
+
+/* One full-width button per card, at least a tap target high. */
+.work-action {
+  display: grid;
+  place-items: center;
+  min-height: var(--tap-target);
+  border: var(--border-width) solid var(--color-accent);
+  border-radius: var(--radius);
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.work-action[data-variant='filled'] {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.work-older summary {
+  min-height: var(--tap-target);
+  padding: var(--space-2) 0;
+  cursor: pointer;
+}
+
+.student-empty {
+  color: var(--color-text-muted);
+}
+
+/* The steps around the exercises of one piece of work. */
+.work-step {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.work-step h2,
+.work-step p,
+.work-step ul {
+  margin: 0;
+}
+
+.work-step button {
+  min-height: var(--tap-target);
+}
