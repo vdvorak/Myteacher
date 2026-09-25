@@ -7,6 +7,7 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import select
 
+from myteacher.courses.models import ConceptMap
 from myteacher.persistence import open_session
 from myteacher.runs.models import Assessment, AssessmentConcept, Attempt, AttemptDraft
 from tests.helpers import (
@@ -20,7 +21,7 @@ from tests.helpers import (
     sign_in,
 )
 from tests.test_classroom_materials import EXPLANATION, choice, generated, materials_url
-from tests.test_concept_maps import map_url
+from tests.test_concept_maps import concept_url, map_url
 from tests.test_course_runs import add_member, create_class, enrol_class, start_run
 from tests.test_courses import create_course
 from tests.test_erasure import as_admin, erase
@@ -708,6 +709,38 @@ def test_assessments_record_the_concepts_of_the_topics_map(teacher, course, sett
         ).all()
     assert assessment.exercise_id == "hablar"
     assert sorted(recorded) == sorted(concept_ids)
+
+
+def test_an_assessment_records_the_current_concepts_of_a_reopened_map(teacher, course, settings):
+    concepts = teacher.get(map_url(*course.topic)).json()["concepts"]
+    kept, retired = concepts[0]["id"], concepts[1]["id"]
+    teacher.post(f"{map_url(*course.topic)}/reopening")
+    assert teacher.delete(concept_url(course.topic, retired)).status_code == 200
+    release_id = released(teacher, course)
+    as_student(teacher)
+    attempt_id = started(teacher, release_id)["id"]
+
+    answer(teacher, attempt_id, "hablar", RIGHT["hablar"])
+
+    with open_session(create_engine_for(settings)) as db:
+        recorded = db.scalars(select(AssessmentConcept.concept_id)).all()
+    assert recorded == [kept]
+
+
+def test_an_assessment_records_no_concepts_of_a_map_never_approved(teacher, course, settings):
+    release_id = released(teacher, course)
+    with open_session(create_engine_for(settings)) as db:
+        # As if the map were still the assistant's first proposal, which no teacher reviewed.
+        concept_map = db.scalars(select(ConceptMap)).one()
+        concept_map.state, concept_map.approved_before = "draft", False
+        db.commit()
+    as_student(teacher)
+    attempt_id = started(teacher, release_id)["id"]
+
+    answer(teacher, attempt_id, "hablar", RIGHT["hablar"])
+
+    with open_session(create_engine_for(settings)) as db:
+        assert db.scalars(select(AssessmentConcept)).all() == []
 
 
 def test_a_discarded_material_still_opens_for_its_release(teacher, course):

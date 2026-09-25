@@ -353,10 +353,12 @@ def _put_draft(
 
 
 def _concept_ids(db: InstanceSession, released: MaterialRelease) -> list[int]:
-    """The concepts of the material's topic, while its map is approved."""
+    """The current concepts of the material's topic, while its map is approved and also while it
+    is reopened for changes: concept ids survive edits, so they are worth recording rather than
+    nothing. A map never approved is a proposal no teacher reviewed, so it records none."""
     material = db.get_one(ClassroomMaterial, released.material_id)
     concept_map = concepts.map_of(db, db.get_one(Topic, material.topic_id))
-    if concept_map is None or concept_map.state != "approved":
+    if concept_map is None or (concept_map.state != "approved" and not concept_map.approved_before):
         return []
     return [concept.id for concept in concepts.concepts_of(db, concept_map)]
 
