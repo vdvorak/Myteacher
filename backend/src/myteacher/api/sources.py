@@ -93,6 +93,26 @@ class PageIn(BaseModel):
     name: SourceName | None = None
 
 
+def _has_text(text: str) -> str:
+    if not text.strip() or "\x00" in text:
+        raise ValueError("some text, without null characters")
+    try:
+        # Half of a surrogate pair, which JSON allows, has no UTF-8.
+        text.encode()
+    except UnicodeEncodeError:
+        raise ValueError("valid Unicode text") from None
+    return text
+
+
+class TextIn(BaseModel):
+    """Text the teacher pasted, for example from a page that builds its content in the browser."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: SourceName
+    text: Annotated[str, AfterValidator(_has_text)]
+
+
 class Extraction(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -231,6 +251,27 @@ def add_page(
     course = editable_course(db, actor, course_id)
     source = sources.add_page_source(
         db, course, url=body.url, name=body.name, uploader=actor, now=now
+    )
+    return _start(request, background, db, source, ocr=False, actor=actor, now=now)
+
+
+@router.post("/text", status_code=202, responses={413: {"description": "Larger than the limit"}})
+def add_text(
+    course_id: int,
+    body: TextIn,
+    request: Request,
+    background: BackgroundTasks,
+    db: Db,
+    now: Now,
+    actor: Teacher,
+) -> Started:
+    """Add pasted text as a text source, read like an uploaded text file."""
+    course = editable_course(db, actor, course_id)
+    content = body.text.encode()
+    if len(content) > sources.MAX_SIZE:
+        raise HTTPException(status_code=413, detail="too_large")
+    source = sources.add_text_source(
+        db, course, name=body.name, text=body.text, uploader=actor, now=now
     )
     return _start(request, background, db, source, ocr=False, actor=actor, now=now)
 

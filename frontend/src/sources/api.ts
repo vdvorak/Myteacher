@@ -64,6 +64,8 @@ export interface SourcesApi {
   change(courseId: number, sourceId: number, change: SourceChange): Promise<Source>
   /** Starts taking the snapshot of a web page; without a name, the page's title names it. */
   addPage(courseId: number, url: string, name: string | null): Promise<SourceStarted>
+  /** Adds pasted text as a text source, read like an uploaded text file. */
+  addText(courseId: number, name: string, text: string): Promise<SourceStarted>
   /** Reads the text again; a web page is fetched again only while it has no snapshot. */
   extract(courseId: number, sourceId: number, ocr: boolean): Promise<SourceStarted>
   remove(courseId: number, sourceId: number): Promise<void>
@@ -122,6 +124,14 @@ export const httpSourcesApi: SourcesApi = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(name === null ? { url } : { url, name }),
+      }),
+    ),
+  addText: async (courseId, name, text) =>
+    checked(
+      await fetch(`${sourcesUrl(courseId)}/text`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, text }),
       }),
     ),
   change: async (courseId, sourceId, change) =>

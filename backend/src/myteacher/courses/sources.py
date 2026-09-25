@@ -124,6 +124,26 @@ def add_source(
     now: datetime,
 ) -> Source:
     kind, media_type = sniff(content, declared_type, name)
+    return _stored(db, course, name, kind, media_type, content, uploader, now)
+
+
+def add_text_source(
+    db: InstanceSession, course: Course, *, name: str, text: str, uploader: Account, now: datetime
+) -> Source:
+    """Pasted text as a text source, never sniffed: text that starts like a PDF stays text."""
+    return _stored(db, course, name, "text", "text/plain", text.encode(), uploader, now)
+
+
+def _stored(
+    db: InstanceSession,
+    course: Course,
+    name: str,
+    kind: SourceKind,
+    media_type: str,
+    content: bytes,
+    uploader: Account,
+    now: datetime,
+) -> Source:
     source = Source(
         course_id=course.id,
         name=shortened(name),

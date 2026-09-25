@@ -159,7 +159,7 @@ describe('course sources', () => {
 
   it.each([
     ['unsupported_type', 'Only PDFs, text files and images (PNG, JPEG, WebP) can be sources.'],
-    ['too_large', 'The file is larger than 20 MB.'],
+    ['too_large', 'The source is larger than 20 MB.'],
     ['no_provider_key', 'OCR is paid by your AI provider key; add one in Settings first.'],
   ] as const)('explains a refused upload: %s', async (reason, message) => {
     const { sources } = renderSources({ sources: [] })
@@ -286,6 +286,20 @@ describe('web pages as sources', () => {
     expect(sources.extract).toHaveBeenCalledWith(1, 100, false)
   })
 
+  it('explains a page with no text in its HTML: print it to PDF or paste its text', async () => {
+    renderSources({ sources: [], pages: { 'https://app.example/unit-1': { fail: 'no_text' } } })
+
+    await addPage('https://app.example/unit-1')
+
+    const page = await item('https://app.example/unit-1')
+    // Once the list shows the failed page, not the job's own status that polled it.
+    const hint = await page.findByText(
+      'The page has no text until the browser builds it. Print the page to PDF and upload the file, or paste its text below.',
+    )
+    expect(hint).toHaveAttribute('role', 'alert')
+    expect(page.queryByText(/read with OCR/)).not.toBeInTheDocument()
+  })
+
   it('refuses an address that is not a web page', async () => {
     const { sources } = renderSources({ sources: [] })
 
@@ -301,5 +315,58 @@ describe('web pages as sources', () => {
     const page = await item('El pretérito indefinido')
     expect(page.getByText('Web page, 18 KB')).toBeInTheDocument()
     expect(page.getByText(/^Snapshot taken .*2026/)).toBeInTheDocument()
+  })
+})
+
+describe('pasted text as a source', () => {
+  async function paste(name: string, text: string) {
+    const user = userEvent.setup()
+    const sources = await section()
+    await user.type(sources.getByRole('textbox', { name: 'Name' }), name)
+    await user.type(sources.getByRole('textbox', { name: 'Text' }), text)
+    await user.click(sources.getByRole('button', { name: 'Add the text' }))
+    return sources
+  }
+
+  it('adds pasted text as a text source and clears the form', async () => {
+    const { sources } = renderSources({ sources: [] })
+
+    const section = await paste('Online textbook, unit 1', 'Hablé, hablaste, habló.')
+
+    expect(sources.addText).toHaveBeenCalledWith(1, 'Online textbook, unit 1', 'Hablé, hablaste, habló.')
+    const pasted = await item('Online textbook, unit 1')
+    expect(await pasted.findByText('23 characters read from the file.')).toBeInTheDocument()
+    expect(pasted.getByText('Text, 25 B')).toBeInTheDocument()
+    expect(section.getByRole('textbox', { name: 'Name' })).toHaveValue('')
+    expect(section.getByRole('textbox', { name: 'Text' })).toHaveValue('')
+  })
+
+  it('adds nothing without a name or without text', async () => {
+    renderSources({ sources: [] })
+    const user = userEvent.setup()
+    const sources = await section()
+    const add = sources.getByRole('button', { name: 'Add the text' })
+
+    expect(add).toBeDisabled()
+    await user.type(sources.getByRole('textbox', { name: 'Name' }), 'Unit 1')
+    await user.type(sources.getByRole('textbox', { name: 'Text' }), '   ')
+    expect(add).toBeDisabled()
+  })
+
+  it('keeps the text when it was refused', async () => {
+    const { sources } = renderSources({ sources: [] })
+    sources.addText.mockRejectedValueOnce(new SourceRefused('too_large'))
+
+    const section = await paste('Unit 1', 'Hablé.')
+
+    expect(await section.findByRole('alert')).toHaveTextContent('The source is larger than 20 MB.')
+    expect(section.getByRole('textbox', { name: 'Text' })).toHaveValue('Hablé.')
+  })
+
+  it('offers no pasting to a viewer', async () => {
+    renderSources({ course: viewer })
+
+    await item(textbook.name)
+    expect((await section()).queryByRole('button', { name: 'Add the text' })).not.toBeInTheDocument()
   })
 })

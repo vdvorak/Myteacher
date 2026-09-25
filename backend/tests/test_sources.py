@@ -110,6 +110,70 @@ def test_a_teacher_uploads_a_text_file_and_sees_the_extracted_text(teacher, cour
     assert read["job"]["state"] == "succeeded"
 
 
+# Pasted text
+
+
+def paste(client, course_id, text=TEXT, name="Pasted page"):
+    return client.post(f"{sources_url(course_id)}/text", json={"name": name, "text": text})
+
+
+def test_a_teacher_pastes_the_text_of_a_page_as_a_text_source(teacher, course):
+    pasted = paste(teacher, course, name="  Online textbook, unit 1 ")
+
+    assert pasted.status_code == 202
+    body = pasted.json()
+    assert body["job"]["kind"] == "source_extraction"
+    read = source(teacher, course, body["source"]["id"])
+    assert read["name"] == "Online textbook, unit 1"
+    assert read["kind"] == "text"
+    assert read["media_type"] == "text/plain"
+    assert read["size"] == len(TEXT.encode())
+    assert read["extracted_with"] == "file"
+    assert read["text"] == TEXT
+    assert read["job"]["state"] == "succeeded"
+    # Its original is the text as pasted.
+    assert teacher.get(f"{sources_url(course)}/{read['id']}/file").content == TEXT.encode()
+
+
+def test_pasted_text_that_looks_like_a_file_stays_text(teacher, course):
+    text = "%PDF-1.7 is the format of the textbook."
+
+    body = paste(teacher, course, text=text).json()
+
+    read = source(teacher, course, body["source"]["id"])
+    assert (read["kind"], read["media_type"], read["text"]) == ("text", "text/plain", text)
+
+
+def test_pasted_text_needs_a_name_and_some_text(teacher, course):
+    assert paste(teacher, course, name="  ").status_code == 422
+    assert paste(teacher, course, text=" \n\t ").status_code == 422
+    assert paste(teacher, course, name="x" * 201).status_code == 422
+    # Not text, and not read as such.
+    assert paste(teacher, course, text="a\x00b").status_code == 422
+    # Half of an emoji pair, as a browser writes it into JSON: no UTF-8 for it.
+    half = teacher.post(
+        f"{sources_url(course)}/text",
+        content=b'{"name": "Unit 1", "text": "smile \\ud83d"}',
+        headers={"Content-Type": "application/json"},
+    )
+    assert half.status_code == 422
+    assert teacher.get(sources_url(course)).json() == []
+
+
+def test_pasted_text_larger_than_the_limit_is_refused(teacher, course, monkeypatch):
+    monkeypatch.setattr(sources, "MAX_SIZE", 10)
+
+    refused = paste(teacher, course, text="čtyři slova tady")
+
+    assert refused.status_code == 413
+    assert refused.json()["detail"] == "too_large"
+
+
+def test_only_an_editor_pastes_text(teacher, course, shared):
+    shared("view")
+    assert paste(teacher, course).status_code == 403
+
+
 def test_a_text_file_in_the_old_czech_encoding_is_read_too(teacher, course):
     sid = upload(teacher, course, TEXT.encode("cp1250")).json()["source"]["id"]
 

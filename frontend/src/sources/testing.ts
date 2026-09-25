@@ -167,6 +167,27 @@ export function fakeSourcesApi(
       listOf(courseId).push(source)
       return snapshot(source, name !== null)
     }),
+    addText: vi.fn(async (courseId: number, name: string, text: string) => {
+      if (!name.trim() || !text.trim()) throw new ApiError(422)
+      const size = new TextEncoder().encode(text).length
+      const source: SourceDetail = {
+        id: nextId++,
+        name: name.trim(),
+        kind: 'text',
+        media_type: 'text/plain',
+        size,
+        visible_to_students: false,
+        created_at: '2026-09-24T08:00:00Z',
+        extracted_with: null,
+        url: null,
+        fetched_at: null,
+        characters: null,
+        job: null,
+        text: null,
+      }
+      listOf(courseId).push(source)
+      return extract(source, false, text)
+    }),
     extract: vi.fn(async (courseId: number, sourceId: number, ocr: boolean) => {
       const source = find(courseId, sourceId)
       if (source.job && (source.job.state === 'queued' || source.job.state === 'running')) {

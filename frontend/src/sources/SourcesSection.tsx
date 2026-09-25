@@ -105,6 +105,7 @@ export function SourcesSection(props: { courseId: number; canEdit: boolean }) {
             return start(() => api.addPage(props.courseId, url, name))
           }}
         />
+        <TextForm add={(name, text) => start(() => api.addText(props.courseId, name, text))} />
       </Show>
       <Show when={problem()}>{(current) => <p role="alert">{t(problemMessage(current()))}</p>}</Show>
     </section>
@@ -184,7 +185,14 @@ function SourceItem(props: {
           />
         )}
       </Show>
-      <Show when={!running() && failure()}>{(kind) => <JobFailureMessage kind={kind()} />}</Show>
+      <Show when={!running() && failure()}>
+        {(kind) => (
+          // A page with no text in its HTML builds it in the browser, which no fetch runs.
+          <Show when={isPage() && kind() === 'no_text'} fallback={<JobFailureMessage kind={kind()} />}>
+            <p role="alert">{t('sources.pageNoText')}</p>
+          </Show>
+        )}
+      </Show>
       <Show when={!running() && isPage() && props.source.fetched_at}>
         {(at) => (
           <p>
@@ -374,6 +382,43 @@ function PageForm(props: { add: (url: string, name: string | null) => Promise<bo
       <div class="settings-actions">
         <button type="submit" disabled={busy() || url().trim() === ''}>
           {t('sources.takeSnapshot')}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function TextForm(props: { add: (name: string, text: string) => Promise<boolean> }) {
+  const { t } = useI18n()
+  const [name, setName] = createSignal('')
+  const [text, setText] = createSignal('')
+  const [busy, setBusy] = createSignal(false)
+
+  async function submit(event: SubmitEvent) {
+    event.preventDefault()
+    setBusy(true)
+    if (await props.add(name().trim(), text())) {
+      setName('')
+      setText('')
+    }
+    setBusy(false)
+  }
+
+  return (
+    <form class="settings-form" onSubmit={submit}>
+      <h3>{t('sources.addText')}</h3>
+      <p class="settings-note">{t('sources.textIntro')}</p>
+      <label>
+        {t('sources.textName')}
+        <input maxLength={200} value={name()} onInput={(e) => setName(e.currentTarget.value)} />
+      </label>
+      <label>
+        {t('sources.pastedText')}
+        <textarea rows={8} value={text()} onInput={(e) => setText(e.currentTarget.value)} />
+      </label>
+      <div class="settings-actions">
+        <button type="submit" disabled={busy() || name().trim() === '' || text().trim() === ''}>
+          {t('sources.addTheText')}
         </button>
       </div>
     </form>

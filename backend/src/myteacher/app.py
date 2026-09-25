@@ -1,8 +1,12 @@
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine
 
@@ -77,6 +81,7 @@ def create_app(
         engine.dispose()
 
     app = FastAPI(title="Myteacher", lifespan=lifespan)
+    app.add_exception_handler(RequestValidationError, _refused)  # type: ignore[arg-type]
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -109,6 +114,17 @@ def create_app(
     if settings.static_dir is not None:
         _serve_single_page_app(app, settings.static_dir)
     return app
+
+
+class _AsciiJSONResponse(JSONResponse):
+    def render(self, content: Any) -> bytes:
+        return json.dumps(content, separators=(",", ":")).encode("ascii")
+
+
+async def _refused(request: Request, error: RequestValidationError) -> JSONResponse:
+    """FastAPI's 422, escaped to ASCII: it echoes the input, and half of a surrogate pair, which
+    JSON allows, has no UTF-8."""
+    return _AsciiJSONResponse(status_code=422, content={"detail": jsonable_encoder(error.errors())})
 
 
 def bootstrap_admin(engine: Engine, settings: Settings, clock: Clock) -> None:

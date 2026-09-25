@@ -25,6 +25,18 @@ describe('sources over HTTP', () => {
     expect(init.headers).toEqual({ 'Content-Type': 'text/markdown' })
   })
 
+  it('sends pasted text as JSON', async () => {
+    const fetch = answer(202, { source: {}, job: {} })
+    vi.stubGlobal('fetch', fetch)
+
+    await httpSourcesApi.addText(3, 'Unit 1', 'Hablé.')
+
+    const [url, init] = fetch.mock.calls[0] as unknown as [string, RequestInit]
+    expect(url).toBe('/api/courses/3/sources/text')
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body as string)).toEqual({ name: 'Unit 1', text: 'Hablé.' })
+  })
+
   it('turns a known refusal into its reason and anything else into a plain failure', async () => {
     vi.stubGlobal('fetch', answer(415, { detail: 'unsupported_type' }))
     await expect(httpSourcesApi.upload(3, new File(['x'], 'a.svg'), false)).rejects.toEqual(
