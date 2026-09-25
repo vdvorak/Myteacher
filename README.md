@@ -6,6 +6,7 @@ A teaching platform where a teacher designs a course with an AI assistant and ev
 - [docs/PHASE-1.md](./docs/PHASE-1.md): what phase 1 builds and leaves out.
 - [docs/adr](./docs/adr): decisions and the reasons behind them.
 - [docs/INSTALL.md](./docs/INSTALL.md): installing, configuring, backing up and upgrading an instance.
+- [docs/design](./docs/design): the UI redesign: the brief given to Claude Design (`brief/`) and its handoffs (`redesign-part-1/`: navigation, structure and tokens).
 
 ## Running
 

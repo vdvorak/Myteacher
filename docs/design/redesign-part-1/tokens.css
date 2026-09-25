@@ -1,0 +1,110 @@
+/*
+ * The token layer: the only place colours, fonts and spacing are defined.
+ * Components reference these custom properties and nothing else (enforced by tokens.test.ts).
+ * Redesign palette "Korálová" (coral). Existing token names are unchanged; new tokens are marked NEW.
+ */
+:root {
+  --font-body: 'Onest', system-ui, -apple-system, 'Segoe UI', sans-serif; /* self-host Onest 400/500/600/700/800, latin + latin-ext */
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; /* NEW */
+  --font-size-small: 0.875rem;
+  --font-size-body: 1rem;
+  --font-size-title: 1.625rem;
+  --font-size-display: 3rem; /* NEW: page-level h1 only */
+  --line-height-body: 1.55;
+  --letter-spacing-caption: 0.06em;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius: 0.75rem;
+  --border-width: 1px;
+  --content-width: 42rem; /* reading width for forms/text; app shell content is wider (see README) */
+
+  --color-background: #ece7e3;
+  --color-surface: #f6f2ef;
+  --color-surface-sunken: #e2dbd6; /* NEW: sidebar, wells */
+  --color-text: #1a1614;
+  --color-text-muted: #5f5651;
+  --color-border: #d9d0ca;
+  --color-accent: #c13a1f;
+  --color-accent-text: #ffffff;
+  --color-accent-surface: #f3dcd3; /* NEW: active nav item, next-step bar, selected states */
+  --color-focus: #c13a1f;
+  --color-correct: #1f6e45;
+  --color-correct-surface: #dbe9df;
+  --color-incorrect: #a8322c;
+  --color-incorrect-surface: #f1dcd9;
+  --color-warning: #7d5300; /* NEW */
+  --color-warning-surface: #efe3c8; /* NEW */
+  --shadow-card: 0 1px 2px rgb(40 30 40 / 0.05); /* NEW */
+
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-background: #110e0d;
+    --color-surface: #1c1816;
+    --color-surface-sunken: #161211;
+    --color-text: #f3eeeb;
+    --color-text-muted: #a8a09b;
+    --color-border: #322a27;
+    --color-accent: #ff8a6b;
+    --color-accent-text: #2a0c04;
+    --color-accent-surface: #3b1e16;
+    --color-focus: #ff8a6b;
+    --color-correct: #6fd69c;
+    --color-correct-surface: #13291d;
+    --color-incorrect: #ff9b93;
+    --color-incorrect-surface: #3a1c1b;
+    --color-warning: #f2c46a;
+    --color-warning-surface: #33280f;
+    --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.02), 0 2px 8px rgb(0 0 0 / 0.35);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-background: #110e0d;
+  --color-surface: #1c1816;
+  --color-surface-sunken: #161211;
+  --color-text: #f3eeeb;
+  --color-text-muted: #a8a09b;
+  --color-border: #322a27;
+  --color-accent: #ff8a6b;
+  --color-accent-text: #2a0c04;
+  --color-accent-surface: #3b1e16;
+  --color-focus: #ff8a6b;
+  --color-correct: #6fd69c;
+  --color-correct-surface: #13291d;
+  --color-incorrect: #ff9b93;
+  --color-incorrect-surface: #3a1c1b;
+  --color-warning: #f2c46a;
+  --color-warning-surface: #33280f;
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.02), 0 2px 8px rgb(0 0 0 / 0.35);
+
+  color-scheme: dark;
+}
+
+/* Paper is light whatever the screen theme: printing uses the light colours. */
+@media print {
+  :root,
+  :root[data-theme='dark'],
+  :root:not([data-theme='light']) {
+    --color-background: #ffffff;
+    --color-surface: #ffffff;
+    --color-surface-sunken: #ffffff;
+    --color-text: #000000;
+    --color-text-muted: #444444;
+    --color-border: #bbbbbb;
+    --shadow-card: none;
+
+    color-scheme: light;
+  }
+}
