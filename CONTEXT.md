@@ -43,7 +43,7 @@ A teacher granted the right to change a course's design and to run it alongside 
 _Avoid_: collaborator, contributor, co-author
 
 **Co-teacher**:
-A teacher with full rights on a course run alongside the run's teacher, typically a substitute.
+A teacher with full rights on a course run alongside the run's teacher, typically a substitute. Czech: spoluvyučující.
 _Avoid_: collaborator, substitute, assistant teacher
 
 **Assistant**:
@@ -61,7 +61,7 @@ The explicit list, managed by the course owner, of which teachers may view, fork
 _Avoid_: sharing, permissions, visibility
 
 **Fork**:
-A teacher's own copy of another teacher's course, made with the owner's permission. It records its origin but does not follow later changes to the original.
+A teacher's own copy of another teacher's course, made with the owner's permission. It records its origin but does not follow later changes to the original. Czech: vlastní kopie.
 _Avoid_: copy, clone, duplicate, template
 
 **Course Run**:
@@ -73,11 +73,11 @@ A student's membership in a course run, either direct or through a class.
 _Avoid_: registration, assignment, membership
 
 **Course Brief**:
-The structured description of a course produced by the teacher interview: audience, level, goals, timeframe, sources, preferred exercise types, tone, language of instruction. The counterpart of the teach skill's mission.
+The structured description of a course produced by the teacher interview: audience, level, goals, timeframe, sources, preferred exercise types, tone, language of instruction. The counterpart of the teach skill's mission. Czech: zadání kurzu.
 _Avoid_: mission, settings, profile
 
 **Teacher Interview**:
-The relentless questioning the assistant runs before generating anything: thorough once per course, brief per topic.
+The relentless questioning the assistant runs before generating anything: thorough once per course, brief per topic. Czech: úvodní rozhovor.
 _Avoid_: wizard, onboarding, setup
 
 **Topic**:
@@ -199,15 +199,15 @@ The teacher's judgement that a generated lesson is fit to be taught. Approval do
 _Avoid_: release, publish, accept
 
 **Release**:
-The moment a lesson becomes visible to its student, by hand or at a scheduled time, after approval or automatically under a trusted policy. A classroom material is released by hand to the students of a course run, to complete in the app.
+The moment a lesson becomes visible to its student, by hand or at a scheduled time, after approval or automatically under a trusted policy. A classroom material is released by hand to the students of a course run, to complete in the app. Czech: vydání.
 _Avoid_: publish, unlock, approve
 
 **Retraction**:
-The teacher voiding a student's attempt, whether not yet opened, in progress or submitted. The student is told and taken out of the lesson if inside it; the teacher then edits, regenerates or replaces the lesson, and a new attempt is issued.
+The teacher voiding a student's attempt, whether not yet opened, in progress or submitted. The student is told and taken out of the lesson if inside it; the teacher then edits, regenerates or replaces the lesson, and a new attempt is issued. Czech: stažení.
 _Avoid_: invalidate, revoke, delete, cancel
 
 **Review Queue**:
-The list of generated lessons and assessments waiting for the teacher to approve, edit, regenerate or retract, presented as one summary row per student with the lesson rationale and any flags, with bulk approval of unflagged rows.
+The list of generated lessons and assessments waiting for the teacher to approve, edit, regenerate or retract, presented as one summary row per student with the lesson rationale and any flags, with bulk approval of unflagged rows. Czech: ke kontrole.
 _Avoid_: inbox, pending, approvals
 
 **Daily Digest**:
