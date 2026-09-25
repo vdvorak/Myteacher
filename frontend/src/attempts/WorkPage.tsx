@@ -5,7 +5,20 @@ import { useI18n } from '../i18n/i18n'
 import { ApiError } from '../lesson/api'
 import { LessonPlayer } from '../lesson/LessonPlayer'
 import { roundComplete } from '../lesson/progress'
-import { attemptLessonApi, AttemptRefused, progressOf, type Attempt, type AttemptRefusal } from './api'
+import {
+  attemptLessonApi,
+  AttemptRefused,
+  progressOf,
+  type Attempt,
+  type AttemptRefusal,
+  type ReleaseDetail,
+} from './api'
+
+/** The due date passed and late work is refused. `can_start` said so when the release was read, which
+ * may be before the attempt now shown was finished. */
+function pastDue(release: ReleaseDetail): boolean {
+  return release.late_submissions === 'refuse' && release.due_at !== null && Date.now() > Date.parse(release.due_at)
+}
 
 /** One released material: opening it starts an attempt, or resumes it wherever it was left, on
  * any device; after submission it shows the results, and another attempt where the release allows. */
@@ -73,14 +86,16 @@ export function WorkPage() {
               <p role="alert">
                 {notice().whole_release
                   ? t('work.retracted.release', { reason: notice().reason })
-                  : t('work.retracted.attempt', { reason: notice().reason })}
+                  : release().can_start
+                    ? t('work.retracted.attempt', { reason: notice().reason })
+                    : t('work.retracted.attemptOver', { reason: notice().reason })}
               </p>
             )}
           </Show>
           <Show when={attempt()} keyed>
             {(current) => {
               // One backend per attempt: it queues the drafts, so it must outlive every save.
-              // The teacher retracted the attempt meanwhile: the release says why, and what next.
+              // Retracted or submitted at the due date meanwhile: the release says what next.
               const lessonApi = attemptLessonApi(api, current.id, () => void refetch())
               return (
                 <>
@@ -106,7 +121,7 @@ export function WorkPage() {
               <p role="alert">{reason() === 'failed' ? t('work.startFailed') : t(`work.refused.${reason() as AttemptRefusal}`)}</p>
             )}
           </Show>
-          <Show when={passDone() && release().attempts === 'repeated'}>
+          <Show when={passDone() && release().attempts === 'repeated' && !pastDue(release())}>
             <div class="settings-actions">
               <button type="button" disabled={starting()} onClick={() => begin(release().id)}>
                 {t('work.startAgain')}

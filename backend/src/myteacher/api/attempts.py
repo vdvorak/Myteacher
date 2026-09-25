@@ -181,7 +181,7 @@ def _release_or_404(db: InstanceSession, actor: Account, release_id: int) -> Mat
 
 
 def _attempt_or_404(
-    db: InstanceSession, actor: Account, attempt_id: int
+    db: InstanceSession, actor: Account, attempt_id: int, now: datetime
 ) -> tuple[Attempt, MaterialRelease]:
     found = attempts.attempt_for(db, actor, attempt_id)
     if found is None:
@@ -189,6 +189,7 @@ def _attempt_or_404(
     if found[0].retracted_at is not None:
         # The teacher retracted it: the student is taken out, and the release says why.
         raise HTTPException(status_code=410, detail="attempt_retracted")
+    attempts.close_past_due(db, *found, now)
     return found
 
 
@@ -332,8 +333,8 @@ def start_attempt(
 
 
 @router.get("/attempts/{attempt_id}")
-def read_attempt(attempt_id: int, db: Db, actor: Student) -> AttemptOut:
-    return attempt_out(db, *_attempt_or_404(db, actor, attempt_id))
+def read_attempt(attempt_id: int, db: Db, now: Now, actor: Student) -> AttemptOut:
+    return attempt_out(db, *_attempt_or_404(db, actor, attempt_id, now))
 
 
 _REFUSALS: list[tuple[type[Exception], int, str]] = [
@@ -369,7 +370,7 @@ def save_draft(
     actor: Student,
 ) -> Response:
     """Save the answer being composed, so the attempt continues on another device."""
-    attempt, released = _attempt_or_404(db, actor, attempt_id)
+    attempt, released = _attempt_or_404(db, actor, attempt_id, now)
     try:
         attempts.save_draft(db, attempt, released, round, exercise_id, body, now)
     except _REFUSABLE as error:
@@ -392,7 +393,7 @@ def take_try(
 ) -> AssessmentResult | AssessmentPending:
     """Assess one try with immediate feedback; the attempt decides whether it may be taken and
     whether the solution comes with it."""
-    attempt, released = _attempt_or_404(db, actor, attempt_id)
+    attempt, released = _attempt_or_404(db, actor, attempt_id, now)
     try:
         row = attempts.take_try(db, attempt, released, round, exercise_id, body, now)
     except _REFUSABLE as error:
@@ -405,7 +406,7 @@ def submit_round(
     attempt_id: int, round: Round, body: SubmissionIn, db: Db, now: Now, actor: Student
 ) -> RoundSubmitted:
     """Submit a round with feedback at the end; submitting the first pass submits the attempt."""
-    attempt, released = _attempt_or_404(db, actor, attempt_id)
+    attempt, released = _attempt_or_404(db, actor, attempt_id, now)
     try:
         rows = attempts.submit_round(db, attempt, released, round, body.answers, now)
     except _REFUSABLE as error:
@@ -414,9 +415,9 @@ def submit_round(
 
 
 @router.post("/attempts/{attempt_id}/second-round")
-def start_second_round(attempt_id: int, db: Db, actor: Student) -> RoundOut:
+def start_second_round(attempt_id: int, db: Db, now: Now, actor: Student) -> RoundOut:
     """Start the second round, which repeats what failed the first time, or return it."""
-    attempt, released = _attempt_or_404(db, actor, attempt_id)
+    attempt, released = _attempt_or_404(db, actor, attempt_id, now)
     try:
         attempts.start_second_round(db, attempt, released)
     except attempts.NotSubmitted:

@@ -8,7 +8,7 @@ import type { Account } from '../auth/api'
 import { fakeAuthApi, student } from '../auth/testing'
 import { atTheEndLesson, sampleLesson, withI18n } from '../lesson/testing'
 import { ApiError } from '../lesson/api'
-import type { ReleaseDetail } from './api'
+import { AttemptRefused, type ReleaseDetail } from './api'
 import { attemptOf, fakeAttemptsApi, releaseOf } from './testing'
 
 const jana: Account = { ...student, language: 'en' }
@@ -153,6 +153,23 @@ describe('a student’s work', () => {
     expect(await screen.findByRole('radio', { name: 'está' })).toBeEnabled()
   })
 
+  it('promises no new start after a retraction once the due date refuses one', async () => {
+    const { attempts } = open('/work/1', [
+      releaseOf({
+        can_start: false,
+        late_submissions: 'refuse',
+        retraction: { reason: 'A typo in exercise 2.', whole_release: false },
+      }),
+    ])
+
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.map((alert) => alert.textContent)).toEqual([
+      'Your teacher retracted your attempt: A typo in exercise 2.',
+      'The due date has passed and your teacher does not accept late work.',
+    ])
+    expect(attempts.start).not.toHaveBeenCalled()
+  })
+
   it('tells why a whole release was withdrawn and starts nothing', async () => {
     const { attempts } = open('/work/1', [
       releaseOf({ can_start: false, retraction: { reason: 'Released by mistake.', whole_release: true } }),
@@ -177,6 +194,74 @@ describe('a student’s work', () => {
 
     expect(await screen.findByText(/Your teacher retracted your attempt: A typo in exercise 2\./)).toBeInTheDocument()
     await vi.waitFor(() => expect(attempts.start).toHaveBeenCalledWith(1))
+  })
+
+  it('shows the attempt as submitted when the due date passed while they worked in it', async () => {
+    const attempt = attemptOf(sampleLesson)
+    const { attempts, user } = open('/work/1', [releaseOf({ state: 'in_progress', attempt })])
+    await screen.findByRole('radio', { name: 'está' })
+    attempts.tryAnswer.mockRejectedValueOnce(new AttemptRefused('past_due'))
+    attempts.release.mockResolvedValueOnce(
+      releaseOf({
+        state: 'submitted',
+        can_start: false,
+        attempt: { ...attempt, submitted_at: '2026-09-25T08:00:00Z', first: { ...attempt.first, submitted: true } },
+      }),
+    )
+
+    await user.click(screen.getByRole('radio', { name: 'está' }))
+    await user.click(within(exercise(/Madrid/)).getByRole('button', { name: 'Confirm' }))
+
+    // Submitted with the tries taken: nothing is left to confirm, and practice may follow.
+    expect(await screen.findByRole('button', { name: 'Start the second round' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
+    expect(attempts.release).toHaveBeenCalledTimes(2)
+    expect(attempts.start).not.toHaveBeenCalled()
+  })
+
+  it('offers another attempt after finishing one resumed', async () => {
+    const { user } = open(
+      '/work/1',
+      [
+        releaseOf({
+          feedback_mode: 'at_the_end',
+          attempts: 'repeated',
+          late_submissions: 'refuse',
+          due_at: '2999-01-01T08:00:00Z',
+          state: 'in_progress',
+          can_start: false,
+          attempt: attemptOf(atTheEndLesson),
+        }),
+      ],
+      atTheEndLesson,
+    )
+    await user.click(await screen.findByRole('radio', { name: 'es' }))
+    await user.click(screen.getByRole('radio', { name: 'somos' }))
+    await user.click(screen.getByRole('button', { name: 'Submit answers' }))
+
+    expect(await screen.findByRole('button', { name: 'Start another attempt' })).toBeInTheDocument()
+  })
+
+  it('offers no other attempt when the due date refuses one', async () => {
+    const attempt = attemptOf(atTheEndLesson, { submitted_at: '2026-09-25T08:00:00Z' })
+    open(
+      '/work/1',
+      [
+        releaseOf({
+          feedback_mode: 'at_the_end',
+          attempts: 'repeated',
+          late_submissions: 'refuse',
+          due_at: '2026-09-25T08:00:00Z',
+          state: 'submitted',
+          can_start: false,
+          attempt: { ...attempt, first: { ...attempt.first, submitted: true } },
+        }),
+      ],
+      atTheEndLesson,
+    )
+
+    expect(await screen.findByRole('button', { name: 'Start the second round' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Start another attempt' })).not.toBeInTheDocument()
   })
 
   it('offers no other attempt once the whole release is withdrawn', async () => {

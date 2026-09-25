@@ -16,7 +16,7 @@ from myteacher.assistant.service import paying_credential
 from myteacher.jobs import runner
 from myteacher.persistence import InstanceSession
 from myteacher.policy import is_teacher
-from myteacher.runs import open_assessment, releases
+from myteacher.runs import attempts, open_assessment, releases
 from myteacher.runs.models import Assessment, Attempt, CourseRun, MaterialRelease
 
 router = APIRouter(tags=["course runs"])
@@ -62,6 +62,7 @@ def assess_open_answers(
     key, one call per answer."""
     run = taught_run(db, actor, run_id)
     released = _release(db, run, release_id)
+    attempts.close_past_due_of(db, released, now)
     if paying_credential(db, actor) is None:
         raise HTTPException(status_code=409, detail="no_provider_key")
     if open_assessment.running(db, released):
@@ -95,6 +96,7 @@ def override_assessment(
     once results are published."""
     run = taught_run(db, actor, run_id)
     released = _release(db, run, release_id)
+    attempts.close_past_due_of(db, released, now)
     found = db.execute(
         select(Assessment, Attempt)
         .join(Attempt, Attempt.id == Assessment.attempt_id)
@@ -113,7 +115,9 @@ def override_assessment(
 
 
 @router.post("/runs/{run_id}/releases/{release_id}/publication")
-def publish_results(run_id: int, release_id: int, db: Db, actor: Teacher) -> Published:
+def publish_results(run_id: int, release_id: int, db: Db, now: Now, actor: Teacher) -> Published:
     """Show the students the assessments and overrides they have not seen yet."""
     run = taught_run(db, actor, run_id)
-    return Published(published=open_assessment.publish(db, _release(db, run, release_id)))
+    released = _release(db, run, release_id)
+    attempts.close_past_due_of(db, released, now)
+    return Published(published=open_assessment.publish(db, released))

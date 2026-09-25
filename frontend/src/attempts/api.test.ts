@@ -146,6 +146,19 @@ describe('an attempt as the lesson player’s backend', () => {
     expect(onRetracted).toHaveBeenCalledTimes(1)
   })
 
+  it('says when the due date closed the attempt meanwhile', async () => {
+    const attempts = fakeAttemptsApi()
+    attempts.tryAnswer.mockRejectedValue(new AttemptRefused('past_due'))
+    const onTakenOut = vi.fn()
+    const api = attemptLessonApi(attempts, 8, onTakenOut)
+
+    await expect(api.assess('location', choice('es'), { reveal: true, round: 'first' })).rejects.toEqual(
+      new AttemptRefused('past_due'),
+    )
+
+    expect(onTakenOut).toHaveBeenCalledTimes(1)
+  })
+
   it('resumes the player from the attempt', () => {
     const attempt = attemptOf(sampleLesson, { seed: 'abc' })
     attempt.first.answers = { location: { draft: null, tries: [] } }

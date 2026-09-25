@@ -170,17 +170,21 @@ export function progressOf(attempt: Attempt): LessonProgress {
 
 /** The lesson player's backend for an attempt: the server assesses, counts the tries and draws the
  * second round, so what the player asks for (`reveal`, the failed exercises, the seed) is decided there.
- * `onRetracted` hears when the teacher retracted the attempt meanwhile, so the page takes the student out. */
-export function attemptLessonApi(api: AttemptsApi, attemptId: number, onRetracted: () => void = () => {}): LessonApi {
+ * `onTakenOut` hears when the teacher retracted the attempt meanwhile, or a refusing due date submitted it,
+ * so the page reads it afresh. */
+export function attemptLessonApi(api: AttemptsApi, attemptId: number, onTakenOut: () => void = () => {}): LessonApi {
   // Several calls in flight may all hear it; the page is told once.
-  let retracted = false
+  let takenOut = false
   const heard = async <T>(call: Promise<T>): Promise<T> => {
     try {
       return await call
     } catch (error) {
-      if (error instanceof ApiError && error.status === 410 && !retracted) {
-        retracted = true
-        onRetracted()
+      const gone =
+        (error instanceof ApiError && error.status === 410) ||
+        (error instanceof AttemptRefused && error.reason === 'past_due')
+      if (gone && !takenOut) {
+        takenOut = true
+        onTakenOut()
       }
       throw error
     }

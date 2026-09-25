@@ -168,8 +168,11 @@ class Standing:
 def standing(
     db: InstanceSession, released: MaterialRelease, student: Account, now: datetime
 ) -> Standing:
-    """Where the student stands on the release; a retracted attempt counts for nothing."""
+    """Where the student stands on the release; a retracted attempt counts for nothing. An
+    attempt left open at a refusing due date is submitted first."""
     attempts = [a for a in attempts_of(db, released, student) if a.retracted_at is None]
+    for attempt in attempts:
+        close_past_due(db, attempt, released, now)
     current = next((a for a in attempts if a.submitted_at is None), None)
     submitted = [a for a in attempts if a.submitted_at is not None]
     counting = submitted[-1] if submitted else None
@@ -349,13 +352,13 @@ def save_draft(
     exercise = _exercise(lesson_of(db, released), attempt, round, exercise_id)
     if given.type != exercise.type:
         raise AnswerMismatch(f"a {given.type} answer cannot answer a {exercise.type} exercise")
+    _refuses_late(attempt, released, round, now)
     if _closed(attempt, round):
         raise RoundClosed()
     if released.feedback_mode == "immediate" and _locked(
         tries_of(db, attempt, round).get(exercise_id, [])
     ):
         raise ExerciseLocked()
-    _refuses_late(attempt, released, round, now)
     _put_draft(db, attempt, round, exercise_id, given)
 
 
@@ -447,9 +450,12 @@ def take_try(
     lesson = lesson_of(db, released)
     exercise = _exercise(lesson, attempt, round, exercise_id)
     tries = tries_of(db, attempt, round)
+    _refuses_late(attempt, released, round, now)
+    if _closed(attempt, round):
+        # Submitted at a due date, with exercises left: the tries taken stand.
+        raise RoundClosed()
     if _locked(tries.get(exercise_id, [])):
         raise ExerciseLocked()
-    _refuses_late(attempt, released, round, now)
     outcome = assess(exercise, given, language=lesson.language, pinned=True)
     number = len(tries.get(exercise_id, [])) + 1
     concept_ids = _concept_ids(db, released)
@@ -484,9 +490,9 @@ def submit_round(
     asked = exercises(lesson, attempt, round)
     if round == "second" and attempt.second_round is None:
         raise NotSubmitted()
+    _refuses_late(attempt, released, round, now)
     if _closed(attempt, round):
         raise RoundClosed()
-    _refuses_late(attempt, released, round, now)
     known = {exercise.id for exercise in asked}
     unknown = sorted(set(answers) - known)
     if unknown:
@@ -514,6 +520,72 @@ def submit_round(
     else:
         attempt.second_submitted_at = now
     return rows
+
+
+def close_past_due(
+    db: InstanceSession, attempt: Attempt, released: MaterialRelease, now: datetime
+) -> None:
+    """Submit an attempt still open when a refusing due date passed with what it holds, at the
+    due date's time and so not late. With feedback at the end its saved drafts are assessed; a
+    closed exercise without an answer that fits counts for nothing, and an empty open one is not
+    sent. With immediate feedback the tries taken stand. Done lazily, by whatever reads it first.
+    """
+    if attempt.submitted_at is not None or attempt.retracted_at is not None:
+        return
+    if not past_due(released, now):
+        return
+    assert released.due_at is not None
+    if released.feedback_mode == "at_the_end":
+        lesson = lesson_of(db, released)
+        given = drafts_of(db, attempt, "first")
+        assessed: list[tuple[Exercise, ExerciseAnswer, AssessmentOutcome]] = []
+        for exercise in exercises(lesson, attempt, "first"):
+            answer = given.get(exercise.id)
+            if answer is None or _blank(answer):
+                continue
+            try:
+                outcome = assess(exercise, answer, language=lesson.language, pinned=True)
+            except AnswerMismatch:
+                continue
+            assessed.append((exercise, answer, outcome))
+        concept_ids = _concept_ids(db, released)
+        savepoint = db.begin_nested()
+        try:
+            for exercise, answer, outcome in assessed:
+                _record(
+                    db,
+                    attempt,
+                    "first",
+                    exercise.id,
+                    1,
+                    answer,
+                    outcome,
+                    concept_ids,
+                    released.due_at,
+                )
+            db.flush()
+        except IntegrityError:
+            # Another request submitted it meanwhile.
+            savepoint.rollback()
+            db.refresh(attempt)
+            return
+        savepoint.commit()
+    _submit(attempt, released, released.due_at)
+
+
+def close_past_due_of(db: InstanceSession, released: MaterialRelease, now: datetime) -> None:
+    """Submit every attempt at the release left open at a refusing due date, before the teacher
+    acts on the submitted ones."""
+    if not past_due(released, now):
+        return
+    for attempt in db.scalars(
+        select(Attempt).where(
+            Attempt.release_id == released.id,
+            Attempt.submitted_at.is_(None),
+            Attempt.retracted_at.is_(None),
+        )
+    ):
+        close_past_due(db, attempt, released, now)
 
 
 def start_second_round(db: InstanceSession, attempt: Attempt, released: MaterialRelease) -> None:

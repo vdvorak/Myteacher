@@ -103,7 +103,9 @@ export type ExerciseStatus = 'answering' | 'retrying' | 'locked'
 
 export function exerciseStatus(mode: FeedbackMode, round: RoundProgress, exerciseId: string): ExerciseStatus {
   const { tries } = exerciseProgress(round, exerciseId)
-  if (mode === 'at_the_end') return round.submitted ? 'locked' : 'answering'
+  // Submitted, at the end or with immediate feedback at a due date: what was left stays left.
+  if (round.submitted) return 'locked'
+  if (mode === 'at_the_end') return 'answering'
   if (tries.length === 0) return 'answering'
   const last = tries[tries.length - 1]
   // An open answer is sent once and then awaits assessment; there is no retry.
@@ -112,7 +114,7 @@ export function exerciseStatus(mode: FeedbackMode, round: RoundProgress, exercis
 }
 
 export function roundComplete(mode: FeedbackMode, round: RoundProgress): boolean {
-  if (mode === 'at_the_end') return round.submitted
+  if (mode === 'at_the_end' || round.submitted) return round.submitted
   return round.exercises.every((exercise) => exerciseStatus(mode, round, exercise.id) === 'locked')
 }
 
