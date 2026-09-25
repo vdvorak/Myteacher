@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from myteacher import erasure
@@ -70,6 +70,8 @@ class MaterialRelease(InstanceOwned, Base):
     show_solutions: Mapped[bool]
     released_by_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
     released_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # The latest job assessing its open answers; one runs at a time.
+    assessment_job_id: Mapped[int | None] = mapped_column(ForeignKey("job.id", ondelete="SET NULL"))
 
 
 class ReleaseStudent(InstanceOwned, Base):
@@ -151,6 +153,22 @@ class Assessment(InstanceOwned, Base):
     score: Mapped[float | None]
     correct: Mapped[bool | None]
     assessed_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # An open answer assessed by the assistant against its rubric: the generation that did it,
+    # the share of the rubric's points, why (for the teacher) and feedback for the student.
+    generation_id: Mapped[int | None] = mapped_column(ForeignKey("generation_record.id"))
+    assistant_score: Mapped[float | None]
+    justification: Mapped[str | None] = mapped_column(Text)
+    feedback: Mapped[str | None] = mapped_column(Text)
+    # The assistant's output did not fit, even after the retry; the teacher assesses it.
+    assistant_failed: Mapped[bool] = mapped_column(default=False)
+    # The teacher's score, which wins over any other, with the reason.
+    override_score: Mapped[float | None]
+    override_reason: Mapped[str | None] = mapped_column(Text)
+    overridden_by_id: Mapped[int | None] = mapped_column(ForeignKey("account.id"))
+    overridden_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    # What the student was last shown of the assistant's assessment and the override, once the
+    # teacher published results; later changes wait for the next publishing.
+    published: Mapped[dict[str, Any] | None] = mapped_column(JSON)
 
 
 class AssessmentConcept(InstanceOwned, Base):

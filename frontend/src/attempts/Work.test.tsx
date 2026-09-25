@@ -119,6 +119,29 @@ describe('a student’s work', () => {
     expect(screen.queryByRole('button', { name: 'Start another attempt' })).not.toBeInTheDocument()
   })
 
+  it('shows what the teacher published of an assessment', async () => {
+    const attempt = attemptOf(atTheEndLesson, { submitted_at: '2026-09-24T08:30:00Z' })
+    attempt.first.submitted = true
+    attempt.first.answers = {
+      origin: {
+        draft: { type: 'multiple_choice', option_id: 'sois' },
+        tries: [
+          {
+            answer: { type: 'multiple_choice', option_id: 'sois' },
+            result: { status: 'assessed', exercise_id: 'origin', score: 0, correct: false, items: [], solution: null },
+            review: { score: 0.5, feedback: 'Close: *somos* is for us.', reason: 'Half right after all.' },
+          },
+        ],
+      },
+    }
+    open('/work/1', [releaseOf({ feedback_mode: 'at_the_end', state: 'submitted', can_start: false, attempt })], atTheEndLesson)
+
+    const review = await screen.findByRole('region', { name: 'Your teacher’s assessment' })
+    expect(review).toHaveTextContent('50 %')
+    expect(review).toHaveTextContent('Close: *somos* is for us.')
+    expect(review).toHaveTextContent('Why: Half right after all.')
+  })
+
   it('says when the due date has passed and late work is refused', async () => {
     const { attempts } = open('/work/1', [releaseOf({ can_start: false, late_submissions: 'refuse' })])
 

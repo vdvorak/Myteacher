@@ -13,7 +13,7 @@ from myteacher.api.runs import ReleaseOut, release_out, taught_run
 from myteacher.lesson.catalog import COMPONENT_CATALOG
 from myteacher.persistence import InstanceSession
 from myteacher.policy import is_teacher
-from myteacher.runs import attempts, releases
+from myteacher.runs import attempts, open_assessment, releases
 from myteacher.runs import results as outcomes
 from myteacher.runs.models import CourseRun, MaterialRelease
 from myteacher.runs.results import Cell
@@ -47,8 +47,20 @@ class StudentResult(BaseModel):
     cells: dict[str, Cell]
 
 
+class OpenAnswers(BaseModel):
+    # Open answers of submitted attempts not yet assessed, flagged ones included.
+    waiting: int
+    # Assessed by the assistant.
+    assessed: int
+    # The assistant's output did not fit; the teacher assesses them.
+    flagged: int
+    # Assessments and overrides the students have not been shown yet.
+    unpublished: int
+
+
 class ReleaseResults(BaseModel):
     release: ReleaseOut
+    open_answers: OpenAnswers
     # The first pass's exercises in lesson order.
     exercises: list[ExerciseSummary]
     # By name.
@@ -105,8 +117,18 @@ def release_results(
                 unanswered=cells.count("unanswered"),
             )
         )
+    every = open_assessment.assessments_of(db, released)
     return ReleaseResults(
         release=release_out(db, released),
+        open_answers=OpenAnswers(
+            waiting=len(open_assessment.waiting(db, released)),
+            assessed=sum(row.assistant_score is not None for row in every),
+            flagged=sum(
+                row.assistant_failed and row.assistant_score is None and row.override_score is None
+                for row in every
+            ),
+            unpublished=sum(open_assessment.unpublished(row) for row in every),
+        ),
         exercises=exercises,
         students=[
             StudentResult(

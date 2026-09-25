@@ -602,6 +602,8 @@ def test_students_cannot_reach_the_interview(teacher, course, sender):
 def test_interview_tables_hold_no_student_data(teacher, course):
     tables = {rule.table for rule in erasure.rules()}
 
-    assert not {"interview", "job", "generation_record"} & tables
+    assert not {"interview", "job"} & tables
+    # Generation records hold student data only when assessing an open answer, and name the
+    # student then (test_open_assessment); an interview's records name none.
     teacher.cookies.clear()
     sign_in(teacher, TEACHER, TEACHER_PASSWORD)

@@ -2,7 +2,10 @@ import { vi } from 'vitest'
 import { ApiError } from '../lesson/api'
 import type { Student } from '../students/api'
 import { jana, petr } from '../students/testing'
+import type { Job } from '../jobs/api'
+import { fakeJobsApi, type FakeJobs } from '../jobs/testing'
 import {
+  AssessmentRefused,
   ReleaseRefused,
   type CourseRun,
   type NewRelease,
@@ -43,6 +46,7 @@ export function fakeRunsApi(
     results?: Record<number, ReleaseResults>
     /** By `${releaseId}:${studentId}`. */
     studentResults?: Record<string, StudentAttempts>
+    jobs?: FakeJobs
   } = {},
 ) {
   let runs = options.runs ?? []
@@ -50,6 +54,20 @@ export function fakeRunsApi(
   const releases: Record<number, Release[]> = { ...options.releases }
   const classes = options.classes ?? [{ id: 1, name: '2.B 2026/27', memberIds: [jana.id] }]
   const students = options.students ?? [jana, petr]
+  const jobs = options.jobs ?? fakeJobsApi()
+  const results: Record<number, ReleaseResults> = structuredClone(options.results ?? {})
+  const studentResults: Record<string, StudentAttempts> = structuredClone(options.studentResults ?? {})
+  const resultsOf = (releaseId: number) => {
+    const found = results[releaseId]
+    if (!found) throw new ApiError(404)
+    return found
+  }
+  const reviewsOf = (releaseId: number) =>
+    Object.entries(studentResults)
+      .filter(([key]) => key.startsWith(`${releaseId}:`))
+      .flatMap(([, detail]) => detail.attempts)
+      .flatMap((attempt) => Object.values(attempt.first.answers))
+      .flatMap((answer) => answer.tries.flatMap((done) => (done.assessment ? [done.assessment] : [])))
   const find = (id: number) => {
     const stored = runs.find((r) => r.id === id)
     if (!stored) throw new ApiError(404)
@@ -150,15 +168,41 @@ export function fakeRunsApi(
     }),
     results: vi.fn(async (id: number, releaseId: number) => {
       find(id)
-      const found = options.results?.[releaseId]
-      if (!found) throw new ApiError(404)
-      return structuredClone(found)
+      return structuredClone(resultsOf(releaseId))
     }),
     studentResults: vi.fn(async (id: number, releaseId: number, studentId: number) => {
       find(id)
-      const found = options.studentResults?.[`${releaseId}:${studentId}`]
+      const found = studentResults[`${releaseId}:${studentId}`]
       if (!found) throw new ApiError(404)
       return structuredClone(found)
+    }),
+    // The job assesses every waiting answer when it ends.
+    assessOpenAnswers: vi.fn(async (id: number, releaseId: number): Promise<Job> => {
+      find(id)
+      const open = resultsOf(releaseId).open_answers
+      if (open.waiting === 0) throw new AssessmentRefused('nothing_to_assess')
+      return jobs.start('open_assessment', () => {
+        open.assessed += open.waiting
+        open.unpublished += open.waiting
+        open.waiting = 0
+        return { state: 'succeeded', error_kind: null, raw_output: null }
+      })
+    }),
+    override: vi.fn(async (id: number, releaseId: number, assessmentId: number, score: number, reason: string) => {
+      find(id)
+      const review = reviewsOf(releaseId).find((r) => r.id === assessmentId)
+      if (!review) throw new ApiError(404)
+      Object.assign(review, { score, override_score: score, override_reason: reason, published: false })
+      resultsOf(releaseId).open_answers.unpublished += 1
+      return structuredClone(review)
+    }),
+    publish: vi.fn(async (id: number, releaseId: number) => {
+      find(id)
+      const open = resultsOf(releaseId).open_answers
+      const count = open.unpublished
+      open.unpublished = 0
+      for (const review of reviewsOf(releaseId)) review.published = true
+      return count
     }),
   } satisfies RunsApi
 }

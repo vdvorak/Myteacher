@@ -4,6 +4,7 @@ import { useI18n } from '../i18n/i18n'
 import type { Verdict } from './exercises/ExerciseFrame'
 import { exerciseLayout, ExerciseView } from './exercises/ExerciseView'
 import { Markdown } from './Markdown'
+import { TeacherReview } from './TeacherReview'
 import { isRendered, type RenderedAnswer, type TryOutcome } from './schema'
 import { UnsupportedExercise, type UnrenderedExercise } from './UnsupportedExercise'
 import {
@@ -167,12 +168,14 @@ export function LessonPlayer(props: LessonPlayerProps) {
     const state = () => exerciseProgress(round(key)!, exercise.id)
     const status = () => (props.readOnly ? 'locked' : exerciseStatus(mode(), round(key)!, exercise.id))
     const lastTry = () => state().tries.at(-1)
+    const review = () => (status() === 'locked' ? lastTry()?.review : undefined)
     const verdict = (): Verdict | undefined => {
       if (status() === 'retrying') return 'retry'
       if (status() !== 'locked') return undefined
       const result = lastTry()?.result
       if (!result) return undefined
-      if (result.status === 'pending') return 'pending'
+      // An open answer the teacher published an assessment of waits no more.
+      if (result.status === 'pending') return review() ? undefined : 'pending'
       return result.correct ? 'correct' : 'incorrect'
     }
     const assessed = () => {
@@ -180,26 +183,29 @@ export function LessonPlayer(props: LessonPlayerProps) {
       return result?.status === 'assessed' ? result : undefined
     }
     return (
-      <ExerciseView
-        exercise={exercise}
-        seed={key === 'first' ? props.seed : `${props.seed}:second-round`}
-        previousLayout={key === 'second' ? firstLayouts().get(exercise.id) : undefined}
-        layout={round(key)!.layouts?.[exercise.id]}
-        draft={state().draft}
-        onDraft={(draft) => {
-          updateRound(key, (r) => setDraft(r, exercise.id, draft))
-          props.api.saveDraft?.(key, exercise.id, draft)
-        }}
-        tries={state().tries}
-        locked={status() === 'locked'}
-        verdict={verdict()}
-        solution={status() === 'locked' ? assessed()?.solution : null}
-        items={verdict() ? (assessed()?.items ?? []) : []}
-        passage={exercise.passage_id ? passages().get(exercise.passage_id) : undefined}
-        onConfirm={mode() === 'immediate' ? () => confirm(key, exercise) : undefined}
-        checking={busy().has(`${key}:${exercise.id}`) || busy().has(`${key}:submit`)}
-        failed={failures().has(`${key}:${exercise.id}`)}
-      />
+      <>
+        <ExerciseView
+          exercise={exercise}
+          seed={key === 'first' ? props.seed : `${props.seed}:second-round`}
+          previousLayout={key === 'second' ? firstLayouts().get(exercise.id) : undefined}
+          layout={round(key)!.layouts?.[exercise.id]}
+          draft={state().draft}
+          onDraft={(draft) => {
+            updateRound(key, (r) => setDraft(r, exercise.id, draft))
+            props.api.saveDraft?.(key, exercise.id, draft)
+          }}
+          tries={state().tries}
+          locked={status() === 'locked'}
+          verdict={verdict()}
+          solution={status() === 'locked' ? assessed()?.solution : null}
+          items={verdict() ? (assessed()?.items ?? []) : []}
+          passage={exercise.passage_id ? passages().get(exercise.passage_id) : undefined}
+          onConfirm={mode() === 'immediate' ? () => confirm(key, exercise) : undefined}
+          checking={busy().has(`${key}:${exercise.id}`) || busy().has(`${key}:submit`)}
+          failed={failures().has(`${key}:${exercise.id}`)}
+        />
+        <Show when={review()}>{(published) => <TeacherReview review={published()} />}</Show>
+      </>
     )
   }
 

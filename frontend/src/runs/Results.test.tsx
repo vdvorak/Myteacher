@@ -9,7 +9,8 @@ import type { Account } from '../auth/api'
 import { fakeAuthApi, invitedTeacher, student } from '../auth/testing'
 import { atTheEndLesson, withI18n } from '../lesson/testing'
 import { jana, petr } from '../students/testing'
-import { defaultSettings, type Release, type ReleaseResults, type StudentAttempts } from './api'
+import { fakeJobsApi } from '../jobs/testing'
+import { AssessmentRefused, defaultSettings, type Release, type ReleaseResults, type StudentAttempts } from './api'
 import { fakeRunsApi } from './testing'
 
 const teacher: Account = { ...invitedTeacher, language: 'en' }
@@ -27,6 +28,7 @@ const release: Release = {
 }
 const results: ReleaseResults = {
   release,
+  open_answers: { waiting: 1, assessed: 0, flagged: 0, unpublished: 0 },
   exercises: [
     { id: 'location', type: 'multiple_choice', prompt: '¿Dónde ___ Madrid?', right: 1, wrong: 1, open: 0, unanswered: 0 },
     { id: 'write', type: 'free_text', prompt: 'Write about yourself.', right: 0, wrong: 0, open: 1, unanswered: 1 },
@@ -46,16 +48,21 @@ const results: ReleaseResults = {
   ],
 }
 
-function open(path: string, options: { studentResults?: Record<string, StudentAttempts>; as?: Account } = {}) {
+function open(
+  path: string,
+  options: { studentResults?: Record<string, StudentAttempts>; as?: Account; results?: ReleaseResults } = {},
+) {
   const history = createMemoryHistory()
   history.set({ value: path })
+  const jobs = fakeJobsApi()
   const runs = fakeRunsApi({
     runs: [{ id: 7, courseId: 1, name: '2.B 2026/27', classIds: [], studentIds: [] }],
     releases: { 7: [release] },
-    results: { 3: results },
+    results: { 3: options.results ?? results },
     studentResults: options.studentResults,
+    jobs,
   })
-  const apis = fakeApis({ auth: fakeAuthApi({ signedIn: options.as ?? teacher }), runs })
+  const apis = fakeApis({ auth: fakeAuthApi({ signedIn: options.as ?? teacher }), runs, jobs })
   render(withI18n(() => <App apis={apis} history={history} />, 'en'))
   return { runs, history, user: userEvent.setup() }
 }
@@ -154,5 +161,119 @@ describe('a student’s results', () => {
     const first = screen.getByRole('region', { name: 'Attempt 1' })
     expect(within(first).queryByText('This attempt counts.')).not.toBeInTheDocument()
     expect(within(first).queryByRole('button')).not.toBeInTheDocument()
+  })
+})
+
+describe('assessing open answers and publishing results', () => {
+  it('assesses the waiting open answers with the assistant, then publishes them', async () => {
+    const { runs, user } = open('/runs/7/releases/3')
+    const panel = () => within(screen.getByRole('region', { name: 'Open answers' }))
+
+    expect(await screen.findByText(/Waiting for assessment: 1 · assessed by the assistant: 0/)).toBeInTheDocument()
+    expect(panel().getByRole('button', { name: 'Publish results' })).toBeDisabled()
+    await user.click(panel().getByRole('button', { name: 'Assess open answers' }))
+
+    expect(runs.assessOpenAnswers).toHaveBeenCalledWith(7, 3)
+    expect(await screen.findByText(/Waiting for assessment: 0 · assessed by the assistant: 1/)).toBeInTheDocument()
+    expect(panel().getByText('Not shown to students yet: 1')).toBeInTheDocument()
+    await user.click(panel().getByRole('button', { name: 'Publish results' }))
+
+    expect(runs.publish).toHaveBeenCalledWith(7, 3)
+    expect(await panel().findByRole('status')).toHaveTextContent('Published to students: 1')
+    expect(panel().getByRole('button', { name: 'Publish results' })).toBeDisabled()
+  })
+
+  it('says why assessing was refused, with the way to a key', async () => {
+    const { runs, user } = open('/runs/7/releases/3')
+    runs.assessOpenAnswers.mockRejectedValueOnce(new AssessmentRefused('no_provider_key'))
+
+    await user.click(await screen.findByRole('button', { name: 'Assess open answers' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Add your key in the settings to assess with the assistant.')
+    expect(within(alert).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings')
+  })
+
+  it('offers nothing to assess when no open answer waits', async () => {
+    open('/runs/7/releases/3', { results: { ...results, open_answers: { waiting: 0, assessed: 2, flagged: 0, unpublished: 0 } } })
+
+    expect(await screen.findByRole('button', { name: 'Assess open answers' })).toBeDisabled()
+  })
+})
+
+describe('the teacher’s own scores', () => {
+  const written = attemptOf(atTheEndLesson, { id: 12, submitted_at: '2026-09-24T09:00:00Z' })
+  written.first.submitted = true
+  const review = {
+    id: 40,
+    score: 1,
+    assistant_score: 1,
+    justification: 'Says where she lives, as the rubric asks.',
+    feedback: 'Well done.',
+    flagged: false,
+    override_score: null,
+    override_reason: null,
+    published: false,
+  }
+  written.first.answers = {
+    origin: {
+      draft: { type: 'multiple_choice', option_id: 'somos' },
+      tries: [
+        {
+          answer: { type: 'multiple_choice', option_id: 'somos' },
+          result: { status: 'assessed', exercise_id: 'origin', score: 1, correct: true, items: [], solution: null },
+          assessment: review,
+        },
+      ],
+    },
+  }
+  const detail: StudentAttempts = {
+    student: { id: jana.id, name: jana.name, in_run: true },
+    attempts: [{ ...written, counts: true }],
+  }
+
+  it('shows each assessment and saves the teacher’s score with a reason', async () => {
+    const { runs, user } = open(`/runs/7/releases/3/students/${jana.id}`, {
+      studentResults: { [`3:${jana.id}`]: detail },
+    })
+
+    const table = await screen.findByRole('table', { name: 'Assessments of attempt 1' })
+    const row = within(within(table).getByRole('rowheader', { name: '2' }).closest('tr')!)
+    expect(row.getByText('100 %')).toBeInTheDocument()
+    expect(row.getByText('Says where she lives, as the rubric asks.')).toBeInTheDocument()
+    expect(row.getByText('For the student: Well done.')).toBeInTheDocument()
+    expect(row.getByText('Not published yet')).toBeInTheDocument()
+    await user.type(row.getByLabelText('Score (%)'), '50')
+    await user.type(row.getByLabelText('Reason'), 'Only half of it.')
+    await user.click(row.getByRole('button', { name: 'Save' }))
+
+    expect(runs.override).toHaveBeenCalledWith(7, 3, 40, 0.5, 'Only half of it.')
+    const refreshed = within(await screen.findByRole('table', { name: 'Assessments of attempt 1' }))
+    expect(await refreshed.findByText('50 %')).toBeInTheDocument()
+    expect(refreshed.getByText('Your reason: Only half of it.')).toBeInTheDocument()
+  })
+
+  it('offers no score of its own for an attempt still in progress', async () => {
+    const inProgress = structuredClone(detail)
+    inProgress.attempts[0].submitted_at = null
+    open(`/runs/7/releases/3/students/${jana.id}`, { studentResults: { [`3:${jana.id}`]: inProgress } })
+
+    const table = await screen.findByRole('table', { name: 'Assessments of attempt 1' })
+    expect(within(table).queryByRole('button', { name: 'Save' })).not.toBeInTheDocument()
+    expect(within(table).getByText('Not submitted yet')).toBeInTheDocument()
+  })
+
+  it('asks the teacher to score what the assistant could not', async () => {
+    const flagged = structuredClone(detail)
+    Object.assign(flagged.attempts[0].first.answers.origin.tries[0].assessment!, {
+      score: null,
+      assistant_score: null,
+      justification: null,
+      feedback: null,
+      flagged: true,
+    })
+    open(`/runs/7/releases/3/students/${jana.id}`, { studentResults: { [`3:${jana.id}`]: flagged } })
+
+    expect(await screen.findByText('The assistant could not assess it; score it yourself.')).toBeInTheDocument()
   })
 })

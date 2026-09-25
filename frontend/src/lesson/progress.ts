@@ -7,9 +7,18 @@ import { isCorrect, isOpen, isRendered, type RenderedAnswer, type RenderedExerci
 export type FeedbackMode = LessonPublic['feedback_mode']
 export type Exercise = RenderedExercise
 
+/** What the teacher published of a try's assessment: the score of an open answer or the teacher's
+ * override, with feedback for the student and the override's reason. */
+export interface Review {
+  score: number | null
+  feedback: string | null
+  reason: string | null
+}
+
 export interface Try {
   answer: RenderedAnswer
   result: TryOutcome
+  review?: Review | null
 }
 
 export interface ExerciseProgress {

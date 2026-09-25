@@ -24,7 +24,7 @@ from myteacher.lesson.schema import (
 )
 from myteacher.persistence import InstanceSession
 from myteacher.policy import is_student
-from myteacher.runs import attempts
+from myteacher.runs import attempts, open_assessment
 from myteacher.runs import service as runs
 from myteacher.runs.attempts import Round
 from myteacher.runs.models import Assessment, Attempt, MaterialRelease
@@ -58,9 +58,54 @@ class StudentRelease(BaseModel):
         return _utc(at)
 
 
+class PublishedReview(BaseModel):
+    """What the teacher published of an assessment: the assistant's score of an open answer or
+    the teacher's override, with the feedback for the student and the override's reason."""
+
+    score: float | None
+    feedback: str | None
+    reason: str | None
+
+
+class AssessmentReview(BaseModel):
+    """An assessment as the run teacher sees it."""
+
+    id: int
+    # The score that counts: the override, the assistant's, or the deterministic one.
+    score: float | None
+    assistant_score: float | None
+    justification: str | None
+    feedback: str | None
+    # The assistant's output did not fit, even after the retry.
+    flagged: bool
+    override_score: float | None
+    override_reason: str | None
+    # What the students see is up to date.
+    published: bool
+
+    @classmethod
+    def of(cls, row: Assessment) -> "AssessmentReview":
+        return cls(
+            id=row.id,
+            score=open_assessment.score_of(row),
+            assistant_score=row.assistant_score,
+            justification=row.justification,
+            feedback=row.feedback,
+            flagged=row.assistant_failed,
+            override_score=row.override_score,
+            override_reason=row.override_reason,
+            published=open_assessment.to_publish(row) is not None
+            and not open_assessment.unpublished(row),
+        )
+
+
 class Try(BaseModel):
     answer: ExerciseAnswer
     result: TryOutcome
+    # What the teacher published of its assessment; for the student.
+    review: PublishedReview | None = None
+    # The assessment in full; for the run teacher only.
+    assessment: AssessmentReview | None = None
 
 
 class ExerciseProgress(BaseModel):
@@ -137,8 +182,17 @@ def _attempt_or_404(
 
 def _try(released: MaterialRelease, row: Assessment, *, teacher: bool = False) -> Try:
     """A try as the student gets it, or for the teacher as assessed, solution included."""
-    result = attempts.assessed(row) if teacher else attempts.served(released, row)
-    return Try(answer=attempts.answer_of(row), result=result)  # type: ignore[arg-type]
+    if teacher:
+        return Try(
+            answer=attempts.answer_of(row),
+            result=attempts.assessed(row),  # type: ignore[arg-type]
+            assessment=AssessmentReview.of(row),
+        )
+    return Try(
+        answer=attempts.answer_of(row),
+        result=attempts.served(released, row),  # type: ignore[arg-type]
+        review=PublishedReview(**row.published) if row.published else None,
+    )
 
 
 def _round(

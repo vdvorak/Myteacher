@@ -96,6 +96,7 @@ async def generate[Out: BaseModel](
     teacher: Account,
     inputs: dict[str, Any],
     course_id: int | None = None,
+    student_id: int | None = None,
     attachments: Sequence[BinaryContent] = (),
 ) -> Out:
     """Run `task` on the teacher's key and record it; raises `AssistantFailed`. See
@@ -107,6 +108,7 @@ async def generate[Out: BaseModel](
         teacher=teacher,
         inputs=inputs,
         course_id=course_id,
+        student_id=student_id,
         attachments=attachments,
     )
     return output
@@ -120,11 +122,14 @@ async def generate_recorded[Out: BaseModel](
     teacher: Account,
     inputs: dict[str, Any],
     course_id: int | None = None,
+    student_id: int | None = None,
     attachments: Sequence[BinaryContent] = (),
 ) -> tuple[Out, int]:
     """Run `task` on the teacher's key and record it; returns the output and the id of its
     generation record, for content whose reception is recorded against it. Raises
     `AssistantFailed`.
+
+    `student_id` names the student whose work the inputs hold, so their erasure blanks them.
 
     `attachments` (a document or image to read) go to the model after the inputs; the record
     holds only the inputs, so a caller describes an attachment there without its bytes.
@@ -145,6 +150,7 @@ async def generate_recorded[Out: BaseModel](
         prompt_hash=prompt.hash,
         account_id=teacher.id,
         course_id=course_id,
+        student_id=student_id,
         provider=credential.provider,
         model=model_name,
         inputs=inputs,

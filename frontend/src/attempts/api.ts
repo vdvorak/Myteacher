@@ -21,11 +21,32 @@ export interface StudentRelease {
   counting_attempt_id: number | null
 }
 
+/** An assessment as the run teacher sees it. */
+export interface AssessmentReview {
+  id: number
+  /** The score that counts: the override, the assistant's, or the deterministic one. */
+  score: number | null
+  assistant_score: number | null
+  /** Why, for the teacher. */
+  justification: string | null
+  /** For the student. */
+  feedback: string | null
+  /** The assistant's output did not fit, even after the retry. */
+  flagged: boolean
+  override_score: number | null
+  override_reason: string | null
+  /** What the students see is up to date. */
+  published: boolean
+}
+
+/** A try as served: to the student with what was published of it, to the run teacher in full. */
+export type ServedTry = Try & { assessment?: AssessmentReview | null }
+
 export interface ServedRound {
   exercises: ExercisePublic[]
   /** The order to show a matching's right items and the tokens to order in, by exercise id. */
   layouts: Record<string, string[]>
-  answers: Record<string, { draft: RenderedAnswer | null; tries: Try[] }>
+  answers: Record<string, { draft: RenderedAnswer | null; tries: ServedTry[] }>
   /** Submitted as a round, with feedback at the end. */
   submitted: boolean
 }

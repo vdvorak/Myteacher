@@ -2,12 +2,14 @@ import { render, screen, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import laCasa from '../../../schema/fixtures/es-la-casa.public.json'
+import lectura from '../../../schema/fixtures/es-lectura.public.json'
 import type { LessonPublic } from '../generated/lesson'
 import { LessonPlayer, type LessonApi } from './LessonPlayer'
 import { newProgress, type LessonProgress } from './progress'
 import { atTheEndLesson, fakeApi, sampleLesson, withI18n } from './testing'
 
 const casa = laCasa as LessonPublic
+const reading = lectura as LessonPublic
 
 beforeEach(() => localStorage.clear())
 
@@ -102,5 +104,31 @@ describe('progress kept on the server', () => {
       'baño?',
       'está',
     ])
+  })
+})
+
+describe('an open answer the teacher assessed', () => {
+  it('shows the published assessment instead of waiting', () => {
+    const initial = newProgress(reading, '1')
+    const essay = { type: 'free_text' as const, text: 'Vivo en Brno, cerca de un parque grande.' }
+    initial.first.answers = {
+      'your-neighbourhood': {
+        draft: essay,
+        tries: [
+          {
+            answer: essay,
+            result: { status: 'pending', exercise_id: 'your-neighbourhood', reason: 'not_deterministically_assessable' },
+            review: { score: 0.75, feedback: 'Say more about the park.', reason: null },
+          },
+        ],
+      },
+    }
+    play(reading, fakeApi(reading), initial)
+
+    const written = exercise(/own neighbourhood/)
+    expect(within(written).queryByText('Awaiting assessment')).not.toBeInTheDocument()
+    const review = screen.getByRole('region', { name: 'Your teacher’s assessment' })
+    expect(review).toHaveTextContent('75 %')
+    expect(review).toHaveTextContent('Say more about the park.')
   })
 })

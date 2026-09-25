@@ -6,13 +6,15 @@ from typing import Any, Literal
 from sqlalchemy import JSON, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from myteacher import erasure
 from myteacher.persistence import Base, InstanceOwned, UTCDateTime
 
 
 class GenerationRecord(InstanceOwned, Base):
     """What was asked, with which prompt version and model, what came back and what it cost.
 
-    Inputs are stored whole: in this slice they hold course design only, never student data.
+    Inputs are stored whole. They hold course design, except for the assessment of an open
+    answer, which holds the answer: its record names the student, whose erasure blanks it.
     """
 
     __tablename__ = "generation_record"
@@ -27,6 +29,8 @@ class GenerationRecord(InstanceOwned, Base):
     course_id: Mapped[int | None] = mapped_column(
         ForeignKey("course.id", ondelete="SET NULL"), index=True
     )
+    # The student whose work the inputs hold, if any.
+    student_id: Mapped[int | None] = mapped_column(ForeignKey("account.id"), index=True)
     provider: Mapped[str] = mapped_column(String(50))
     model: Mapped[str] = mapped_column(String(200))
     inputs: Mapped[dict[str, Any]] = mapped_column(JSON)
@@ -43,8 +47,9 @@ class GenerationRecord(InstanceOwned, Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
 
-# What a teacher did with generated content: kept it as it was, edited it, or discarded it.
-ReactionKind = Literal["kept", "edited", "regenerated", "discarded"]
+# What a teacher did with generated content: kept it as it was, edited it, regenerated or
+# discarded it, or overrode the assessment it made.
+ReactionKind = Literal["kept", "edited", "regenerated", "discarded", "overridden"]
 
 
 class GenerationReaction(InstanceOwned, Base):
@@ -63,3 +68,14 @@ class GenerationReaction(InstanceOwned, Base):
     # What the reaction concerned, such as the version an edit produced.
     detail: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+# The record and the teacher's reactions stay for the prompt's quality signal; the student's
+# work in it goes.
+erasure.register(
+    erasure.Rule(
+        table="generation_record",
+        student_column="student_id",
+        anonymise={"inputs": "{}", "output": None, "raw_output": None},
+    )
+)

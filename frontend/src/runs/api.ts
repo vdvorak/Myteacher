@@ -1,4 +1,5 @@
-import type { Attempt } from '../attempts/api'
+import type { AssessmentReview, Attempt } from '../attempts/api'
+import type { Job } from '../jobs/api'
 import type { ClassSummary } from '../classes/api'
 import type { FeedbackMode } from '../courses/api'
 import { ApiError } from '../lesson/api'
@@ -115,8 +116,19 @@ export interface StudentResult {
   cells: Record<string, ResultCell>
 }
 
+export interface OpenAnswers {
+  /** Open answers of submitted attempts not assessed yet, flagged ones included. */
+  waiting: number
+  assessed: number
+  /** The assistant's output did not fit; the teacher assesses them. */
+  flagged: number
+  /** Assessments and overrides the students have not been shown yet. */
+  unpublished: number
+}
+
 export interface ReleaseResults {
   release: Release
+  open_answers: OpenAnswers
   /** The first pass's exercises in lesson order. */
   exercises: ExerciseSummary[]
   students: StudentResult[]
@@ -127,6 +139,20 @@ export interface StudentAttempts {
   /** The latest first, each with every assessment and its solution. */
   attempts: (Attempt & { counts: boolean })[]
 }
+
+export type AssessmentRefusal = 'no_provider_key' | 'nothing_to_assess' | 'assessment_running'
+
+/** Assessing the open answers was refused; `reason` says why. */
+export class AssessmentRefused extends Error {
+  readonly reason: AssessmentRefusal
+
+  constructor(reason: AssessmentRefusal) {
+    super(reason)
+    this.reason = reason
+  }
+}
+
+const assessmentRefusals: AssessmentRefusal[] = ['no_provider_key', 'nothing_to_assess', 'assessment_running']
 
 export type ReleaseRefusal = 'unknown_material' | 'unknown_version' | 'not_in_run' | 'due_in_the_past'
 
@@ -166,6 +192,12 @@ export interface RunsApi {
   /** The run teacher's view of a release: students × exercises from the attempts that count. */
   results(id: number, releaseId: number): Promise<ReleaseResults>
   studentResults(id: number, releaseId: number, studentId: number): Promise<StudentAttempts>
+  /** Starts a job assessing every submitted open answer not assessed yet, on the run teacher's key. */
+  assessOpenAnswers(id: number, releaseId: number): Promise<Job>
+  /** Scores any assessment of the release with a reason; students see it once published. */
+  override(id: number, releaseId: number, assessmentId: number, score: number, reason: string): Promise<AssessmentReview>
+  /** Shows the students what they have not seen yet; says how many assessments that was. */
+  publish(id: number, releaseId: number): Promise<number>
 }
 
 async function json<T>(response: Response): Promise<T> {
@@ -199,4 +231,21 @@ export const httpRunsApi: RunsApi = {
   results: async (id, releaseId) => json(await fetch(`/api/runs/${id}/releases/${releaseId}/results`)),
   studentResults: async (id, releaseId, studentId) =>
     json(await fetch(`/api/runs/${id}/releases/${releaseId}/results/${studentId}`)),
+  assessOpenAnswers: async (id, releaseId) => {
+    const response = await send('POST', `/api/runs/${id}/releases/${releaseId}/open-assessment`)
+    if (response.status === 409) {
+      const { detail } = (await response.clone().json()) as { detail: unknown }
+      if (assessmentRefusals.includes(detail as AssessmentRefusal)) {
+        throw new AssessmentRefused(detail as AssessmentRefusal)
+      }
+    }
+    return (await json<{ job: Job }>(response)).job
+  },
+  override: async (id, releaseId, assessmentId, score, reason) =>
+    json(
+      await send('PUT', `/api/runs/${id}/releases/${releaseId}/assessments/${assessmentId}/override`, { score, reason }),
+    ),
+  publish: async (id, releaseId) =>
+    (await json<{ published: number }>(await send('POST', `/api/runs/${id}/releases/${releaseId}/publication`)))
+      .published,
 }

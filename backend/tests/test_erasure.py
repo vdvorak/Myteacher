@@ -112,8 +112,17 @@ def test_every_registered_row_of_the_student_is_removed_or_anonymised(
             ).scalar_one()
             if rule.anonymise is None:
                 assert rows == 0, rule.table
-            else:
-                assert rows == 1, rule.table
+                continue
+            if rule.table == "account":
+                assert rows == 1
+            fixed = [c for c, value in rule.anonymise.items() if not callable(value)]
+            columns = sa.table(rule.table, *(sa.column(c) for c in [rule.student_column, *fixed]))
+            for row in db.execute(
+                sa.select(*(columns.c[c] for c in fixed)).where(
+                    columns.c[rule.student_column] == full_student["id"]
+                )
+            ):
+                assert list(row) == [rule.anonymise[c] for c in fixed], rule.table
 
 
 def test_an_invited_students_invitation_stops_working(teacher, sender):
@@ -240,6 +249,7 @@ def test_this_slice_registers_its_student_data():
         "run_student",
         "release_student",
         "attempt",
+        "generation_record",
     } <= tables
 
 
