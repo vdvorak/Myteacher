@@ -111,7 +111,7 @@ describe('free text and translation', () => {
 
     await user.click(confirmIn(freeText()))
 
-    expect(api.assess).toHaveBeenCalledWith('your-neighbourhood', { type: 'free_text', text: essay }, { reveal: false })
+    expect(api.assess).toHaveBeenCalledWith('your-neighbourhood', { type: 'free_text', text: essay }, { reveal: false, round: 'first' })
     expect(await within(freeText()).findByText('Awaiting assessment')).toBeInTheDocument()
     expect(area).toBeDisabled()
     expect(within(freeText()).queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()

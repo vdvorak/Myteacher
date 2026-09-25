@@ -52,7 +52,7 @@ describe('selecting', () => {
     expect(api.assess).toHaveBeenCalledWith(
       'stress',
       { type: 'token_selection', item_id: 'cancion', selected: [1] },
-      { reveal: false },
+      { reveal: false, round: 'first' },
     )
     expect(await within(stress()).findByText('Correct')).toBeInTheDocument()
     expect(tokens(stress()).every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
@@ -202,7 +202,7 @@ describe('second round', () => {
     expect(api.assess).toHaveBeenLastCalledWith(
       'stress',
       { type: 'token_selection', item_id: 'arbol', selected: [0] },
-      { reveal: false },
+      { reveal: false, round: 'second' },
     )
     expect(await screen.findByText('Lesson finished')).toBeInTheDocument()
   })

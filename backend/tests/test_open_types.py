@@ -93,8 +93,8 @@ def test_an_empty_or_too_short_open_answer_is_rejected(client, text):
     assess(client, "your-neighbourhood", {"type": "free_text", "text": text}, status=422)
 
 
-def test_the_answer_key_carries_the_rubric_and_model_answer_of_open_exercises(client):
-    key = client.get(f"/api/lessons/{LESSON}/answer-key").json()
+def test_the_answer_key_carries_the_rubric_and_model_answer_of_open_exercises(teacher):
+    key = teacher.get(f"/api/lessons/{LESSON}/answer-key").json()
     entries = {entry["exercise_id"]: entry for entry in key["entries"]}
 
     assert entries["sundays"]["solution"] is None

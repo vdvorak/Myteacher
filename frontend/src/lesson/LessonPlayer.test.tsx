@@ -104,7 +104,7 @@ describe('immediate feedback', () => {
     expect(within(group).getByRole('note', { name: 'Hint' })).toHaveTextContent('where')
     expect(within(group).queryByRole('region', { name: 'Solution' })).not.toBeInTheDocument()
     expect(within(group).getByRole('radio', { name: 'es' })).toBeDisabled()
-    expect(api.assess.mock.calls[0][2]).toEqual({ reveal: false })
+    expect(api.assess.mock.calls[0][2]).toEqual({ reveal: false, round: 'first' })
   })
 
   it('locks after the retry and reveals the solution even when the retry is wrong', async () => {
@@ -121,7 +121,7 @@ describe('immediate feedback', () => {
     expect(within(group).queryByRole('button', { name: 'Confirm' })).not.toBeInTheDocument()
     expect(within(group).getAllByRole('radio').every((radio) => (radio as HTMLInputElement).disabled)).toBe(true)
     expect(api.assess).toHaveBeenCalledTimes(2)
-    expect(api.assess.mock.calls[1][2]).toEqual({ reveal: true })
+    expect(api.assess.mock.calls[1][2]).toEqual({ reveal: true, round: 'first' })
   })
 })
 
@@ -162,7 +162,7 @@ describe('feedback at the end', () => {
     expect(within(exercise(/Nosotros/)).getByText('Correct')).toBeInTheDocument()
     expect(within(exercise(/Madrid/)).getByRole('region', { name: 'Solution' })).toHaveTextContent('está')
     expect(screen.getAllByRole('radio').every((radio) => (radio as HTMLInputElement).disabled)).toBe(true)
-    expect(api.assess.mock.calls.map((call) => call[2])).toEqual([{ reveal: true }, { reveal: true }])
+    expect(api.assess.mock.calls.map((call) => call[2])).toEqual([{ reveal: true, round: 'first' }, { reveal: true, round: 'first' }])
   })
 })
 

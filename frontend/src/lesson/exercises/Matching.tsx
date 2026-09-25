@@ -36,7 +36,8 @@ export function Matching(props: ExerciseViewProps<MatchingExercisePublic, Matchi
   const pairs = () => props.draft?.pairs ?? {}
   const rights = () => {
     const byId = new Map(props.exercise.right.map((item) => [item.id, item]))
-    return matchingLayout(props.exercise, props.seed, props.previousLayout).map((id) => byId.get(id)!)
+    const order = props.layout ?? matchingLayout(props.exercise, props.seed, props.previousLayout)
+    return order.map((id) => byId.get(id)!)
   }
   const rightText = (id: string) => props.exercise.right.find((item) => item.id === id)?.text ?? id
   const leftOf = (rightId: string) => Object.keys(pairs()).find((left) => pairs()[left] === rightId)

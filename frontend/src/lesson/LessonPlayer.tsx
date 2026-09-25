@@ -27,35 +27,47 @@ import {
   unanswered,
   type Exercise,
   type LessonProgress,
+  type RoundKey,
   type RoundProgress,
   type Try,
 } from './progress'
 import './lesson.css'
 
+/** A second round, with the layouts the server drew for it where it draws them. */
+export type ServedSecondRound = SecondRound & { layouts?: Record<string, string[]> }
+
 export interface LessonApi {
-  /** `reveal: false` marks a try the student may still retry: a wrong answer comes back without its solution. */
+  /** `reveal: false` marks a try the student may still retry: a wrong answer comes back without its solution.
+   * Where an attempt on the server counts the tries, it decides that itself. */
   assess: (
     exerciseId: string,
     answer: RenderedAnswer,
-    options: { reveal: boolean },
+    options: { reveal: boolean; round: RoundKey },
   ) => Promise<TryOutcome>
-  secondRound: (failedExerciseIds: string[], seed: string) => Promise<SecondRound>
+  secondRound: (failedExerciseIds: string[], seed: string) => Promise<ServedSecondRound>
+  /** Keeps the answer being composed where the progress lives on the server. */
+  saveDraft?: (round: RoundKey, exerciseId: string, answer: RenderedAnswer) => void
+  /** Assesses a round with feedback at the end on the server, all its answers at once, and says what it
+   * assessed, which may be an answer saved before; an exercise without a try was not assessed. Without it,
+   * each answer is assessed on its own. */
+  submitRound?: (round: RoundKey, answers: Record<string, RenderedAnswer>) => Promise<Record<string, Try>>
 }
 
 export interface LessonPlayerProps {
   lesson: LessonPublic
   seed: string
   api: LessonApi
+  /** Progress kept by the server, to resume from; the browser then keeps none of its own. */
+  initial?: LessonProgress
+  onProgress?: (progress: LessonProgress) => void
 }
-
-type RoundKey = 'first' | 'second'
 
 /** Plays one lesson: the first pass in the lesson's feedback mode, then a second round of what failed. */
 export function LessonPlayer(props: LessonPlayerProps) {
   const { t } = useI18n()
   const mode = () => props.lesson.feedback_mode
   const [progress, setProgress] = createSignal<LessonProgress>(
-    loadProgress(props.lesson, props.seed) ?? newProgress(props.lesson, props.seed),
+    props.initial ?? loadProgress(props.lesson, props.seed) ?? newProgress(props.lesson, props.seed),
   )
   const [busy, setBusy] = createSignal<ReadonlySet<string>>(new Set())
   const [failures, setFailures] = createSignal<ReadonlySet<string>>(new Set())
@@ -64,6 +76,8 @@ export function LessonPlayer(props: LessonPlayerProps) {
   const finished = () => lessonFinished(mode(), progress())
   createEffect(() => {
     const current = progress()
+    props.onProgress?.(current)
+    if (props.initial) return
     if (lessonFinished(mode(), current)) clearProgress(current.lessonId)
     else saveProgress(current)
   })
@@ -98,7 +112,7 @@ export function LessonPlayer(props: LessonPlayerProps) {
     if (!draft || !isComplete(exercise, draft)) return
     const reveal = tries.length + 1 >= MAX_TRIES
     void track(`${key}:${exercise.id}`, async () => {
-      const result = await props.api.assess(exercise.id, draft, { reveal })
+      const result = await props.api.assess(exercise.id, draft, { reveal, round: key })
       updateRound(key, (r) => recordTry(r, exercise.id, { answer: draft, result }))
     })
   }
@@ -110,13 +124,18 @@ export function LessonPlayer(props: LessonPlayerProps) {
       const answered = current.exercises.filter((exercise) =>
         isComplete(exercise, exerciseProgress(current, exercise.id).draft),
       )
-      const tries = await Promise.all(
-        answered.map(async (exercise): Promise<[string, Try]> => {
-          const answer = exerciseProgress(current, exercise.id).draft!
-          const result = await props.api.assess(exercise.id, answer, { reveal: true })
-          return [exercise.id, { answer, result }]
-        }),
+      const answers = Object.fromEntries(
+        answered.map((exercise) => [exercise.id, exerciseProgress(current, exercise.id).draft!]),
       )
+      const tries: [string, Try][] = props.api.submitRound
+        ? Object.entries(await props.api.submitRound(key, answers))
+        : await Promise.all(
+            answered.map(async (exercise): Promise<[string, Try]> => {
+              const answer = answers[exercise.id]
+              const result = await props.api.assess(exercise.id, answer, { reveal: true, round: key })
+              return [exercise.id, { answer, result }]
+            }),
+          )
       updateRound(key, (r) => ({
         ...tries.reduce((acc, [id, attempt]) => recordTry(acc, id, attempt), r),
         submitted: true,
@@ -129,7 +148,7 @@ export function LessonPlayer(props: LessonPlayerProps) {
       const repeats = await props.api.secondRound(exercisesToRepeat(progress().first), props.seed)
       setProgress((current) => ({
         ...current,
-        second: newRound(repeats.exercises.filter(isRendered)),
+        second: { ...newRound(repeats.exercises.filter(isRendered)), layouts: repeats.layouts },
       }))
     })
   }
@@ -163,8 +182,12 @@ export function LessonPlayer(props: LessonPlayerProps) {
         exercise={exercise}
         seed={key === 'first' ? props.seed : `${props.seed}:second-round`}
         previousLayout={key === 'second' ? firstLayouts().get(exercise.id) : undefined}
+        layout={round(key)!.layouts?.[exercise.id]}
         draft={state().draft}
-        onDraft={(draft) => updateRound(key, (r) => setDraft(r, exercise.id, draft))}
+        onDraft={(draft) => {
+          updateRound(key, (r) => setDraft(r, exercise.id, draft))
+          props.api.saveDraft?.(key, exercise.id, draft)
+        }}
         tries={state().tries}
         locked={status() === 'locked'}
         verdict={verdict()}

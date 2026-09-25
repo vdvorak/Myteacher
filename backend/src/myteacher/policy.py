@@ -22,6 +22,10 @@ def is_teacher(actor: Account) -> bool:
     return actor.kind == "teacher"
 
 
+def is_student(actor: Account) -> bool:
+    return actor.kind == "student"
+
+
 def is_admin(actor: Account) -> bool:
     return is_teacher(actor) and actor.is_admin
 

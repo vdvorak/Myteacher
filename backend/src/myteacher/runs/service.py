@@ -145,3 +145,14 @@ def unenrol_student(db: InstanceSession, run: CourseRun, student: Account) -> No
     db.execute(
         delete(RunStudent).where(RunStudent.run_id == run.id, RunStudent.student_id == student.id)
     )
+
+
+def runs_of_student(db: InstanceSession, student: Account) -> list[int]:
+    """The ids of the runs the student is enrolled in, directly or through a class."""
+    direct = select(RunStudent.run_id).where(RunStudent.student_id == student.id)
+    in_classes = (
+        select(RunClass.run_id)
+        .join(ClassMembership, ClassMembership.class_id == RunClass.class_id)
+        .where(ClassMembership.student_id == student.id)
+    )
+    return list(db.scalars(union(direct, in_classes)))

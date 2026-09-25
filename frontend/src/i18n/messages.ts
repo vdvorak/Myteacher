@@ -631,6 +631,21 @@ const en = {
   'erasure.alreadyDone': '{name} was already erased.',
   'home.studentGreeting': 'Hello, {name}',
   'home.studentPlaceholder': 'Your lessons will appear here once your teacher sends you the first one.',
+  'work.heading': 'Your work',
+  'work.loading': 'Loading…',
+  'work.loadFailed': 'Your work could not be loaded.',
+  'work.notFound': 'This work is not for you, or it is no longer available.',
+  'work.meta': '{topic} · {run}',
+  'work.due': 'Due {date}',
+  'work.state.not_started': 'Not started',
+  'work.state.in_progress': 'In progress',
+  'work.state.submitted': 'Submitted',
+  'work.late': 'Submitted late',
+  'work.attempt': 'Attempt {number}',
+  'work.startAgain': 'Start another attempt',
+  'work.refused.past_due': 'The due date has passed and your teacher does not accept late work.',
+  'work.refused.no_more_attempts': 'This work can be done only once.',
+  'work.startFailed': 'The work could not be opened. Try again.',
 }
 
 export type MessageKey = keyof typeof en
@@ -1265,6 +1280,21 @@ const cs: Record<MessageKey, string> = {
   'erasure.alreadyDone': 'Student {name} už byl vymazán.',
   'home.studentGreeting': 'Dobrý den, {name}',
   'home.studentPlaceholder': 'Až vám učitel pošle první lekci, najdete ji tady.',
+  'work.heading': 'Vaše práce',
+  'work.loading': 'Načítání…',
+  'work.loadFailed': 'Vaši práci se nepodařilo načíst.',
+  'work.notFound': 'Tato práce není pro vás, nebo už není k dispozici.',
+  'work.meta': '{topic} · {run}',
+  'work.due': 'Odevzdat do {date}',
+  'work.state.not_started': 'Nezačato',
+  'work.state.in_progress': 'Rozpracováno',
+  'work.state.submitted': 'Odevzdáno',
+  'work.late': 'Odevzdáno po termínu',
+  'work.attempt': 'Pokus {number}',
+  'work.startAgain': 'Začít další pokus',
+  'work.refused.past_due': 'Termín už uplynul a učitel práci po termínu nepřijímá.',
+  'work.refused.no_more_attempts': 'Tuto práci lze udělat jen jednou.',
+  'work.startFailed': 'Práci se nepodařilo otevřít. Zkuste to znovu.',
 }
 
 export const messages: Record<Locale, Record<MessageKey, string>> = { cs, en }

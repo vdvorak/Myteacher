@@ -47,13 +47,21 @@ class AnswerMismatch(ValueError):
 
 
 def assess(
-    exercise: Exercise, answer: ExerciseAnswer, *, language: str, reveal: bool = True
+    exercise: Exercise,
+    answer: ExerciseAnswer,
+    *,
+    language: str,
+    reveal: bool = True,
+    pinned: bool = False,
 ) -> AssessmentOutcome:
     """Score an answer to an exercise of a lesson in `language`, which decides the letters
     that ignoring diacritics keeps apart. With `reveal=False` the solution of a wrong answer is
-    withheld, so that a student who may still retry does not receive it."""
+    withheld, so that a student who may still retry does not receive it. With `pinned`, the
+    exercise is the variant an attempt holds and the answer must be to exactly that variant."""
     if answer.type != exercise.type:
         raise AnswerMismatch(f"a {answer.type} answer cannot assess a {exercise.type} exercise")
+    if pinned:
+        _check_variant(exercise, answer)
     match exercise, answer:
         case (FreeTextExercise(), FreeTextAnswer()) | (TranslationExercise(), TranslationAnswer()):
             if len(answer.text) > exercise.max_characters:
@@ -88,6 +96,21 @@ def assess(
     return result
 
 
+def _check_variant(exercise: Exercise, answer: ExerciseAnswer) -> None:
+    """Stateless assessment takes any gaps or item of the exercise, which a second-round variant
+    may ask; an attempt knows its variant, so it accepts exactly that one."""
+    match exercise, answer:
+        case ClozeExercise(), ClozeAnswer():
+            if set(answer.gaps) != set(exercise.blanked):
+                raise AnswerMismatch("a cloze answer must fill exactly the gaps asked")
+        case TokenSelectionExercise(), TokenSelectionAnswer():
+            item = exercise.item()
+            if item is None or answer.item_id != item.id:
+                raise AnswerMismatch(f"{answer.item_id!r} is not the item asked")
+        case _:
+            pass
+
+
 def _assess_multiple_choice(
     exercise: MultipleChoiceExercise, answer: MultipleChoiceAnswer
 ) -> AssessmentResult:
@@ -117,9 +140,8 @@ def _assess_short_answer(
 
 
 def _assess_cloze(exercise: ClozeExercise, answer: ClozeAnswer, language: str) -> AssessmentResult:
-    # Stateless for now: the answer names the gaps it fills, which may be a second-round
-    # variant's gaps (always as many as the exercise blanks). Attempts (slice 4) will pin the
-    # variant server-side, so that only its exact gaps are accepted.
+    # Unless pinned, the answer names the gaps it fills, which may be a second-round variant's
+    # gaps (always as many as the exercise blanks).
     candidates = {candidate.id: candidate for candidate in exercise.candidates()}
     unknown = sorted(set(answer.gaps) - set(candidates))
     if unknown:
@@ -216,7 +238,7 @@ def _assess_token_ordering(
 def _assess_token_selection(
     exercise: TokenSelectionExercise, answer: TokenSelectionAnswer
 ) -> AssessmentResult:
-    # Stateless for now: the answer names its item, which may be a second-round item.
+    # Unless pinned, the answer names its item, which may be a second-round item.
     item = exercise.item(answer.item_id)
     if item is None:
         raise AnswerMismatch(f"{answer.item_id!r} is not an item of this exercise")

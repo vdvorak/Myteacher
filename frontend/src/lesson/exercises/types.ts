@@ -21,6 +21,8 @@ export interface ExerciseViewProps<E, A extends RenderedAnswer> {
   failed: boolean
   /** Item ids in the order the student saw them before; a repeat never looks the same. */
   previousLayout?: string[]
+  /** Item ids in the order the server laid them out, which never gives the answer away; it overrides the seed. */
+  layout?: string[]
   passage?: PassageReference
 }
 

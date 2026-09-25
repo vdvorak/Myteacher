@@ -9,6 +9,7 @@ import {
   type RouteSectionProps,
 } from '@solidjs/router'
 import { AdminPage } from './admin/AdminPage'
+import { WorkPage } from './attempts/WorkPage'
 import { ClassesPage } from './classes/ClassesPage'
 import { ClassPage } from './classes/ClassPage'
 import { ConceptMapPage } from './concepts/ConceptMapPage'
@@ -64,6 +65,7 @@ const routes = () => (
       <Route path="/courses/:courseId" component={CoursePage} />
       <Route path="/courses/:courseId/topics/:topicId" component={ConceptMapPage} />
       <Route path="/runs/:runId" component={RunPage} />
+      <Route path="/work/:releaseId" component={WorkPage} />
       <Route path="/admin" component={AdminPage} />
     </Route>
     <Route path="*" component={() => <Navigate href="/" />} />

@@ -239,6 +239,7 @@ def test_this_slice_registers_its_student_data():
         "class_membership",
         "run_student",
         "release_student",
+        "attempt",
     } <= tables
 
 

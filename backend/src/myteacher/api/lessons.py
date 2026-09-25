@@ -1,7 +1,11 @@
+from typing import Annotated
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
+from myteacher.accounts.models import Account
+from myteacher.api.deps import requires
 from myteacher.lesson.assessment import AnswerMismatch, answer_key, assess
 from myteacher.lesson.fixtures import fixture_lessons
 from myteacher.lesson.schema import (
@@ -16,8 +20,10 @@ from myteacher.lesson.schema import (
     to_public,
 )
 from myteacher.lesson.second_round import UnknownExercise, second_round
+from myteacher.policy import is_teacher
 
 router = APIRouter(tags=["lessons"])
+Teacher = Annotated[Account, requires(is_teacher)]
 
 
 class FieldError(BaseModel):
@@ -69,9 +75,9 @@ def get_lesson(lesson_id: str) -> LessonPublic:
 def assess_answer(
     lesson_id: str, exercise_id: str, answer: ExerciseAnswer, reveal: bool = True
 ) -> AssessmentOutcome:
-    """Assess one answer. `reveal=false` marks a try the student may retry: a wrong answer
-    then comes back without its solution. Stateless for now; attempts (slice 4) will decide
-    server-side how many tries remain."""
+    """Assess one answer to a sample lesson. `reveal=false` marks a try the student may retry: a
+    wrong answer then comes back without its solution. Stateless: work a student hands in goes
+    through an attempt, which decides server-side how many tries remain."""
     lesson = _lesson(lesson_id)
     exercise = lesson.exercise(exercise_id)
     if exercise is None:
@@ -92,7 +98,7 @@ def get_second_round(lesson_id: str, request: SecondRoundRequest) -> SecondRound
 
 
 @router.get("/lessons/{lesson_id}/answer-key", response_model=AnswerKey)
-def get_answer_key(lesson_id: str) -> AnswerKey:
+def get_answer_key(lesson_id: str, actor: Teacher) -> AnswerKey:
     """Canonical solutions for a printed answer key, fetched only when a print asks for one.
-    Never part of the lesson payload; restricted to teachers once accounts exist (slice 2)."""
+    Never part of the lesson payload, and for teachers only."""
     return answer_key(_lesson(lesson_id))

@@ -32,7 +32,7 @@ export function TokenOrdering(props: ExerciseViewProps<TokenOrderingExercisePubl
   const order = () => props.draft?.order ?? []
   const text = (id: string) => props.exercise.tokens.find((token) => token.id === id)?.text ?? id
   const pool = () =>
-    tokenLayout(props.exercise, props.seed, props.previousLayout).filter((id) => !order().includes(id))
+    (props.layout ?? tokenLayout(props.exercise, props.seed, props.previousLayout)).filter((id) => !order().includes(id))
   const setOrder = (next: string[]) => props.onDraft({ type: 'token_ordering', order: next })
   const disabled = () => props.locked || props.checking
   const complete = () => order().length === props.exercise.tokens.length

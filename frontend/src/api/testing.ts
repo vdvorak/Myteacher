@@ -1,4 +1,5 @@
 import { fakeAdminApi } from '../admin/testing'
+import { fakeAttemptsApi } from '../attempts/testing'
 import { fakeAuthApi } from '../auth/testing'
 import { fakeClassesApi } from '../classes/testing'
 import { fakeConceptsApi } from '../concepts/testing'
@@ -21,6 +22,7 @@ export function fakeApis(overrides: Partial<Apis> = {}): Apis {
     students: fakeStudentsApi(),
     classes: fakeClassesApi(),
     runs: fakeRunsApi(),
+    attempts: fakeAttemptsApi(),
     courses: fakeCoursesApi(),
     sources: fakeSourcesApi(),
     concepts: fakeConceptsApi(),

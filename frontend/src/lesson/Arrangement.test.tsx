@@ -91,7 +91,7 @@ describe('matching', () => {
     expect(api.assess).toHaveBeenCalledWith(
       'rooms',
       { type: 'matching', pairs: { p1: 'r3', p2: 'r1', p3: 'r2', p4: 'r4' } },
-      { reveal: false },
+      { reveal: false, round: 'first' },
     )
     expect(await within(rooms()).findByText('Correct')).toBeInTheDocument()
     expect(left('la cocina')).toBeDisabled()
@@ -200,7 +200,7 @@ describe('token ordering', () => {
     expect(api.assess).toHaveBeenCalledWith(
       'yesterday',
       { type: 'token_ordering', order: ['t5', 't2', 't4', 't3', 't1'] },
-      { reveal: true },
+      { reveal: true, round: 'first' },
     )
     expect(await within(ordering()).findByText('Correct')).toBeInTheDocument()
     expect(within(exercise(/opposite/)).getByText('Correct')).toBeInTheDocument()

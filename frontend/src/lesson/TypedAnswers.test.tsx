@@ -40,7 +40,7 @@ describe('short answer', () => {
 
     await user.type(input, 'cancion{Enter}')
 
-    expect(api.assess).toHaveBeenCalledWith('song', { type: 'short_answer', text: 'cancion' }, { reveal: false })
+    expect(api.assess).toHaveBeenCalledWith('song', { type: 'short_answer', text: 'cancion' }, { reveal: false, round: 'first' })
     expect(await within(song()).findByText('Not quite. Try once more.')).toBeInTheDocument()
     expect(within(song()).getByRole('note', { name: 'Hint' })).toBeInTheDocument()
 
@@ -105,7 +105,7 @@ describe('cloze without a word bank', () => {
     expect(api.assess).toHaveBeenCalledWith(
       'yesterday',
       { type: 'cloze', gaps: { v1: 'went', v3: 'seed' } },
-      { reveal: true },
+      { reveal: true, round: 'first' },
     )
     expect(await within(yesterday()).findByText('Not quite')).toBeInTheDocument()
     expect(gaps[0]).toHaveAttribute('data-state', 'correct')
@@ -219,7 +219,7 @@ describe('cloze with a word bank', () => {
     expect(api.assess).toHaveBeenLastCalledWith(
       'tomorrow',
       { type: 'cloze', gaps: { w2: 'voy', w4: 'hermano' } },
-      { reveal: false },
+      { reveal: false, round: 'first' },
     )
     expect(await within(tomorrow()).findByText('Not quite. Try once more.')).toBeInTheDocument()
     expect(gap(1)).toHaveAttribute('data-state', 'incorrect')

@@ -1,6 +1,6 @@
 // A student's progress through one lesson in the browser: the answers and assessments of the
 // first pass and of the second round. Kept in local storage so a reload resumes the lesson;
-// cleared when the lesson is finished. Server-side attempts replace this in slice 4.
+// cleared when the lesson is finished. Work handed in to a teacher keeps it on the server instead.
 import type { LessonPublic } from '../generated/lesson'
 import { isCorrect, isOpen, isRendered, type RenderedAnswer, type RenderedExercise, type TryOutcome } from './schema'
 
@@ -22,7 +22,11 @@ export interface RoundProgress {
   exercises: Exercise[]
   answers: Record<string, ExerciseProgress>
   submitted: boolean
+  /** Item orders the server drew, by exercise id; the seed decides the rest. */
+  layouts?: Record<string, string[]>
 }
+
+export type RoundKey = 'first' | 'second'
 
 export interface LessonProgress {
   version: 2
