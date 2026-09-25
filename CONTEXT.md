@@ -101,7 +101,7 @@ A compressed, printable summary distilled from lessons, such as a vocabulary she
 _Avoid_: handout, cheat sheet, summary
 
 **Classroom Material**:
-A printable or projectable set of exercises or text generated for a topic for use in the classroom, for the whole run or for chosen students, checked by the teacher and not delivered through the app to students.
+A printable or projectable set of exercises or text generated for a topic for use in the classroom, for the whole run or for chosen students, and checked by the teacher. The same for every student who gets it, unlike a lesson; the teacher may also hand it to students to complete in the app.
 _Avoid_: worksheet, handout, class lesson
 
 ### Lessons and exercises
@@ -111,7 +111,7 @@ The unit a student receives: a short explanation followed by exercises, completa
 _Avoid_: assignment, homework, session, task
 
 **Attempt**:
-One student's pass through one version of a lesson, from opening to submission. Czech: průchod lekcí. A voided attempt keeps its answers for the teacher but counts for nothing.
+One student's pass through one version of a lesson or of a released classroom material, from opening to submission. Czech: průchod lekcí. A voided attempt keeps its answers for the teacher but counts for nothing.
 _Avoid_: run (reserved for Course Run), session, try, pass
 
 **Exercise**:
@@ -199,7 +199,7 @@ The teacher's judgement that a generated lesson is fit to be taught. Approval do
 _Avoid_: release, publish, accept
 
 **Release**:
-The moment a lesson becomes visible to its student, by hand or at a scheduled time, after approval or automatically under a trusted policy.
+The moment a lesson becomes visible to its student, by hand or at a scheduled time, after approval or automatically under a trusted policy. A classroom material is released by hand to the students of a course run, to complete in the app.
 _Avoid_: publish, unlock, approve
 
 **Retraction**:
