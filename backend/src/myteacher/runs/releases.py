@@ -206,12 +206,17 @@ def submitted_of(
 ) -> tuple[int, int]:
     """How many of the release's recipients now have an attempt that counts, of how many."""
     ids = {student.id for student in recipients(db, run, released, roster)}
+    return len(ids & submitters(db, released)), len(ids)
+
+
+def submitters(db: InstanceSession, released: MaterialRelease) -> set[int]:
+    """The students with an attempt at the release that counts: submitted, not retracted."""
     counting = select(Attempt.student_id).where(
         Attempt.release_id == released.id,
         Attempt.submitted_at.is_not(None),
         Attempt.retracted_at.is_(None),
     )
-    return len(ids & set(db.scalars(counting))), len(ids)
+    return set(db.scalars(counting))
 
 
 def topic_released(db: InstanceSession, topic: Topic) -> bool:

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, createUniqueId, For, Match, Show, Switch } from 'solid-js'
+import { createEffect, createSignal, createUniqueId, For, Match, Show, Switch, type JSX } from 'solid-js'
 import type { LessonPublic, SecondRound } from '../generated/lesson'
 import { useI18n } from '../i18n/i18n'
 import type { Verdict } from './exercises/ExerciseFrame'
@@ -63,6 +63,8 @@ export interface LessonPlayerProps {
   onProgress?: (progress: LessonProgress) => void
   /** Shows the progress as it stands, every exercise locked, for a teacher looking at a student's work. */
   readOnly?: boolean
+  /** Shown under each exercise: the teacher's view of its assessment. */
+  aside?: (round: RoundKey, exerciseId: string) => JSX.Element
 }
 
 /** Plays one lesson: the first pass in the lesson's feedback mode, then a second round of what failed. */
@@ -205,6 +207,7 @@ export function LessonPlayer(props: LessonPlayerProps) {
           failed={failures().has(`${key}:${exercise.id}`)}
         />
         <Show when={review()}>{(published) => <TeacherReview review={published()} />}</Show>
+        {props.aside?.(key, exercise.id)}
       </>
     )
   }

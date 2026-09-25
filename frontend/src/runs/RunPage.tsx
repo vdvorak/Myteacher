@@ -1,16 +1,23 @@
-import { A, useParams } from '@solidjs/router'
-import { createEffect, createResource, createSignal, For, Show } from 'solid-js'
+import { A, useParams, useSearchParams } from '@solidjs/router'
+import { createEffect, createResource, createSignal, Match, Show, Switch } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
 import { useBreadcrumbs } from '../shell/breadcrumbs'
-import { useConfirm } from '../shell/confirm'
 import { PageHeader } from '../shell/PageHeader'
-import { stateNames, TeachersOnly } from '../students/StudentsPage'
-import type { CourseRun, RosterStudent } from './api'
-import { ReleasesSection } from './ReleasesSection'
+import { StepTabs } from '../shell/StepTabs'
+import { TeachersOnly } from '../students/StudentsPage'
+import type { CourseRun } from './api'
+import { ReleaseDialog } from './ReleaseDialog'
+import { RunOverview } from './RunOverview'
+import { RunReleases } from './ReleasesSection'
+import { RunStudents } from './RunStudents'
+import './runs.css'
 
-/** One run, seen by its teacher: the roster, and enrolling classes and students. */
+type TabId = 'overview' | 'releases' | 'students' | 'settings'
+const tabIds: TabId[] = ['overview', 'releases', 'students', 'settings']
+
+/** One run, seen by its teacher: how it goes, its releases, its students and its settings. */
 export function RunPage() {
   return (
     <TeachersOnly>
@@ -21,78 +28,24 @@ export function RunPage() {
 
 function RunDetail() {
   const { t } = useI18n()
-  const apis = useApi()
-  const api = apis.runs
+  const api = useApi().runs
   const params = useParams<{ runId: string }>()
-  const [run, { mutate }] = createResource(() => Number(params.runId), (id) => api.get(id))
-  const [classes] = createResource(() => apis.classes.list())
-  const [students] = createResource(() => apis.students.list())
-  const [name, setName] = createSignal('')
-  const [chosenClass, setChosenClass] = createSignal('')
-  const [chosenStudent, setChosenStudent] = createSignal('')
-  const [busy, setBusy] = createSignal(false)
-  const [failed, setFailed] = createSignal(false)
-
-  // Fill the name once per run, so an enrolment never overwrites a rename being typed.
-  let filledFor: number | undefined
-  createEffect(() => {
-    const current = !run.error && run()
-    if (current && current.id !== filledFor) {
-      filledFor = current.id
-      setName(current.name)
-    }
-  })
-
+  const [search] = useSearchParams<{ tab?: string }>()
+  const runId = () => Number(params.runId)
+  const [run, { mutate }] = createResource(runId, (id) => api.get(id))
+  const [releases, { refetch: refetchReleases }] = createResource(runId, (id) => api.releases(id))
+  const [releasing, setReleasing] = createSignal(false)
   const loaded = () => (run.error ? undefined : run())
-  const addableClasses = () => {
-    const enrolled = new Set(loaded()?.classes.map((c) => c.id))
-    return (classes.error ? [] : (classes() ?? [])).filter((c) => !enrolled.has(c.id))
-  }
-  const addableStudents = () => {
-    const enrolled = new Set(loaded()?.students.map((s) => s.id))
-    return (students.error ? [] : (students() ?? [])).filter((s) => !enrolled.has(s.id) && s.state !== 'erased')
-  }
+  const current = (): TabId => tabIds.find((id) => id === search.tab) ?? 'overview'
 
-  const confirm = useConfirm()
+  useBreadcrumbs(() => [{ label: t('nav.runs'), href: '/runs' }, { label: loaded()?.name ?? '…' }])
 
-  async function change(action: () => Promise<CourseRun>) {
-    setBusy(true)
-    setFailed(false)
-    try {
-      mutate(await action())
-      return true
-    } catch {
-      setFailed(true)
-      return false
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const rename = (current: CourseRun) => (event: SubmitEvent) => {
-    event.preventDefault()
-    if (name().trim() === '') return
-    void change(() => api.rename(current.id, name().trim()))
-  }
-
-  const enrolClass = (current: CourseRun) => async (event: SubmitEvent) => {
-    event.preventDefault()
-    if (chosenClass() === '') return
-    if (await change(() => api.enrolClass(current.id, Number(chosenClass())))) setChosenClass('')
-  }
-
-  const enrolStudent = (current: CourseRun) => async (event: SubmitEvent) => {
-    event.preventDefault()
-    if (chosenStudent() === '') return
-    if (await change(() => api.enrolStudent(current.id, Number(chosenStudent())))) setChosenStudent('')
-  }
-
-  const via = (student: RosterStudent) => [...student.classes, ...(student.direct ? [t('runs.directly')] : [])].join(', ')
-
-  useBreadcrumbs(() => [
-    { label: t('nav.runs'), href: '/runs' },
-    { label: loaded()?.name ?? '…' },
-  ])
+  const tabs = () => [
+    { id: 'overview', label: t('runTabs.overview') },
+    { id: 'releases', label: t('runTabs.releases') },
+    { id: 'students', label: t('runTabs.students') },
+    { id: 'settings', label: t('runTabs.settings') },
+  ]
 
   return (
     <section class="admin-section">
@@ -100,187 +53,121 @@ function RunDetail() {
         <p role="alert">{t('runs.runLoadFailed')}</p>
       </Show>
       <Show when={loaded()}>
-        {(current) => (
+        {(shown) => (
           <>
             <PageHeader
-              title={current().name}
+              title={shown().name}
               meta={
                 <>
                   {t('runs.course')}
-                  <A href={`/courses/${current().course.id}`}>{current().course.name}</A>
+                  <A href={`/courses/${shown().course.id}`}>{shown().course.name}</A>
                 </>
               }
+              action={
+                <button type="button" onClick={() => setReleasing(true)}>
+                  {t('releases.new')}
+                </button>
+              }
             />
-            <form class="settings-form" onSubmit={rename(current())}>
-              <label>
-                {t('runs.name')}
-                <input required maxLength={200} value={name()} onInput={(e) => setName(e.currentTarget.value)} />
-              </label>
-              <div class="settings-actions">
-                <button type="submit" disabled={busy()}>
-                  {t('runs.rename')}
-                </button>
-              </div>
-            </form>
-
-            <ReleasesSection run={current()} />
-
-            <h2>{t('runs.roster')}</h2>
-            <p class="settings-note">{t('runs.rosterNote')}</p>
-            <Show when={current().roster.length > 0} fallback={<p>{t('runs.noRoster')}</p>}>
-              <div class="table-scroll">
-                <table class="admin-table" aria-label={t('runs.roster')}>
-                  <thead>
-                    <tr>
-                      <th scope="col">{t('students.name')}</th>
-                      <th scope="col">{t('auth.email')}</th>
-                      <th scope="col">{t('runs.enrolledVia')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={current().roster}>
-                      {(student) => (
-                        <tr>
-                          <td>
-                            <A href={`/students/${student.id}`}>{student.name}</A>
-                          </td>
-                          <td>{student.email}</td>
-                          <td>{via(student)}</td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
-              </div>
+            <StepTabs
+              label={t('runTabs.label')}
+              tabs={tabs()}
+              current={current()}
+              href={(id) => `/runs/${runId()}?tab=${id}`}
+            />
+            <Switch>
+              <Match when={current() === 'overview'}>
+                <Show when={!releases.error} fallback={<p role="alert">{t('releases.loadFailed')}</p>}>
+                  <Show when={releases()}>
+                    {(list) => <RunOverview run={shown()} releases={list()} onRelease={() => setReleasing(true)} />}
+                  </Show>
+                </Show>
+              </Match>
+              <Match when={current() === 'releases'}>
+                <RunReleases
+                  run={shown()}
+                  releases={releases.error ? undefined : releases()}
+                  failed={Boolean(releases.error)}
+                />
+              </Match>
+              <Match when={current() === 'students'}>
+                <RunStudents
+                  run={shown()}
+                  onChanged={(changed) => {
+                    mutate(changed)
+                    // Who has each release follows the roster.
+                    void refetchReleases()
+                  }}
+                />
+              </Match>
+              <Match when={current() === 'settings'}>
+                <RunSettings run={shown()} onChanged={mutate} />
+              </Match>
+            </Switch>
+            <Show when={releasing()}>
+              <ReleaseDialog
+                courseId={shown().course.id}
+                runId={shown().id}
+                onClose={() => setReleasing(false)}
+                onReleased={() => void refetchReleases()}
+              />
             </Show>
-
-            <h2>{t('runs.classes')}</h2>
-            <Show when={current().classes.length > 0} fallback={<p>{t('runs.noClasses')}</p>}>
-              <div class="table-scroll">
-                <table class="admin-table" aria-label={t('runs.classes')}>
-                  <thead>
-                    <tr>
-                      <th scope="col">{t('classes.name')}</th>
-                      <th scope="col">{t('classes.memberCount')}</th>
-                      <th scope="col">{t('teachers.actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={current().classes}>
-                      {(klass) => (
-                        <tr>
-                          <td>
-                            <A href={`/classes/${klass.id}`}>{klass.name}</A>
-                          </td>
-                          <td>{klass.member_count}</td>
-                          <td>
-                            <button
-                              type="button"
-                              disabled={busy()}
-                              onClick={async () => {
-                                const removing = await confirm({
-                                  title: t('runs.confirmRemove', { name: klass.name }),
-                                  body: t('runs.removeClassNote'),
-                                  action: t('runs.remove'),
-                                })
-                                if (removing) await change(() => api.unenrolClass(current().id, klass.id))
-                              }}
-                            >
-                              {t('runs.remove')}
-                            </button>
-                          </td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
-              </div>
-            </Show>
-            <form class="settings-form" onSubmit={enrolClass(current())}>
-              <label>
-                {t('runs.enrolClass')}
-                <select required value={chosenClass()} onChange={(e) => setChosenClass(e.currentTarget.value)}>
-                  <option value="">{t('runs.chooseClass')}</option>
-                  <For each={addableClasses()}>{(klass) => <option value={String(klass.id)}>{klass.name}</option>}</For>
-                </select>
-              </label>
-              <div class="settings-actions">
-                <button type="submit" disabled={busy() || addableClasses().length === 0}>
-                  {t('runs.enrolClassButton')}
-                </button>
-              </div>
-            </form>
-
-            <h2>{t('runs.students')}</h2>
-            <Show when={current().students.length > 0} fallback={<p>{t('runs.noStudents')}</p>}>
-              <div class="table-scroll">
-                <table class="admin-table" aria-label={t('runs.students')}>
-                  <thead>
-                    <tr>
-                      <th scope="col">{t('students.name')}</th>
-                      <th scope="col">{t('auth.email')}</th>
-                      <th scope="col">{t('teachers.state')}</th>
-                      <th scope="col">{t('teachers.actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <For each={current().students}>
-                      {(student) => (
-                        <tr>
-                          <td>
-                            <A href={`/students/${student.id}`}>{student.name}</A>
-                          </td>
-                          <td>{student.email}</td>
-                          <td>{t(stateNames[student.state])}</td>
-                          <td>
-                            <button
-                              type="button"
-                              disabled={busy()}
-                              onClick={async () => {
-                                const removing = await confirm({
-                                  title: t('runs.confirmRemove', { name: student.name }),
-                                  body: t('runs.removeStudentNote'),
-                                  action: t('runs.remove'),
-                                })
-                                if (removing) await change(() => api.unenrolStudent(current().id, student.id))
-                              }}
-                            >
-                              {t('runs.remove')}
-                            </button>
-                          </td>
-                        </tr>
-                      )}
-                    </For>
-                  </tbody>
-                </table>
-              </div>
-            </Show>
-            <form class="settings-form" onSubmit={enrolStudent(current())}>
-              <label>
-                {t('runs.enrolStudent')}
-                <select required value={chosenStudent()} onChange={(e) => setChosenStudent(e.currentTarget.value)}>
-                  <option value="">{t('runs.chooseStudent')}</option>
-                  <For each={addableStudents()}>
-                    {(student) => (
-                      <option value={String(student.id)}>
-                        {student.name} ({student.email})
-                      </option>
-                    )}
-                  </For>
-                </select>
-              </label>
-              <div class="settings-actions">
-                <button type="submit" disabled={busy() || addableStudents().length === 0}>
-                  {t('runs.enrolStudentButton')}
-                </button>
-              </div>
-            </form>
           </>
         )}
       </Show>
-      <Show when={failed()}>
+    </section>
+  )
+}
+
+/** The run's name; co-teachers and release defaults come later (#111, #112). */
+function RunSettings(props: { run: CourseRun; onChanged: (run: CourseRun) => void }) {
+  const { t } = useI18n()
+  const api = useApi().runs
+  const [name, setName] = createSignal('')
+  const [busy, setBusy] = createSignal(false)
+  const [outcome, setOutcome] = createSignal<'saved' | 'failed' | null>(null)
+
+  // Fill the name once per run, so a change elsewhere never overwrites a rename being typed.
+  let filledFor: number | undefined
+  createEffect(() => {
+    if (props.run.id !== filledFor) {
+      filledFor = props.run.id
+      setName(props.run.name)
+    }
+  })
+
+  async function rename(event: SubmitEvent) {
+    event.preventDefault()
+    if (name().trim() === '') return
+    setBusy(true)
+    setOutcome(null)
+    try {
+      props.onChanged(await api.rename(props.run.id, name().trim()))
+      setOutcome('saved')
+    } catch {
+      setOutcome('failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form class="settings-form" onSubmit={rename}>
+      <label>
+        {t('runs.name')}
+        <input required maxLength={200} value={name()} onInput={(e) => setName(e.currentTarget.value)} />
+      </label>
+      <div class="settings-actions">
+        <button type="submit" disabled={busy()}>
+          {t('runs.rename')}
+        </button>
+      </div>
+      <Show when={outcome() === 'saved'}>
+        <p role="status">{t('runs.renamed')}</p>
+      </Show>
+      <Show when={outcome() === 'failed'}>
         <p role="alert">{t('smtp.requestFailed')}</p>
       </Show>
-    </section>
+    </form>
   )
 }

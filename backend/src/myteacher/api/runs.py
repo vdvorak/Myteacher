@@ -14,6 +14,7 @@ from pydantic import (
     field_serializer,
     model_validator,
 )
+from sqlalchemy import select
 
 from myteacher.accounts import consent
 from myteacher.accounts.consent import StudentState
@@ -27,7 +28,7 @@ from myteacher.courses.models import ClassroomMaterial, ClassroomMaterialVersion
 from myteacher.lesson.schema import FeedbackMode
 from myteacher.persistence import InstanceSession
 from myteacher.policy import can_teach_run, is_teacher
-from myteacher.runs import releases
+from myteacher.runs import attempts, open_assessment, releases
 from myteacher.runs import service as runs
 from myteacher.runs.models import CourseRun, MaterialRelease
 
@@ -161,6 +162,7 @@ class ReleaseOut(ReleaseSettings):
     # Of the released version.
     title: str
     topic: str
+    topic_id: int
     version: int
     audience: Literal["run", "chosen"]
     # The chosen students by name; empty for a release to the whole run.
@@ -329,6 +331,7 @@ def release_out(db: InstanceSession, released: MaterialRelease) -> ReleaseOut:
         material_id=released.material_id,
         title=version.lesson["title"],
         topic=topic.name,
+        topic_id=topic.id,
         version=version.number,
         audience=released.audience,  # type: ignore[arg-type]
         students=[
@@ -363,11 +366,87 @@ def releasable_materials(run_id: int, db: Db, actor: Teacher) -> list[Releasable
     ]
 
 
+class ListedRelease(ReleaseOut):
+    # How many of its recipients submitted an attempt that counts, of how many.
+    submitted: int
+    total: int
+    # Open answers waiting for an assessment.
+    waiting: int
+    # The recipients who did not submit by the due date, once it passed.
+    overdue_student_ids: list[int]
+
+
 @router.get("/runs/{run_id}/releases")
-def list_releases(run_id: int, db: Db, actor: Teacher) -> list[ReleaseOut]:
-    """The run's releases, the first released first."""
+def list_releases(run_id: int, db: Db, now: Now, actor: Teacher) -> list[ListedRelease]:
+    """The run's releases, the first released first, each with how far its students got."""
     run = taught_run(db, actor, run_id)
-    return [release_out(db, released) for released in releases.releases_of(db, run)]
+    found = releases.releases_of(db, run)
+    roster = [entry.student for entry in runs.roster(db, run)]
+    waiting = open_assessment.waiting_counts(db, [released.id for released in found])
+    listed = []
+    for released in found:
+        # An attempt left open at a refusing due date is submitted by whatever reads it first.
+        attempts.close_past_due_of(db, released, now)
+        recipients = {s.id for s in releases.recipients(db, run, released, roster)}
+        submitted = recipients & releases.submitters(db, released)
+        overdue = (
+            released.due_at is not None and now > released.due_at and released.retracted_at is None
+        )
+        listed.append(
+            ListedRelease(
+                **release_out(db, released).model_dump(),
+                submitted=len(submitted),
+                total=len(recipients),
+                waiting=waiting.get(released.id, 0),
+                overdue_student_ids=sorted(recipients - submitted) if overdue else [],
+            )
+        )
+    return listed
+
+
+class MaterialReleased(BaseModel):
+    run_id: int
+    run_name: str
+    release_id: int
+    version: int
+    released_at: datetime
+
+    @field_serializer("released_at")
+    def _utc(self, at: datetime) -> str:
+        return at.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@router.get("/courses/{course_id}/topics/{topic_id}/classroom-materials/{material_id}/releases")
+def material_releases(
+    course_id: int, topic_id: int, material_id: int, db: Db, actor: Teacher
+) -> list[MaterialReleased]:
+    """The releases of the material not retracted, in the runs the actor teaches."""
+    course = course_for(db, actor, course_id)
+    material = db.get(ClassroomMaterial, material_id)
+    topic = db.get(Topic, material.topic_id) if material else None
+    if material is None or topic is None or topic.id != topic_id or topic.course_id != course.id:
+        raise HTTPException(status_code=404)
+    taught = {run.id: run for run in runs_taught(db, actor)}
+    found = db.execute(
+        select(MaterialRelease, ClassroomMaterialVersion.number)
+        .join(ClassroomMaterialVersion, ClassroomMaterialVersion.id == MaterialRelease.version_id)
+        .where(
+            MaterialRelease.material_id == material.id,
+            MaterialRelease.run_id.in_(taught),
+            MaterialRelease.retracted_at.is_(None),
+        )
+        .order_by(MaterialRelease.released_at, MaterialRelease.id)
+    ).tuples()
+    return [
+        MaterialReleased(
+            run_id=released.run_id,
+            run_name=taught[released.run_id].name,
+            release_id=released.id,
+            version=number,
+            released_at=released.released_at,
+        )
+        for released, number in found
+    ]
 
 
 @router.post(

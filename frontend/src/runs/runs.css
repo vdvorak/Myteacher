@@ -1,0 +1,221 @@
+/* A form in a dialog: it scrolls within the screen. */
+.dialog-form {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.release-form,
+.release-form fieldset {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.release-form fieldset {
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+/* Settings as label and value. */
+.settings-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.settings-list dt {
+  color: var(--color-text-muted);
+}
+
+.settings-list dd {
+  margin: 0;
+}
+
+/* The classes of a run, above its students. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+}
+
+.chip-remove {
+  min-width: var(--space-8);
+  min-height: var(--space-8);
+  padding: 0;
+  border-radius: 50%;
+}
+
+/* A step that opens a dialog instead of leading elsewhere. */
+.link-button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+/* Students × exercises: the matrix scrolls on its own within the screen, the names and the prompts stay. */
+.results-matrix {
+  /* The shell, the page header and the tabs take about ten large spaces above it. */
+  max-height: calc(100vh - var(--space-8) * 10);
+  overflow: auto;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.results-matrix table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.results-matrix th,
+.results-matrix td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.results-matrix thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  vertical-align: bottom;
+}
+
+.results-matrix tbody th,
+.results-matrix tfoot th,
+.results-matrix thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  border-right: var(--border-width) solid var(--color-border);
+  text-align: start;
+}
+
+.results-matrix thead th:first-child {
+  z-index: 3;
+}
+
+.results-prompt {
+  min-width: var(--space-8);
+  max-width: calc(var(--space-8) * 4);
+  font-weight: 400;
+}
+
+.results-number {
+  display: block;
+  font-weight: 600;
+}
+
+/* The prompt stays readable in the header, two lines at most. */
+.results-prompt-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.results-state {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-weight: 400;
+}
+
+.results-matrix td a {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--tap-target);
+  min-height: var(--tap-target);
+  text-decoration: none;
+}
+
+/* Each cell has a colour and a symbol, never the colour alone. */
+.result-mark {
+  display: inline-grid;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  border-radius: 50%;
+  font-weight: 600;
+}
+
+.result-mark[data-state='right'] {
+  background: var(--color-correct-surface);
+  color: var(--color-correct);
+}
+
+.result-mark[data-state='wrong'] {
+  background: var(--color-incorrect-surface);
+  color: var(--color-incorrect);
+}
+
+.result-mark[data-state='open'] {
+  background: var(--color-warning-surface);
+  color: var(--color-warning);
+}
+
+.result-mark[data-state='unanswered'] {
+  color: var(--color-text-muted);
+}
+
+.open-answer-text {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: calc(var(--border-width) * 4) solid var(--color-border);
+  background: var(--color-surface-sunken);
+  white-space: pre-wrap;
+}
+
+.student-view,
+.inline-assessment {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-accent-surface);
+}
+
+.inline-assessment {
+  margin: var(--space-2) 0 var(--space-6);
+}
+
+.assessment p,
+.student-view p,
+.student-view h3 {
+  margin: 0 0 var(--space-2);
+}
+
+.override-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.student-pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}

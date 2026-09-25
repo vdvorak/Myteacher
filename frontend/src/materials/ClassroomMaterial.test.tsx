@@ -13,6 +13,7 @@ import { fakeCoursesApi, spanish, topicFixture } from '../courses/testing'
 import { fakeJobsApi } from '../jobs/testing'
 import { sampleLesson, withI18n } from '../lesson/testing'
 import { fakeStudentsApi, jana } from '../students/testing'
+import { fakeRunsApi } from '../runs/testing'
 import type { Material } from './api'
 import { fakeMaterialsApi, serEstarMaterial, written, type ScriptedMaterial } from './testing'
 
@@ -22,7 +23,13 @@ const shorter: ScriptedMaterial = { ...written, lesson: { ...sampleLesson, title
 
 function renderApp(
   path: string,
-  options: { materials?: Material[]; map?: ConceptMap; course?: Course; script?: ScriptedMaterial[] } = {},
+  options: {
+    materials?: Material[]
+    map?: ConceptMap
+    course?: Course
+    script?: ScriptedMaterial[]
+    runs?: Parameters<typeof fakeRunsApi>[0]
+  } = {},
 ) {
   const course = options.course ?? spanish
   const history = createMemoryHistory()
@@ -38,10 +45,11 @@ function renderApp(
     concepts: fakeConceptsApi({ maps: { 2: options.map ?? approvedMap }, jobs }),
     students: fakeStudentsApi(),
     materials,
+    runs: fakeRunsApi(options.runs),
     jobs,
   })
   render(withI18n(() => <App apis={apis} history={history} />, 'en'))
-  return { materials }
+  return { materials, runs: apis.runs }
 }
 
 const renderTopic = (options: Parameters<typeof renderApp>[1] = {}) => renderApp('/courses/1/topics/2?tab=materials', options)
@@ -178,9 +186,57 @@ describe('classroom material of a topic', () => {
 
     const material = await item('Ser, or estar?')
     expect(material.getByRole('link', { name: 'Preview and print' })).toBeInTheDocument()
-    expect(material.queryByRole('button')).not.toBeInTheDocument()
+    // Releasing changes nothing of the material: a viewer who teaches a run may release it.
+    expect(material.getAllByRole('button').map((b) => b.textContent)).toEqual(['Release in a run…'])
     expect(material.queryByRole('textbox')).not.toBeInTheDocument()
     expect((await section()).queryByRole('button', { name: 'Generate material' })).not.toBeInTheDocument()
+  })
+})
+
+describe('releasing a material in a run', () => {
+  const inClass = { id: 7, courseId: 1, name: '2.B 2026/27', classIds: [1], studentIds: [] }
+  const releasable = { id: 41, topic: 'Pretérito indefinido', title: 'Ser, or estar?', versions: [1], target_student_ids: [] }
+
+  it('releases it in a chosen run after a summary, then says where it is released', async () => {
+    const { runs } = renderTopic({ materials: [serEstarMaterial], runs: { runs: [inClass], materials: [releasable] } })
+    const user = userEvent.setup()
+
+    await user.click((await item('Ser, or estar?')).getByRole('button', { name: 'Release in a run…' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Release in a run' }))
+    await user.selectOptions(await dialog.findByLabelText('Course run'), '7')
+    expect(await dialog.findByText('Ser, or estar?')).toBeInTheDocument()
+    await user.click(dialog.getByRole('button', { name: 'Continue to the summary' }))
+    expect(await dialog.findByText('Students who will see the material right away: 1')).toBeInTheDocument()
+    await user.click(dialog.getByRole('button', { name: 'Release' }))
+
+    expect(runs.release).toHaveBeenCalledWith(7, expect.objectContaining({ material_id: 41, version: 1, audience: 'run' }))
+    const material = await item('Ser, or estar?')
+    expect(await material.findByRole('link', { name: '2.B 2026/27 (version 1)' })).toHaveAttribute(
+      'href',
+      expect.stringMatching(/^\/runs\/7\/releases\/\d+$/),
+    )
+  })
+
+  it('says when the material cannot be released in the run chosen', async () => {
+    renderTopic({ materials: [serEstarMaterial], runs: { runs: [inClass], materials: [] } })
+    const user = userEvent.setup()
+
+    await user.click((await item('Ser, or estar?')).getByRole('button', { name: 'Release in a run…' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Release in a run' }))
+    await user.selectOptions(await dialog.findByLabelText('Course run'), '7')
+
+    expect(await dialog.findByRole('alert')).toHaveTextContent('This material has no version to release; it may have been discarded.')
+  })
+
+  it('leads to the course runs when the teacher teaches none', async () => {
+    renderTopic({ materials: [serEstarMaterial] })
+    const user = userEvent.setup()
+
+    await user.click((await item('Ser, or estar?')).getByRole('button', { name: 'Release in a run…' }))
+
+    const dialog = within(screen.getByRole('dialog', { name: 'Release in a run' }))
+    expect(await dialog.findByText('You teach no run of this course yet. Start one first.')).toBeInTheDocument()
+    expect(dialog.getByRole('link', { name: 'Go to the course runs' })).toHaveAttribute('href', '/courses/1?tab=runs')
   })
 })
 

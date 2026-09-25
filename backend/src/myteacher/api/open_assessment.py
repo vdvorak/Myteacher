@@ -11,9 +11,10 @@ from myteacher.accounts.models import Account
 from myteacher.api.attempts import AssessmentReview
 from myteacher.api.deps import Db, Now, requires
 from myteacher.api.jobs import JobOut
-from myteacher.api.runs import taught_run
+from myteacher.api.runs import StudentRef, taught_run
 from myteacher.assistant.service import paying_credential
 from myteacher.jobs import runner
+from myteacher.lesson.schema import ExerciseAnswer, OpenExercise
 from myteacher.persistence import InstanceSession
 from myteacher.policy import is_teacher
 from myteacher.runs import attempts, open_assessment, releases
@@ -30,6 +31,27 @@ class AssessmentStarted(BaseModel):
 class OverrideIn(BaseModel):
     score: Annotated[float, Field(ge=0, le=1)]
     reason: Annotated[str, AfterValidator(str.strip), Field(min_length=1, max_length=1000)]
+
+
+class StudentView(BaseModel):
+    """What the student sees of an assessment once results are published."""
+
+    score: float | None
+    feedback: str | None
+    reason: str | None
+
+
+class OpenAnswer(BaseModel):
+    # The assessment's id, which an override names.
+    id: int
+    student: StudentRef
+    exercise_id: str
+    round: str
+    prompt: str | None
+    answer: ExerciseAnswer
+    review: AssessmentReview
+    # What the student will see once published; None while there is nothing to show.
+    student_view: StudentView | None
 
 
 class Published(BaseModel):
@@ -121,3 +143,50 @@ def publish_results(run_id: int, release_id: int, db: Db, now: Now, actor: Teach
     released = _release(db, run, release_id)
     attempts.close_past_due_of(db, released, now)
     return Published(published=open_assessment.publish(db, released))
+
+
+@router.get("/runs/{run_id}/releases/{release_id}/open-answers")
+def list_open_answers(
+    run_id: int, release_id: int, db: Db, now: Now, actor: Teacher
+) -> list[OpenAnswer]:
+    """The open answers of the attempts that count, to go through one at a time: the flagged
+    ones first, then those waiting, then the assessed ones, each by student."""
+    run = taught_run(db, actor, run_id)
+    released = _release(db, run, release_id)
+    attempts.close_past_due_of(db, released, now)
+    lesson = attempts.lesson_of(db, released)
+    students = {}
+    listed = []
+    rows = open_assessment.assessments_of(db, released)
+    submitted = [db.get_one(Attempt, attempt_id) for attempt_id in {row.attempt_id for row in rows}]
+    # The attempt that counts is each student's last submitted one.
+    counting = {}
+    for attempt in sorted(submitted, key=lambda a: a.number):
+        counting[attempt.student_id] = attempt.id
+    for row in rows:
+        exercise = lesson.exercise(row.exercise_id)
+        if not isinstance(exercise, OpenExercise) or row.attempt_id not in counting.values():
+            continue
+        attempt = db.get_one(Attempt, row.attempt_id)
+        student = students.get(attempt.student_id) or db.get_one(Account, attempt.student_id)
+        students[student.id] = student
+        view = open_assessment.to_publish(row)
+        listed.append(
+            OpenAnswer(
+                id=row.id,
+                student=StudentRef(id=student.id, name=student.name or ""),
+                exercise_id=row.exercise_id,
+                round=row.round,
+                prompt=getattr(exercise, "prompt", None) or getattr(exercise, "source_text", None),
+                answer=attempts.answer_of(row),
+                review=AssessmentReview.of(row),
+                student_view=StudentView(**view) if view else None,
+            )
+        )
+
+    def order(answer: OpenAnswer) -> tuple:
+        review = answer.review
+        flagged = review.flagged and review.score is None
+        return (not flagged, review.score is not None, answer.student.name, answer.id)
+
+    return sorted(listed, key=order)

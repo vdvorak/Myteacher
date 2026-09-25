@@ -79,7 +79,7 @@ def material(teacher, topic, models) -> dict:
 
 
 def test_a_material_version_is_released_to_the_whole_run_with_default_settings(
-    teacher, run, material, clock
+    teacher, topic, run, material, clock
 ):
     me = teacher.get("/api/auth/me").json()
 
@@ -92,6 +92,7 @@ def test_a_material_version_is_released_to_the_whole_run_with_default_settings(
         "material_id": material["id"],
         "title": MATERIAL["title"],
         "topic": "Pretérito indefinido",
+        "topic_id": topic[1],
         "version": 1,
         "audience": "run",
         "students": [],
@@ -101,7 +102,8 @@ def test_a_material_version_is_released_to_the_whole_run_with_default_settings(
         "retraction_reason": None,
         **DEFAULTS,
     }
-    assert teacher.get(releases_url(run["id"])).json() == [body]
+    listed = {"submitted": 0, "total": 2, "waiting": 0, "overdue_student_ids": []}
+    assert teacher.get(releases_url(run["id"])).json() == [{**body, **listed}]
 
 
 def test_every_setting_is_stored(teacher, run, material):

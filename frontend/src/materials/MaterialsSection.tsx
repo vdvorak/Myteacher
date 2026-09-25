@@ -8,6 +8,7 @@ import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import { finished } from '../jobs/api'
 import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
+import { ReleaseDialog } from '../runs/ReleaseDialog'
 import { MaterialRefused, type MaterialRefusal, type MaterialSummary } from './api'
 
 const refusals: Record<Exclude<MaterialRefusal, 'no_provider_key'>, MessageKey> = {
@@ -194,13 +195,26 @@ function MaterialCard(props: {
   onChanged: () => Promise<void>
 }) {
   const { t } = useI18n()
-  const api = useApi().materials
+  const apis = useApi()
+  const api = apis.materials
   const [busy, setBusy] = createSignal(false)
   const [problem, setProblem] = createSignal<Problem>(null)
   const [confirming, setConfirming] = createSignal(false)
   const [kept, setKept] = createSignal(false)
   const [instruction, setInstruction] = createSignal('')
+  const [releasing, setReleasing] = createSignal(false)
   const headingId = `material-${props.material.id}`
+  // The runs it is released in; the material still shows without them.
+  const [releasedIn, { refetch: refetchReleases }] = createResource(
+    () => props.material.version !== null,
+    async () => {
+      try {
+        return await apis.runs.materialReleases(props.courseId, props.topicId, props.material.id)
+      } catch {
+        return []
+      }
+    },
+  )
   // The latest version's history, for the instruction it was reworked by.
   const [detail, { refetch }] = createResource(
     () => props.material.version,
@@ -263,6 +277,21 @@ function MaterialCard(props: {
           </p>
         )}
       </Show>
+      <Show when={(releasedIn() ?? []).length > 0}>
+        <p class="settings-note">
+          {t('materials.releasedIn')}{' '}
+          <For each={releasedIn()}>
+            {(released, index) => (
+              <>
+                {index() > 0 ? ', ' : ''}
+                <A href={`/runs/${released.run_id}/releases/${released.release_id}`}>
+                  {t('materials.releasedRun', { run: released.run_name, version: released.version })}
+                </A>
+              </>
+            )}
+          </For>
+        </p>
+      </Show>
       <p class="settings-note">
         {props.material.target_student_ids.length > 0
           ? t('materials.for', { names: props.material.target_student_ids.map(props.nameOf).join(', ') })
@@ -288,6 +317,9 @@ function MaterialCard(props: {
           <A href={`/preview/courses/${props.courseId}/topics/${props.topicId}/materials/${props.material.id}`}>
             {t('materials.preview')}
           </A>
+          <button type="button" onClick={() => setReleasing(true)}>
+            {t('materials.releaseInRun')}
+          </button>
         </Show>
         <Show when={props.canEdit && !running()}>
           <Show when={props.material.version === null && failure()}>
@@ -341,6 +373,14 @@ function MaterialCard(props: {
         </form>
       </Show>
       <ProblemMessage problem={problem()} />
+      <Show when={releasing()}>
+        <ReleaseDialog
+          courseId={props.courseId}
+          materialId={props.material.id}
+          onClose={() => setReleasing(false)}
+          onReleased={() => void refetchReleases()}
+        />
+      </Show>
     </article>
   )
 }

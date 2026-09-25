@@ -172,14 +172,13 @@ describe('account menu', () => {
 describe('confirmation on a page that is left', () => {
   it('is cancelled when the page changes under it', async () => {
     const history = createMemoryHistory()
-    history.set({ value: '/runs/7' })
+    history.set({ value: '/runs/7?tab=students' })
     const runs = fakeRunsApi({ runs: [{ id: 7, courseId: spanish.id, name: 'Běh', classIds: [1], studentIds: [] }] })
     const apis = fakeApis({ auth: fakeAuthApi({ signedIn: teacher }), runs, courses: fakeCoursesApi({ courses: [spanish] }) })
     render(withI18n(() => <App apis={apis} history={history} />, 'en'))
     const user = userEvent.setup()
 
-    const enrolled = await screen.findByRole('table', { name: 'Enrolled classes' })
-    await user.click(within(enrolled).getByRole('button', { name: 'Remove' }))
+    await user.click(await screen.findByRole('button', { name: /Remove the class/ }))
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
     history.set({ value: '/courses' })
 

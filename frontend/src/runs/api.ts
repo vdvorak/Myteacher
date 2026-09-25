@@ -1,4 +1,5 @@
 import type { AssessmentReview, Attempt } from '../attempts/api'
+import type { RenderedAnswer } from '../lesson/schema'
 import type { Job } from '../jobs/api'
 import type { ClassSummary } from '../classes/api'
 import type { FeedbackMode } from '../courses/api'
@@ -97,6 +98,7 @@ export interface Release extends ReleaseSettings {
   /** Of the released version. */
   title: string
   topic: string
+  topic_id: number
   version: number
   audience: 'run' | 'chosen'
   /** The chosen students; empty for a release to the whole run. */
@@ -106,6 +108,40 @@ export interface Release extends ReleaseSettings {
   /** Set once the teacher retracted it, with the reason the students were told. */
   retracted_at: string | null
   retraction_reason: string | null
+}
+
+/** A release as the run lists it, with how far its students got. */
+export interface ListedRelease extends Release {
+  /** How many of its recipients submitted an attempt that counts, of how many. */
+  submitted: number
+  total: number
+  /** Open answers waiting for an assessment. */
+  waiting: number
+  /** The recipients who did not submit by the due date, once it passed. */
+  overdue_student_ids: number[]
+}
+
+/** A run a material is released in, from a release not retracted. */
+export interface MaterialReleased {
+  run_id: number
+  run_name: string
+  release_id: number
+  version: number
+  released_at: string
+}
+
+/** One open answer of a release, to assess one at a time. */
+export interface OpenAnswer {
+  /** The assessment's id, which an override names. */
+  id: number
+  student: { id: number; name: string }
+  exercise_id: string
+  round: 'first' | 'second'
+  prompt: string | null
+  answer: RenderedAnswer
+  review: AssessmentReview
+  /** What the student will see once published; null while there is nothing to show. */
+  student_view: { score: number | null; feedback: string | null; reason: string | null } | null
 }
 
 /** How an exercise went in the attempt that counts. */
@@ -209,8 +245,12 @@ export interface RunsApi {
   unenrolStudent(id: number, studentId: number): Promise<CourseRun>
   /** The classroom material of the run's course that can be released, in topic order. */
   materials(id: number): Promise<ReleasableMaterial[]>
-  releases(id: number): Promise<Release[]>
+  releases(id: number): Promise<ListedRelease[]>
   release(id: number, release: NewRelease): Promise<Release>
+  /** The runs the teacher teaches that the material is released in. */
+  materialReleases(courseId: number, topicId: number, materialId: number): Promise<MaterialReleased[]>
+  /** The open answers of the release: the flagged first, then those waiting, then the assessed. */
+  openAnswers(id: number, releaseId: number): Promise<OpenAnswer[]>
   /** The run teacher's view of a release: students × exercises from the attempts that count. */
   results(id: number, releaseId: number): Promise<ReleaseResults>
   studentResults(id: number, releaseId: number, studentId: number): Promise<StudentAttempts>
@@ -255,6 +295,9 @@ export const httpRunsApi: RunsApi = {
   materials: async (id) => json(await fetch(`/api/runs/${id}/materials`)),
   releases: async (id) => json(await fetch(`/api/runs/${id}/releases`)),
   release: async (id, release) => released(await send('POST', `/api/runs/${id}/releases`, release)),
+  materialReleases: async (courseId, topicId, materialId) =>
+    json(await fetch(`/api/courses/${courseId}/topics/${topicId}/classroom-materials/${materialId}/releases`)),
+  openAnswers: async (id, releaseId) => json(await fetch(`/api/runs/${id}/releases/${releaseId}/open-answers`)),
   results: async (id, releaseId) => json(await fetch(`/api/runs/${id}/releases/${releaseId}/results`)),
   studentResults: async (id, releaseId, studentId) =>
     json(await fetch(`/api/runs/${id}/releases/${releaseId}/results/${studentId}`)),

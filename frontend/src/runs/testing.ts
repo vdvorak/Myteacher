@@ -11,6 +11,8 @@ import {
   type NewRelease,
   type ReleasableMaterial,
   type Release,
+  type ListedRelease,
+  type OpenAnswer,
   type ReleaseResults,
   type RunsApi,
   type StudentAttempts,
@@ -46,7 +48,11 @@ export function fakeRunsApi(
     results?: Record<number, ReleaseResults>
     /** By `${releaseId}:${studentId}`. */
     studentResults?: Record<string, StudentAttempts>
+    /** By release id. */
+    openAnswers?: Record<number, OpenAnswer[]>
     jobs?: FakeJobs
+    /** What the fake takes for now, for due dates. */
+    now?: string
   } = {},
 ) {
   let runs = options.runs ?? []
@@ -57,6 +63,12 @@ export function fakeRunsApi(
   const jobs = options.jobs ?? fakeJobsApi()
   const results: Record<number, ReleaseResults> = structuredClone(options.results ?? {})
   const studentResults: Record<string, StudentAttempts> = structuredClone(options.studentResults ?? {})
+  const openAnswers: Record<number, OpenAnswer[]> = structuredClone(options.openAnswers ?? {})
+  const now = new Date(options.now ?? '2026-09-25T12:00:00Z')
+  // Like the backend: the flagged first, then those waiting, then the assessed, each by student.
+  const rank = (a: OpenAnswer) => (a.review.flagged && a.review.score === null ? 0 : a.review.score === null ? 1 : 2)
+  const sorted = (list: OpenAnswer[]) =>
+    [...list].sort((a, b) => rank(a) - rank(b) || a.student.name.localeCompare(b.student.name) || a.id - b.id)
   const resultsOf = (releaseId: number) => {
     const found = results[releaseId]
     if (!found) throw new ApiError(404)
@@ -161,9 +173,37 @@ export function fakeRunsApi(
       find(id)
       return materials.map((m) => ({ ...m, versions: [...m.versions], target_student_ids: [...m.target_student_ids] }))
     }),
-    releases: vi.fn(async (id: number) => {
+    releases: vi.fn(async (id: number): Promise<ListedRelease[]> => {
+      const roster = resolve(find(id)).roster
+      return (releases[id] ?? []).map((r) => {
+        const recipients = r.audience === 'chosen' ? r.students.map((s) => s.id) : roster.map((s) => s.id)
+        const done = (results[r.id]?.students ?? []).filter((s) => s.state === 'submitted').map((s) => s.id)
+        const overdue = r.due_at !== null && new Date(r.due_at) < now && !r.retracted_at
+        return {
+          ...structuredClone(r),
+          submitted: recipients.filter((s) => done.includes(s)).length,
+          total: recipients.length,
+          waiting: results[r.id]?.open_answers.waiting ?? 0,
+          overdue_student_ids: overdue ? recipients.filter((s) => !done.includes(s)) : [],
+        }
+      })
+    }),
+    materialReleases: vi.fn(async (_courseId: number, _topicId: number, materialId: number) =>
+      runs.flatMap((run) =>
+        (releases[run.id] ?? [])
+          .filter((r) => r.material_id === materialId && !r.retracted_at)
+          .map((r) => ({
+            run_id: run.id,
+            run_name: run.name,
+            release_id: r.id,
+            version: r.version,
+            released_at: r.released_at,
+          })),
+      ),
+    ),
+    openAnswers: vi.fn(async (id: number, releaseId: number) => {
       find(id)
-      return (releases[id] ?? []).map((r) => ({ ...r, students: [...r.students] }))
+      return structuredClone(sorted(openAnswers[releaseId] ?? []))
     }),
     release: vi.fn(async (id: number, release: NewRelease) => {
       const roster = resolve(find(id)).roster
@@ -180,6 +220,7 @@ export function fakeRunsApi(
         material_id,
         title: material.title,
         topic: material.topic,
+        topic_id: 2,
         version,
         audience,
         students: chosen.map(({ id, name }) => ({ id, name })),
@@ -216,7 +257,12 @@ export function fakeRunsApi(
     }),
     override: vi.fn(async (id: number, releaseId: number, assessmentId: number, score: number, reason: string) => {
       find(id)
-      const review = reviewsOf(releaseId).find((r) => r.id === assessmentId)
+      const answer = (openAnswers[releaseId] ?? []).find((a) => a.id === assessmentId)
+      if (answer) {
+        Object.assign(answer.review, { score, override_score: score, override_reason: reason, published: false })
+        answer.student_view = { score, feedback: answer.review.feedback, reason }
+      }
+      const review = reviewsOf(releaseId).find((r) => r.id === assessmentId) ?? answer?.review
       if (!review) throw new ApiError(404)
       Object.assign(review, { score, override_score: score, override_reason: reason, published: false })
       resultsOf(releaseId).open_answers.unpublished += 1
@@ -243,6 +289,7 @@ export function fakeRunsApi(
       const count = open.unpublished
       open.unpublished = 0
       for (const review of reviewsOf(releaseId)) review.published = true
+      for (const answer of openAnswers[releaseId] ?? []) answer.review.published = true
       return count
     }),
   } satisfies RunsApi

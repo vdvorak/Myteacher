@@ -79,39 +79,61 @@ describe('runs of a course', () => {
 })
 
 describe('run page', () => {
-  it('shows the course and the roster, with how each student is enrolled', async () => {
-    renderApp('/runs/7', { runs: [run({ classIds: [1], studentIds: [jana.id, petr.id] })] })
+  it('shows the run in tabs, the overview first', async () => {
+    renderApp('/runs/7', { runs: [run()] })
 
-    expect(await screen.findByRole('heading', { name: 'Španělština 2.B 2026/27' })).toBeInTheDocument()
+    const tabs = within(await screen.findByRole('navigation', { name: 'Course run' }))
+    expect(tabs.getAllByRole('link').map((link) => link.textContent)).toEqual(['Overview', 'Releases', 'Students', 'Settings'])
+    expect(tabs.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page')
+    expect(tabs.getByRole('link', { name: 'Students' })).toHaveAttribute('href', '/runs/7?tab=students')
     expect(screen.getByRole('link', { name: spanish.name })).toHaveAttribute('href', `/courses/${spanish.id}`)
-    expect(within(await rowOf('Roster', 'Jana Veselá')).getByText('2.B 2026/27, directly')).toBeInTheDocument()
-    expect(within(await rowOf('Roster', 'Petr Malý')).getByText('directly')).toBeInTheDocument()
-    // Ota is in the class but deactivated.
-    expect((await table('Roster')).queryByText('Ota Starý')).not.toBeInTheDocument()
   })
 
-  it('enrols a class and a student, and removes them again', async () => {
-    const { runs } = renderApp('/runs/7', { runs: [run()] })
+  it('starts a new run with enrolling a class, then releasing the first material', async () => {
+    renderApp('/runs/7', { runs: [run()] })
+
+    const start = within(await screen.findByRole('region', { name: 'Start the run' }))
+    expect(start.getByRole('link', { name: 'Enrol a class, not done yet' })).toHaveAttribute('href', '/runs/7?tab=students')
+    expect(start.getByRole('button', { name: 'Release the first material' })).toBeInTheDocument()
+  })
+
+  it('lists every student once, saying how each is enrolled, with the classes above', async () => {
+    renderApp('/runs/7?tab=students', { runs: [run({ classIds: [1], studentIds: [jana.id, petr.id] })] })
+
+    expect(within(await rowOf('Students', 'Jana Veselá')).getByText('2.B 2026/27, directly')).toBeInTheDocument()
+    expect(within(await rowOf('Students', 'Petr Malý')).getByText('directly')).toBeInTheDocument()
+    // Ota is in the class but deactivated.
+    expect((await table('Students')).queryByText('Ota Starý')).not.toBeInTheDocument()
+    const chips = within(screen.getByRole('list', { name: 'Enrolled classes' }))
+    expect(chips.getByRole('link', { name: '2.B 2026/27' })).toHaveAttribute('href', '/classes/1')
+  })
+
+  it('enrols a class and a student in one dialog, and removes them again', async () => {
+    const { runs } = renderApp('/runs/7?tab=students', { runs: [run()] })
     const user = userEvent.setup()
 
-    await user.selectOptions(await screen.findByLabelText('Enrol a class'), '2.B 2026/27')
-    await user.click(screen.getByRole('button', { name: 'Enrol class' }))
-    await user.selectOptions(screen.getByLabelText('Enrol a student'), String(petr.id))
-    await user.click(screen.getByRole('button', { name: 'Enrol student' }))
+    await user.click(await screen.findByRole('button', { name: 'Enrol a class or student' }))
+    let dialog = within(screen.getByRole('dialog', { name: 'Enrol a class or student' }))
+    await user.selectOptions(dialog.getByLabelText('Enrol a class'), '2.B 2026/27')
+    await user.click(dialog.getByRole('button', { name: 'Enrol class' }))
+    await user.click(await screen.findByRole('button', { name: 'Enrol a class or student' }))
+    dialog = within(screen.getByRole('dialog', { name: 'Enrol a class or student' }))
+    await user.selectOptions(dialog.getByLabelText('Enrol a student'), String(petr.id))
+    await user.click(dialog.getByRole('button', { name: 'Enrol student' }))
 
     expect(runs.enrolClass).toHaveBeenCalledWith(7, 1)
     expect(runs.enrolStudent).toHaveBeenCalledWith(7, petr.id)
-    expect(await rowOf('Roster', 'Jana Veselá')).toBeInTheDocument()
-    expect(await rowOf('Roster', 'Petr Malý')).toBeInTheDocument()
+    expect(await rowOf('Students', 'Jana Veselá')).toBeInTheDocument()
+    expect(await rowOf('Students', 'Petr Malý')).toBeInTheDocument()
 
-    await user.click(within(await rowOf('Enrolled classes', '2.B 2026/27')).getByRole('button', { name: 'Remove' }))
+    await user.click(screen.getByRole('button', { name: 'Remove the class 2.B 2026/27 from the run' }))
     expect(runs.unenrolClass).not.toHaveBeenCalled()
     await user.click(
       within(screen.getByRole('alertdialog', { name: 'Remove 2.B 2026/27 from the run?' })).getByRole('button', {
         name: 'Remove',
       }),
     )
-    await user.click(within(await rowOf('Enrolled students', 'Petr Malý')).getByRole('button', { name: 'Remove' }))
+    await user.click(within(await rowOf('Students', 'Petr Malý')).getByRole('button', { name: 'Remove' }))
     await user.click(
       within(screen.getByRole('alertdialog', { name: 'Remove Petr Malý from the run?' })).getByRole('button', {
         name: 'Remove',
@@ -123,37 +145,45 @@ describe('run page', () => {
     expect(await screen.findByText('No students in this run yet.')).toBeInTheDocument()
   })
 
+  it('removes only direct enrolments from a row; a class student leaves with the class', async () => {
+    renderApp('/runs/7?tab=students', { runs: [run({ classIds: [1] })] })
+
+    expect(within(await rowOf('Students', 'Jana Veselá')).queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+  })
+
   it('keeps a class enrolled when removing it is cancelled', async () => {
-    const { runs } = renderApp('/runs/7', { runs: [run({ classIds: [1] })] })
+    const { runs } = renderApp('/runs/7?tab=students', { runs: [run({ classIds: [1] })] })
     const user = userEvent.setup()
 
-    await user.click(within(await rowOf('Enrolled classes', '2.B 2026/27')).getByRole('button', { name: 'Remove' }))
+    await user.click(await screen.findByRole('button', { name: 'Remove the class 2.B 2026/27 from the run' }))
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' }))
 
     expect(runs.unenrolClass).not.toHaveBeenCalled()
-    expect(await rowOf('Enrolled classes', '2.B 2026/27')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '2.B 2026/27' })).toBeInTheDocument()
   })
 
   it('offers only classes and students not enrolled yet', async () => {
-    renderApp('/runs/7', { runs: [run({ classIds: [1], studentIds: [petr.id] })] })
+    renderApp('/runs/7?tab=students', { runs: [run({ classIds: [1], studentIds: [petr.id] })] })
+    const user = userEvent.setup()
 
-    const classChoice = within(await screen.findByLabelText('Enrol a class'))
+    await user.click(await screen.findByRole('button', { name: 'Enrol a class or student' }))
+    const dialog = within(screen.getByRole('dialog'))
+    const classChoice = within(dialog.getByLabelText('Enrol a class'))
     expect(classChoice.queryByRole('option', { name: '2.B 2026/27' })).not.toBeInTheDocument()
-    expect(classChoice.getByRole('option', { name: '2.A 2026/27' })).toBeInTheDocument()
-    const studentChoice = within(screen.getByLabelText('Enrol a student'))
+    expect(await classChoice.findByRole('option', { name: '2.A 2026/27' })).toBeInTheDocument()
+    const studentChoice = within(dialog.getByLabelText('Enrol a student'))
     expect(studentChoice.queryByRole('option', { name: /Petr Malý/ })).not.toBeInTheDocument()
   })
 
-  it('shows a directly enrolled minor awaiting consent, who is not on the roster yet', async () => {
-    renderApp('/runs/7', { runs: [run({ studentIds: [eva.id] })] })
+  it('shows a directly enrolled minor awaiting consent in the list, marked', async () => {
+    renderApp('/runs/7?tab=students', { runs: [run({ studentIds: [eva.id] })] })
 
-    expect(within(await rowOf('Enrolled students', 'Eva Malá')).getByText('Awaiting consent')).toBeInTheDocument()
-    expect(screen.getByText('No students in this run yet.')).toBeInTheDocument()
+    expect(within(await rowOf('Students', 'Eva Malá')).getByText('Awaiting consent')).toBeInTheDocument()
     expect(screen.getByText(/deactivated students and minors awaiting consent/)).toBeInTheDocument()
   })
 
-  it('renames the run', async () => {
-    const { runs } = renderApp('/runs/7', { runs: [run()] })
+  it('renames the run in its settings', async () => {
+    const { runs } = renderApp('/runs/7?tab=settings', { runs: [run()] })
     const user = userEvent.setup()
 
     const name = await screen.findByLabelText('Run name')
