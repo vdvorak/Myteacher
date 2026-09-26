@@ -27,7 +27,7 @@ Marking a student's or teacher's account inactive. Nothing is physically removed
 _Avoid_: deletion, removal, archiving
 
 **Erasure**:
-The separate admin action that physically removes a student's answers, notes and concept states to satisfy a legal request.
+The separate admin action that physically removes a student's answers, scans, notes and concept states to satisfy a legal request.
 _Avoid_: hard delete, purge, GDPR delete
 
 **Guardian Consent**:
@@ -97,7 +97,7 @@ The structured description of a course produced by the teacher interview: audien
 _Avoid_: mission, settings, profile
 
 **Teacher Interview**:
-The relentless questioning the assistant runs before generating anything: thorough once per course, brief per topic. Czech: úvodní rozhovor.
+The relentless questioning the assistant runs before generating anything: thorough once per course, brief per topic. When the teacher supplies a textbook, it confirms and completes the assistant's proposal drawn from it instead of asking blind. Czech: úvodní rozhovor.
 _Avoid_: wizard, onboarding, setup
 
 **Topic**:
@@ -113,7 +113,7 @@ The set of concepts belonging to a topic, proposed by the assistant and approved
 _Avoid_: curriculum, syllabus, knowledge graph
 
 **Source**:
-Material supplied by the teacher (textbook chapter, document, URL) that generated content must cite.
+Material supplied by the teacher (textbook or its chapter, document, scan, URL) that generated content must cite. A source may belong to one topic, as a textbook chapter does.
 _Avoid_: resource, attachment, reference
 
 **Reference Document**:
@@ -121,8 +121,24 @@ A compressed, printable summary distilled from lessons, such as a vocabulary she
 _Avoid_: handout, cheat sheet, summary
 
 **Classroom Material**:
-A printable or projectable set of exercises or text generated for a topic for use in the classroom, for the whole run or for chosen students, and checked by the teacher. The same for every student who gets it, unlike a lesson; the teacher may also hand it to students to complete in the app.
+A printable or projectable set of exercises or text for a topic, generated or transcribed faithfully from a teacher's source such as a scanned test, for use in the classroom, for the whole run or for chosen students, and checked by the teacher. The same for every student who gets it, unlike a lesson; the teacher may also hand it to students to complete in the app.
 _Avoid_: worksheet, handout, class lesson
+
+**Paper-only Exercise**:
+An exercise of a classroom material that is printed but neither completed nor assessed in the app, because no exercise type can represent it. Czech: jen na papír.
+_Avoid_: offline exercise, skipped exercise
+
+**Paper Sitting**:
+A classroom material handed out on paper to chosen students of a course run as personal copies, whose scanned sheets become their attempts. Czech: písemka na papíře.
+_Avoid_: handout, paper test, offline release
+
+**Grading Scheme**:
+A teacher's named set of percentage thresholds, each with a label such as a school mark or pass, turning the points of an attempt on a classroom material into a mark. Copied from built-in presets or made from scratch, chosen per course run and overridable per release or paper sitting. Czech: hodnotící systém.
+_Avoid_: grade scale, marking scheme, scoring system
+
+**Transcription Review**:
+The teacher's confirmation of the assistant's reading of a student's handwritten answers, beside the scan, before they are assessed. Czech: kontrola přepisu.
+_Avoid_: OCR check, proofreading
 
 ### Lessons and exercises
 
@@ -131,7 +147,7 @@ The unit a student receives: a short explanation followed by exercises, completa
 _Avoid_: assignment, homework, session, task
 
 **Attempt**:
-One student's pass through one version of a lesson or of a released classroom material, from opening to submission. Czech: průchod lekcí. A voided attempt keeps its answers for the teacher but counts for nothing.
+One student's pass through one version of a lesson or of a released classroom material, from opening to submission, or the student's scanned sheets of a paper sitting. Czech: průchod lekcí. A voided attempt keeps its answers for the teacher but counts for nothing.
 _Avoid_: run (reserved for Course Run), session, try, pass
 
 **Exercise**:
