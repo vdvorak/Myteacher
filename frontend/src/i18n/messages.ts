@@ -134,6 +134,8 @@ const en = {
   'courses.closeBasics': 'Close',
   'courses.briefDone': 'The brief is done',
   'courses.briefDoneNote': 'Without the interview, say when the brief says enough; the assistant works from it.',
+  'courses.briefNote':
+    'The brief shapes everything the assistant generates for this course. To turn a test you already have into classroom material, a topic is enough; the brief can wait.',
   'courses.skipSources': 'Continue without sources',
   'courses.sourcesSkipped': 'You go on without sources; the assistant marks what it writes as unsourced.',
   'courses.useSources': 'Use sources after all',
@@ -522,7 +524,10 @@ const en = {
   'sources.kindPage': 'A web page',
   'sources.kindText': 'Pasted text',
   'sources.closeAdding': 'Close',
-  'sources.intro': 'Your textbook, handouts and notes. The assistant works from the text read from them, which you can check here.',
+  'sources.intro':
+    'Your textbook, handouts and notes. When the assistant generates classroom material or reference documents, it draws on the text read from all of them; you can check that text here.',
+  'sources.transcribeNote':
+    'A test or worksheet you want to use as it is becomes classroom material in a topic: open the topic, its {tab} tab, and pick the source under “{action}”.',
   'sources.loadFailed': 'The sources could not be loaded.',
   'sources.none': 'No sources yet.',
   'sources.kind.pdf': 'PDF',
@@ -829,7 +834,7 @@ const en = {
   'home.stepDone': 'done',
   'home.stepOpen': 'not done yet',
   'home.step.assistant': 'Connect the assistant',
-  'home.step.course': 'Create a course and go through the interview',
+  'home.step.course': 'Create a course and prepare its brief',
   'home.step.sources': 'Add sources',
   'home.step.conceptMap': 'Add topics and approve a concept map',
   'home.step.material': 'Create classroom material',
@@ -1169,6 +1174,8 @@ const cs: Record<MessageKey, string> = {
   'courses.closeBasics': 'Zavřít',
   'courses.briefDone': 'Zadání je hotové',
   'courses.briefDoneNote': 'Bez rozhovoru dejte vědět, až zadání řekne dost; asistent z něj vychází.',
+  'courses.briefNote':
+    'Zadání určuje všechno, co asistent pro kurz generuje. Chcete-li z testu, který už máte, udělat materiál do výuky, stačí téma; zadání může počkat.',
   'courses.skipSources': 'Pokračovat bez zdrojů',
   'courses.sourcesSkipped': 'Pokračujete bez zdrojů; asistent označí, co napíše, jako nepodložené zdrojem.',
   'courses.useSources': 'Přece jen použít zdroje',
@@ -1557,7 +1564,10 @@ const cs: Record<MessageKey, string> = {
   'sources.kindPage': 'Webovou stránku',
   'sources.kindText': 'Vložený text',
   'sources.closeAdding': 'Zavřít',
-  'sources.intro': 'Vaše učebnice, pracovní listy a poznámky. Asistent pracuje s textem, který se z nich přečetl; ten si tu můžete zkontrolovat.',
+  'sources.intro':
+    'Vaše učebnice, pracovní listy a poznámky. Když asistent generuje materiály do výuky nebo referenční dokumenty, vychází z textu přečteného ze všech; ten si tu můžete zkontrolovat.',
+  'sources.transcribeNote':
+    'Test nebo pracovní list, který chcete použít tak, jak je, se stane materiálem do výuky v tématu: otevřete téma, jeho záložku {tab} a v části „{action}“ vyberte zdroj.',
   'sources.loadFailed': 'Zdroje se nepodařilo načíst.',
   'sources.none': 'Zatím tu nejsou žádné zdroje.',
   'sources.kind.pdf': 'PDF',
@@ -1864,7 +1874,7 @@ const cs: Record<MessageKey, string> = {
   'home.stepDone': 'hotovo',
   'home.stepOpen': 'zatím nehotovo',
   'home.step.assistant': 'Připojte asistenta',
-  'home.step.course': 'Založte kurz a projděte úvodní rozhovor',
+  'home.step.course': 'Založte kurz a připravte jeho zadání',
   'home.step.sources': 'Přidejte zdroje',
   'home.step.conceptMap': 'Přidejte témata a schvalte mapu konceptů',
   'home.step.material': 'Vytvořte materiál do výuky',

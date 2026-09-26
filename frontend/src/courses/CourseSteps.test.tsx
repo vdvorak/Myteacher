@@ -97,6 +97,17 @@ describe('course steps', () => {
     expect(screen.getByRole('region', { name: 'Course brief' })).toBeInTheDocument()
   })
 
+  it('says the brief shapes what the assistant generates, and a test needs only a topic', async () => {
+    renderCourse()
+
+    expect(
+      await screen.findByText(
+        /The brief shapes everything the assistant generates.*To turn a test you already have into classroom material, a topic is enough/,
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go to the course topics' })).toHaveAttribute('href', '/courses/1?tab=topics')
+  })
+
   it('goes on without sources when the teacher chooses to, and back again', async () => {
     const { courses, user } = renderCourse({ path: '/courses/1?tab=sources', setup: { brief_confirmed: true } })
 
@@ -168,6 +179,8 @@ describe('course steps', () => {
       .map((link) => link.textContent)
     expect(links).not.toContain('Access')
     expect(screen.queryByRole('button', { name: 'The brief is done' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/a topic is enough/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Go to the course topics' })).not.toBeInTheDocument()
   })
 
   it('edits the basics from More actions', async () => {

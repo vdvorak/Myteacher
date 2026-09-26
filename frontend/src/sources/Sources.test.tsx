@@ -93,6 +93,17 @@ describe('course sources', () => {
     expect(source.queryByText(/El presente de ser/)).not.toBeInTheDocument()
   })
 
+  it('says what the sources are for, and where a test becomes classroom material', async () => {
+    renderSources()
+
+    const sources = await section()
+    expect(
+      sources.getByText(/when the assistant generates classroom material or reference documents, it draws on/i),
+    ).toBeInTheDocument()
+    expect(sources.getByText(/A test or worksheet you want to use as it is/)).toHaveTextContent('Create from a source')
+    expect(sources.getByRole('link', { name: 'Go to the course topics' })).toHaveAttribute('href', '/courses/1?tab=topics')
+  })
+
   it('says when there are no sources yet', async () => {
     renderSources({ sources: [] })
 
@@ -224,6 +235,8 @@ describe('course sources', () => {
 
     expect((await section()).queryByLabelText('File')).not.toBeInTheDocument()
     expect((await section()).queryByRole('button', { name: 'Add a source' })).not.toBeInTheDocument()
+    expect((await section()).getByText(/it draws on the text read from all of them/)).toBeInTheDocument()
+    expect((await section()).queryByRole('link', { name: 'Go to the course topics' })).not.toBeInTheDocument()
     expect(source.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
     expect(source.getByRole('checkbox', { name: 'Visible to students' })).toBeDisabled()
     await user.click(source.getByRole('button', { name: 'Show the text' }))

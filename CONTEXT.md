@@ -93,7 +93,7 @@ A student's membership in a course run, either direct or through a class.
 _Avoid_: registration, assignment, membership
 
 **Course Brief**:
-The structured description of a course produced by the teacher interview: audience, level, goals, timeframe, sources, preferred exercise types, tone, language of instruction. The counterpart of the teach skill's mission. Czech: zadání kurzu.
+The structured description of a course, produced by the teacher interview or written by the teacher: audience, level, goals, timeframe, sources, preferred exercise types, tone, language of instruction. The counterpart of the teach skill's mission. Czech: zadání kurzu.
 _Avoid_: mission, settings, profile
 
 **Teacher Interview**:

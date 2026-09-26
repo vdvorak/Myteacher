@@ -34,7 +34,7 @@ describe('the getting-started checklist', () => {
     const checklist = await screen.findByRole('region', { name: 'Getting started' })
     expect(within(checklist).getByText('0 of 7 done')).toBeInTheDocument()
     expect(hrefOf(checklist, /Connect the assistant/)).toBe('/settings')
-    expect(hrefOf(checklist, /Create a course/)).toBe('/courses')
+    expect(hrefOf(checklist, /Create a course and prepare its brief/)).toBe('/courses')
     expect(hrefOf(checklist, /Add sources/)).toBe('/courses')
     expect(hrefOf(checklist, /Create a class/)).toBe('/classes')
   })

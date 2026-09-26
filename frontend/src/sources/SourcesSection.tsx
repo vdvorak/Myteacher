@@ -1,3 +1,4 @@
+import { A } from '@solidjs/router'
 import { createResource, createSignal, For, Match, Show, Switch } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
@@ -84,6 +85,16 @@ export function SourcesSection(props: { courseId: number; canEdit: boolean; onCh
     <section class="settings-form sources" aria-labelledby="sources-heading">
       <h2 id="sources-heading">{t('sources.heading')}</h2>
       <p class="settings-note">{t('sources.intro')}</p>
+      <Show when={props.canEdit}>
+        <p class="settings-note">
+          {t('sources.transcribeNote', { tab: t('topicTabs.materials'), action: t('materials.fromSource') })}
+        </p>
+        <p>
+          <A class="button-link" href={`/courses/${props.courseId}?tab=topics`}>
+            {t('emptyState.toTopics')}
+          </A>
+        </p>
+      </Show>
       <Show when={loaded.error}>
         <p role="alert">{t('sources.loadFailed')}</p>
       </Show>

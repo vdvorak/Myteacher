@@ -264,6 +264,12 @@ function CourseDetail() {
               <Match when={current() === 'brief'}>
                 <div class="admin-section">
                   <Show when={loaded()!.can_edit}>
+                    <p class="settings-note">{t('courses.briefNote')}</p>
+                    <p>
+                      <A class="button-link" href={href('topics')}>
+                        {t('emptyState.toTopics')}
+                      </A>
+                    </p>
                     <CourseInterviewPanel courseId={id} onBriefChanged={() => void briefChanged()} />
                   </Show>
                   <Show when={`${briefRevision()}-${loaded()!.can_edit}`} keyed>
