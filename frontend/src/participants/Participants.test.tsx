@@ -1,14 +1,17 @@
 import { createMemoryHistory } from '@solidjs/router'
-import { render, screen, waitFor } from '@solidjs/testing-library'
+import { render, screen, waitFor, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import type { Locale } from '../i18n/messages'
+import { fakeAttemptsApi, releaseOf } from '../attempts/testing'
+import { ApiError } from '../lesson/api'
 import { withI18n } from '../lesson/testing'
 import { fakeParticipantsApi, lobbyRun } from './testing'
 
 beforeEach(() => localStorage.clear())
+afterEach(() => vi.useRealTimers())
 
 function renderApp(
   path: string,
@@ -214,5 +217,122 @@ describe('the personal link', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Počkej, až učitel začne.')
     const save = 'Ulož si tenhle odkaz, ať se můžeš vrátit, i z jiného zařízení.'
     expect(screen.getByText(save)).toBeInTheDocument()
+  })
+})
+
+describe('a participant’s work', () => {
+  const withWork = (attempts = fakeAttemptsApi({ releases: [releaseOf({ id: 1, title: 'Ser, or estar?' })] })) =>
+    fakeParticipantsApi({
+      runs: [{ ...lobbyRun, participants: [{ name: 'Eva Malá', token: 'personal-eva' }] }],
+      attempts,
+    })
+
+  it('shows the work to do instead of the lobby, once the teacher released it', async () => {
+    const participants = withWork()
+    renderApp('/participant#personal-eva', { participants })
+
+    const card = (await screen.findByRole('heading', { name: 'Ser, or estar?' })).closest('article')!
+    expect(within(card).getByRole('link', { name: 'Start' })).toHaveAttribute(
+      'href',
+      '/participant/work/1#personal-eva',
+    )
+    expect(screen.queryByText('Wait until your teacher starts.')).not.toBeInTheDocument()
+    expect(participants.attempts).toHaveBeenCalledWith('personal-eva')
+    expect(screen.queryByRole('button', { name: /sign out/i })).not.toBeInTheDocument()
+  })
+
+  it('shows the work as soon as it is released, without reloading', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const attempts = fakeAttemptsApi()
+    renderApp('/participant#personal-eva', { participants: withWork(attempts) })
+    expect(await screen.findByRole('status')).toHaveTextContent('Wait until your teacher starts.')
+
+    attempts.releases.mockResolvedValue([releaseOf({ id: 1, title: 'Ser, or estar?' })])
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    expect(await screen.findByRole('heading', { name: 'Ser, or estar?' })).toBeInTheDocument()
+  })
+
+  it('keeps the waiting message and the cards as they were across a poll', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const attempts = fakeAttemptsApi()
+    renderApp('/participant#personal-eva', { participants: withWork(attempts) })
+    const waiting = await screen.findByRole('status')
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(screen.getByRole('status')).toBe(waiting)
+
+    attempts.releases.mockResolvedValue([releaseOf({ id: 1, title: 'Ser, or estar?' })])
+    await vi.advanceTimersByTimeAsync(10_000)
+    const start = await screen.findByRole('link', { name: 'Start' })
+    start.focus()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(attempts.releases.mock.calls.length).toBeGreaterThanOrEqual(4)
+    expect(document.activeElement).toBe(start)
+  })
+
+  it('keeps showing the work when one poll fails', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const attempts = fakeAttemptsApi({ releases: [releaseOf({ id: 1, title: 'Ser, or estar?' })] })
+    renderApp('/participant#personal-eva', { participants: withWork(attempts) })
+    await screen.findByRole('heading', { name: 'Ser, or estar?' })
+
+    attempts.releases.mockRejectedValueOnce(new Error('offline'))
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    expect(screen.getByRole('heading', { name: 'Ser, or estar?' })).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows another participant’s own work when their link is opened in the same tab', async () => {
+    const participants = fakeParticipantsApi({
+      runs: [
+        {
+          ...lobbyRun,
+          participants: [
+            { name: 'Eva Malá', token: 'personal-eva' },
+            { name: 'Adam', token: 'personal-adam' },
+          ],
+        },
+      ],
+    })
+    const { history } = renderApp('/participant#personal-eva', { participants })
+    await screen.findByText('Hi, Eva Malá')
+
+    history.set({ value: '/participant#personal-adam' })
+
+    expect(await screen.findByText('Hi, Adam')).toBeInTheDocument()
+    await waitFor(() => expect(participants.attempts).toHaveBeenLastCalledWith('personal-adam'))
+  })
+
+  it('names the work and leads back home from it', async () => {
+    renderApp('/participant/work/1#personal-eva', { participants: withWork() })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ser, or estar?' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to your work' })).toHaveAttribute('href', '/participant#personal-eva')
+  })
+
+  it('says so when the personal link behind the work no longer works', async () => {
+    const attempts = fakeAttemptsApi()
+    attempts.release.mockRejectedValue(new ApiError(401))
+    renderApp('/participant/work/1#personal-gone', { participants: withWork(attempts) })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This link does not work. Ask your teacher for a new one.',
+    )
+  })
+
+  it('opens a piece of work behind the personal link, and starts it', async () => {
+    const attempts = fakeAttemptsApi({ releases: [releaseOf({ id: 1, title: 'Ser, or estar?' })] })
+    const { history } = renderApp('/participant#personal-eva', { participants: withWork(attempts) })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('link', { name: 'Start' }))
+
+    expect(history.get()).toBe('/participant/work/1#personal-eva')
+    expect(await screen.findByRole('heading', { name: 'Before you start' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Language')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Start' }))
+    await waitFor(() => expect(attempts.start).toHaveBeenCalledWith(1))
   })
 })

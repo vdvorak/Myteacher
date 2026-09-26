@@ -119,6 +119,7 @@ export function fakeRunsApi(
       capacity: stored.link?.capacity ?? null,
       join_token: stored.link?.joinToken ?? null,
       participant_count: stored.link?.participants.length ?? 0,
+      participants: (stored.link?.participants ?? []).map(({ id, name }) => ({ id, name })),
     }
   }
   const store = (next: StoredRun) => {
@@ -205,7 +206,9 @@ export function fakeRunsApi(
       return materials.map((m) => ({ ...m, versions: [...m.versions], target_student_ids: [...m.target_student_ids] }))
     }),
     releases: vi.fn(async (id: number): Promise<ListedRelease[]> => {
-      const roster = resolve(find(id)).roster
+      const stored = find(id)
+      // Like the backend: a link run's releases are for its participants.
+      const roster = stored.link?.participants ?? resolve(stored).roster
       return (releases[id] ?? []).map((r) => {
         const recipients = r.audience === 'chosen' ? r.students.map((s) => s.id) : roster.map((s) => s.id)
         const done = (results[r.id]?.students ?? []).filter((s) => s.state === 'submitted').map((s) => s.id)

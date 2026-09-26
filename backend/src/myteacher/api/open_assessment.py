@@ -17,7 +17,8 @@ from myteacher.jobs import runner
 from myteacher.lesson.schema import ExerciseAnswer, OpenExercise
 from myteacher.persistence import InstanceSession
 from myteacher.policy import is_teacher
-from myteacher.runs import attempts, open_assessment, releases
+from myteacher.runs import attempts, learners, open_assessment, releases
+from myteacher.runs import results as outcomes
 from myteacher.runs.models import Assessment, Attempt, CourseRun, MaterialRelease
 
 router = APIRouter(tags=["course runs"])
@@ -155,26 +156,25 @@ def list_open_answers(
     released = _release(db, run, release_id)
     attempts.close_past_due_of(db, released, now)
     lesson = attempts.lesson_of(db, released)
-    students = {}
+    name = learners.names(db, run)
+    students = {learner.id: learner for learner in outcomes.students_of(db, run, released)}
     listed = []
     rows = open_assessment.assessments_of(db, released)
     submitted = [db.get_one(Attempt, attempt_id) for attempt_id in {row.attempt_id for row in rows}]
     # The attempt that counts is each student's last submitted one.
     counting = {}
     for attempt in sorted(submitted, key=lambda a: a.number):
-        counting[attempt.student_id] = attempt.id
+        counting[learners.owner_id(attempt)] = attempt.id
     for row in rows:
         exercise = lesson.exercise(row.exercise_id)
         if not isinstance(exercise, OpenExercise) or row.attempt_id not in counting.values():
             continue
-        attempt = db.get_one(Attempt, row.attempt_id)
-        student = students.get(attempt.student_id) or db.get_one(Account, attempt.student_id)
-        students[student.id] = student
+        student = students[learners.owner_id(db.get_one(Attempt, row.attempt_id))]
         view = open_assessment.to_publish(row)
         listed.append(
             OpenAnswer(
                 id=row.id,
-                student=StudentRef(id=student.id, name=student.name or ""),
+                student=StudentRef(id=student.id, name=name(student)),
                 exercise_id=row.exercise_id,
                 round=row.round,
                 prompt=getattr(exercise, "prompt", None) or getattr(exercise, "source_text", None),

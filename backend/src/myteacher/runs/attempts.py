@@ -34,14 +34,16 @@ from myteacher.lesson.schema import (
 )
 from myteacher.lesson.second_round import second_round
 from myteacher.persistence import InstanceSession
-from myteacher.runs import releases
+from myteacher.runs import learners, releases
 from myteacher.runs import service as runs
+from myteacher.runs.learners import Learner
 from myteacher.runs.models import (
     Assessment,
     AssessmentConcept,
     Attempt,
     AttemptDraft,
     MaterialRelease,
+    Participant,
     ReleaseStudent,
 )
 
@@ -97,12 +99,20 @@ class Unanswered(Exception):
     """A closed exercise has no answer to submit."""
 
 
-# Which releases a student has
+# Which releases a learner has
 
 
-def releases_for(db: InstanceSession, student: Account) -> list[MaterialRelease]:
-    """The releases meant for the student in the runs they are on, the latest first; a
-    retracted one stays, so the student sees why it went."""
+def releases_for(db: InstanceSession, student: Learner) -> list[MaterialRelease]:
+    """The releases meant for the student in the runs they are on, or for a participant in their
+    link run, the latest first; a retracted one stays, so they see why it went."""
+    if isinstance(student, Participant):
+        return list(
+            db.scalars(
+                select(MaterialRelease)
+                .where(MaterialRelease.run_id == student.run_id)
+                .order_by(MaterialRelease.released_at.desc(), MaterialRelease.id.desc())
+            )
+        )
     chosen = exists().where(
         ReleaseStudent.release_id == MaterialRelease.id, ReleaseStudent.student_id == student.id
     )
@@ -118,23 +128,23 @@ def releases_for(db: InstanceSession, student: Account) -> list[MaterialRelease]
     )
 
 
-def release_for(db: InstanceSession, student: Account, release_id: int) -> MaterialRelease | None:
-    """The release, while the student is one of its recipients."""
+def release_for(db: InstanceSession, student: Learner, release_id: int) -> MaterialRelease | None:
+    """The release, while the learner is one of its recipients."""
     released = db.scalars(select(MaterialRelease).where(MaterialRelease.id == release_id)).first()
     if released is None:
         return None
     run = runs.get_run(db, released.run_id)
     assert run is not None
     recipients = releases.recipients(db, run, released)
-    return released if any(student.id == s.id for s in recipients) else None
+    return released if any(learners.same(student, s) for s in recipients) else None
 
 
 def attempt_for(
-    db: InstanceSession, student: Account, attempt_id: int
+    db: InstanceSession, student: Learner, attempt_id: int
 ) -> tuple[Attempt, MaterialRelease] | None:
-    """The student's own attempt, while its release is still theirs."""
+    """The learner's own attempt, while its release is still theirs."""
     attempt = db.scalars(select(Attempt).where(Attempt.id == attempt_id)).first()
-    if attempt is None or attempt.student_id != student.id:
+    if attempt is None or not learners.owned_by(attempt, student):
         return None
     released = release_for(db, student, attempt.release_id)
     return (attempt, released) if released is not None else None
@@ -143,11 +153,11 @@ def attempt_for(
 # The student's standing on a release
 
 
-def attempts_of(db: InstanceSession, released: MaterialRelease, student: Account) -> list[Attempt]:
+def attempts_of(db: InstanceSession, released: MaterialRelease, student: Learner) -> list[Attempt]:
     return list(
         db.scalars(
             select(Attempt)
-            .where(Attempt.release_id == released.id, Attempt.student_id == student.id)
+            .where(Attempt.release_id == released.id, learners.owns(student))
             .order_by(Attempt.number)
         )
     )
@@ -165,7 +175,7 @@ class Standing:
 
 
 def standing(
-    db: InstanceSession, released: MaterialRelease, student: Account, now: datetime
+    db: InstanceSession, released: MaterialRelease, student: Learner, now: datetime
 ) -> Standing:
     """Where the student stands on the release; a retracted attempt counts for nothing. An
     attempt left open at a refusing due date is submitted first."""
@@ -243,7 +253,7 @@ def new_results(db: InstanceSession, attempt: Attempt) -> bool:
 
 
 def start(
-    db: InstanceSession, released: MaterialRelease, student: Account, now: datetime
+    db: InstanceSession, released: MaterialRelease, student: Learner, now: datetime
 ) -> tuple[Attempt, bool]:
     """The attempt being worked on, or a new one; True when it was started now."""
     if released.retracted_at is not None:
@@ -257,7 +267,7 @@ def start(
         raise PastDue()
     attempt = Attempt(
         release_id=released.id,
-        student_id=student.id,
+        **learners.owner(student),
         number=max((a.number for a in attempts_of(db, released, student)), default=0) + 1,
         seed=secrets.token_hex(8),
         started_at=now,
@@ -656,7 +666,7 @@ def _retract(attempt: Attempt, reason: str, teacher: Account, now: datetime) -> 
 def retract_attempt(
     db: InstanceSession,
     released: MaterialRelease,
-    student: Account,
+    student: Learner,
     *,
     reason: str,
     teacher: Account,
@@ -689,7 +699,7 @@ def retract_release(
 
 
 def retraction_notice(
-    db: InstanceSession, released: MaterialRelease, student: Account
+    db: InstanceSession, released: MaterialRelease, student: Learner
 ) -> tuple[str, bool] | None:
     """What the student is told: the release's retraction, or that of their latest attempt until
     they start another; (reason, whole release)."""

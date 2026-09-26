@@ -4,16 +4,17 @@ participant's personal link, and the lobby its teacher watches fill."""
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_serializer
 
 from myteacher.accounts.models import Account
-from myteacher.api.deps import Db, Now, requires
+from myteacher.api.deps import Db, Now, current_account, ensure, requires
 from myteacher.api.runs import CourseRef, taught_run
 from myteacher.courses.models import Course
 from myteacher.persistence import InstanceSession
-from myteacher.policy import is_teacher
+from myteacher.policy import is_student, is_teacher
 from myteacher.runs import participants
+from myteacher.runs.learners import Learner
 from myteacher.runs.models import CourseRun, Participant
 
 router = APIRouter(tags=["link runs"])
@@ -104,6 +105,24 @@ def current_participant(
 
 
 Me = Annotated[Participant, Depends(current_participant)]
+
+
+def current_learner(
+    request: Request,
+    db: Db,
+    now: Now,
+    token: Annotated[str | None, Header(alias=PARTICIPANT_HEADER)] = None,
+) -> Learner:
+    """Whoever works on releases: a participant by the token of their personal link, else the
+    signed-in student."""
+    if token is not None:
+        return current_participant(db, token)
+    actor = current_account(request, db, now)
+    ensure(is_student(actor))
+    return actor
+
+
+LearnerActor = Annotated[Learner, Depends(current_learner)]
 
 
 @router.post("/join/check")

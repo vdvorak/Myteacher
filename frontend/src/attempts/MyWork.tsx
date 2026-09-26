@@ -1,8 +1,10 @@
 import { A } from '@solidjs/router'
-import { createResource, For, Show } from 'solid-js'
+import { createSignal, For, onCleanup, Show, type JSX } from 'solid-js'
+import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import type { StudentRelease } from './api'
+import { useWorkLinks } from './links'
 import './work.css'
 
 // Work due within this long is due soon.
@@ -27,22 +29,42 @@ function byUrgency(a: StudentRelease, b: StudentRelease): number {
   return due(a) - due(b) || Date.parse(b.released_at) - Date.parse(a.released_at)
 }
 
-/** The student's work on a phone: what is to do, the most urgent first, and what is done. */
-export function MyWork() {
+/** The student's work on a phone: what is to do, the most urgent first, and what is done. `empty`
+ * replaces what it says before anything is released, and `pollMs` asks again that often, so work
+ * released meanwhile shows up without reloading. */
+export function MyWork(props: { empty?: JSX.Element; pollMs?: number } = {}) {
   const { t } = useI18n()
   const api = useApi().attempts
-  const [releases] = createResource(() => api.releases())
-  const list = () => (releases.error ? [] : (releases() ?? []))
+  // Each read is merged into the last by id, so a poll keeps the cards, and the focus in them.
+  const [releases, setReleases] = createStore<StudentRelease[]>([])
+  const [loaded, setLoaded] = createSignal(false)
+  const [failed, setFailed] = createSignal(false)
+  async function load() {
+    try {
+      setReleases(reconcile(await api.releases(), { key: 'id' }))
+      setLoaded(true)
+      setFailed(false)
+    } catch {
+      setFailed(true)
+    }
+  }
+  void load()
+  if (props.pollMs) {
+    const timer = setInterval(() => void load(), props.pollMs)
+    onCleanup(() => clearInterval(timer))
+  }
+  const list = () => releases
   const toDo = () => list().filter((r) => !isDone(r)).sort(byUrgency)
   const done = () => list().filter(isDone)
 
   return (
     <div class="student-home">
-      <Show when={releases.error}>
+      {/* A failed poll keeps what was shown; the next one tries again. */}
+      <Show when={failed() && !loaded()}>
         <p role="alert">{t('work.loadFailed')}</p>
       </Show>
-      <Show when={releases.state === 'ready' && list().length === 0}>
-        <p class="student-empty">{t('home.studentPlaceholder')}</p>
+      <Show when={loaded() && list().length === 0}>
+        {props.empty ?? <p class="student-empty">{t('home.studentPlaceholder')}</p>}
       </Show>
       <Show when={toDo().length > 0}>
         <section aria-labelledby="to-do-heading">
@@ -74,6 +96,7 @@ export function MyWork() {
 
 function ToDoCard(props: { release: StudentRelease }) {
   const { t, locale } = useI18n()
+  const links = useWorkLinks()
   const due = () => dueOf(props.release, Date.now())
   const date = (at: string) => new Date(at).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' })
   const progress = () => props.release.progress
@@ -95,7 +118,7 @@ function ToDoCard(props: { release: StudentRelease }) {
           {(notice) => <p class="work-notice">{t('work.retracted.attemptShort', { reason: notice().reason })}</p>}
         </Show>
         <A
-          href={`/work/${props.release.id}`}
+          href={links.work(props.release.id)}
           class="work-action"
           data-variant={props.release.state === 'in_progress' ? 'filled' : 'outlined'}
           aria-describedby={`work-${props.release.id}`}
@@ -112,6 +135,7 @@ function ToDoCard(props: { release: StudentRelease }) {
 
 function DoneCard(props: { release: StudentRelease }) {
   const { t } = useI18n()
+  const links = useWorkLinks()
   const score = () => props.release.score
   return (
     <li>
@@ -146,7 +170,7 @@ function DoneCard(props: { release: StudentRelease }) {
         </Show>
         <Show when={!props.release.retraction?.whole_release}>
           <A
-            href={`/work/${props.release.id}`}
+            href={links.work(props.release.id)}
             class="work-action"
             data-variant="outlined"
             aria-describedby={`work-${props.release.id}`}

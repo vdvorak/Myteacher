@@ -63,6 +63,8 @@ export interface CourseRun {
   join_token: string | null
   /** How many joined a link run so far; 0 when enrolled. */
   participant_count: number
+  /** Who joined a link run, in the order they joined, with a name typed twice numbered. */
+  participants: { id: number; name: string }[]
 }
 
 export type RunMode = 'enrolled' | 'link'

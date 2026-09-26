@@ -28,7 +28,7 @@ from myteacher.courses.models import ClassroomMaterial, ClassroomMaterialVersion
 from myteacher.lesson.schema import FeedbackMode
 from myteacher.persistence import InstanceSession
 from myteacher.policy import can_teach_run, is_teacher
-from myteacher.runs import attempts, open_assessment, participants, releases
+from myteacher.runs import attempts, learners, open_assessment, participants, releases
 from myteacher.runs import service as runs
 from myteacher.runs.models import CourseRun, MaterialRelease
 
@@ -112,6 +112,8 @@ class RunOut(BaseModel):
     join_token: str | None
     # How many joined a link run so far; 0 for an enrolled run.
     participant_count: int
+    # Who joined a link run, in the order they joined, with a name typed twice numbered.
+    participants: list["StudentRef"]
 
     @field_serializer("created_at")
     def _utc(self, at: datetime) -> str:
@@ -252,6 +254,10 @@ def _out(db: InstanceSession, run: CourseRun) -> RunOut:
         capacity=run.capacity,
         join_token=run.join_token,
         participant_count=participants.count(db, run) if run.mode == "link" else 0,
+        participants=[
+            StudentRef(id=participant_id, name=name)
+            for participant_id, name in participants.display_names(db, run).items()
+        ],
     )
 
 
@@ -280,7 +286,7 @@ def list_taught_runs(db: Db, actor: Teacher) -> list[TaughtRun]:
     taught = runs_taught(db, actor)
     course_of = {run.id: course for run, course in taught.items()}
     found = list(taught)
-    rosters = {run.id: [entry.student for entry in runs.roster(db, run)] for run in found}
+    rosters = {run.id: learners.of_run(db, run) for run in found}
     latest = releases.latest_releases(db, found)
 
     def latest_of(run: CourseRun) -> LatestRelease | None:
@@ -428,7 +434,7 @@ def list_releases(run_id: int, db: Db, now: Now, actor: Teacher) -> list[ListedR
     """The run's releases, the first released first, each with how far its students got."""
     run = taught_run(db, actor, run_id)
     found = releases.releases_of(db, run)
-    roster = [entry.student for entry in runs.roster(db, run)]
+    roster = learners.of_run(db, run)
     waiting = open_assessment.waiting_counts(db, [released.id for released in found])
     listed = []
     for released in found:
@@ -535,7 +541,8 @@ def release_recipients(run_id: int, release_id: int, db: Db, actor: Teacher) -> 
     released = releases.get_release(db, run, release_id)
     if released is None:
         raise HTTPException(status_code=404)
+    name = learners.names(db, run)
     return [
-        StudentRef(id=student.id, name=student.name or "")
-        for student in releases.recipients(db, run, released)
+        StudentRef(id=learner.id, name=name(learner))
+        for learner in releases.recipients(db, run, released)
     ]

@@ -14,7 +14,7 @@ from myteacher.api.runs import ReleaseOut, release_out, taught_run
 from myteacher.lesson.catalog import COMPONENT_CATALOG
 from myteacher.persistence import InstanceSession
 from myteacher.policy import is_teacher
-from myteacher.runs import attempts, open_assessment, releases
+from myteacher.runs import attempts, learners, open_assessment, releases
 from myteacher.runs import results as outcomes
 from myteacher.runs.models import CourseRun, MaterialRelease
 from myteacher.runs.results import Cell
@@ -111,6 +111,7 @@ def release_results(
     run = taught_run(db, actor, run_id)
     released = _release_or_404(db, run, release_id)
     found = outcomes.results(db, run, released, now)
+    name = learners.names(db, run)
     lesson = attempts.lesson_of(db, released)
     exercises = []
     # The exercises the students answer: those of the catalog, as the cells have them.
@@ -146,7 +147,7 @@ def release_results(
         students=[
             StudentResult(
                 id=result.student.id,
-                name=result.student.name or "",
+                name=name(result.student),
                 in_run=result.in_run,
                 state=result.standing.state,
                 late=result.standing.counting.late if result.standing.counting else False,
@@ -168,9 +169,10 @@ def student_results(
     if student is None:
         raise HTTPException(status_code=404)
     standing = attempts.standing(db, released, student, now)
-    in_run = any(s.id == student.id for s in releases.recipients(db, run, released))
+    in_run = any(learners.same(s, student) for s in releases.recipients(db, run, released))
+    name = learners.names(db, run)
     return StudentAttempts(
-        student=StudentRef(id=student.id, name=student.name or "", in_run=in_run),
+        student=StudentRef(id=student.id, name=name(student), in_run=in_run),
         attempts=[
             TeacherAttempt(
                 **attempt_out(db, attempt, released, teacher=True).model_dump(),

@@ -127,33 +127,40 @@ async function checked(response: Response): Promise<Response> {
 
 const json = async <T>(response: Response): Promise<T> => (await (await checked(response)).json()) as T
 
-function send(method: string, url: string, body?: unknown) {
-  return fetch(url, {
-    method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-}
-
 const roundUrl = (attemptId: number, round: RoundKey) => `/api/attempts/${attemptId}/rounds/${round}`
 
-export const httpAttemptsApi: AttemptsApi = {
-  releases: async () => json(await fetch('/api/my/releases')),
-  release: async (id) => json(await fetch(`/api/my/releases/${id}`)),
-  start: async (releaseId) => json(await send('POST', `/api/my/releases/${releaseId}/attempts`)),
-  saveDraft: async (attemptId, round, exerciseId, answer) => {
-    await checked(await send('PUT', `${roundUrl(attemptId, round)}/drafts/${encodeURIComponent(exerciseId)}`, answer))
-  },
-  tryAnswer: async (attemptId, round, exerciseId, answer) =>
-    json(await send('POST', `${roundUrl(attemptId, round)}/exercises/${encodeURIComponent(exerciseId)}/tries`, answer)),
-  submitRound: async (attemptId, round, answers) =>
-    (
-      await json<{ tries: Record<string, Try> }>(
-        await send('POST', `${roundUrl(attemptId, round)}/submission`, { answers }),
-      )
-    ).tries,
-  secondRound: async (attemptId) => json(await send('POST', `/api/attempts/${attemptId}/second-round`)),
+/** The endpoints over HTTP; a participant's requests carry the token of their personal link. */
+export function httpAttemptsApiWith(headers: Record<string, string> = {}): AttemptsApi {
+  const send = (method: string, url: string, body?: unknown) =>
+    fetch(url, {
+      method,
+      headers: body === undefined ? headers : { ...headers, 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    })
+  return {
+    releases: async () => json(await send('GET', '/api/my/releases')),
+    release: async (id) => json(await send('GET', `/api/my/releases/${id}`)),
+    start: async (releaseId) => json(await send('POST', `/api/my/releases/${releaseId}/attempts`)),
+    saveDraft: async (attemptId, round, exerciseId, answer) => {
+      const url = `${roundUrl(attemptId, round)}/drafts/${encodeURIComponent(exerciseId)}`
+      await checked(await send('PUT', url, answer))
+    },
+    tryAnswer: async (attemptId, round, exerciseId, answer) => {
+      const url = `${roundUrl(attemptId, round)}/exercises/${encodeURIComponent(exerciseId)}/tries`
+      return json(await send('POST', url, answer))
+    },
+    submitRound: async (attemptId, round, answers) =>
+      (
+        await json<{ tries: Record<string, Try> }>(
+          await send('POST', `${roundUrl(attemptId, round)}/submission`, { answers }),
+        )
+      ).tries,
+    secondRound: async (attemptId) => json(await send('POST', `/api/attempts/${attemptId}/second-round`)),
+  }
 }
+
+/** The signed-in student's endpoints. */
+export const httpAttemptsApi: AttemptsApi = httpAttemptsApiWith()
 
 /** The attempt as the lesson player resumes it. */
 export function progressOf(attempt: Attempt): LessonProgress {

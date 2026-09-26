@@ -186,6 +186,7 @@ def assessing(release_id: int) -> Work:
                 # Retracted while the job ran: it counts for nothing, so it is not paid for.
                 continue
             text = getattr(attempts.answer_of(row), "text", "")
+            # None for a link run's participant, who has no account to erase.
             student_id = attempt.student_id
             try:
                 output, generation_id = await generate_recorded(

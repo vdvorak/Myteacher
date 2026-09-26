@@ -68,3 +68,21 @@ def join(
     participant = participant_by_token(db, token)
     assert participant is not None
     return participant, token
+
+
+def display_names(db: InstanceSession, run: CourseRun) -> dict[int, str]:
+    """Each participant's name as the teacher sees it: a name typed by more than one participant
+    is numbered in the order they joined, "Jan Novák (2)"."""
+    found = participants_of(db, run)
+    counts: dict[str, int] = {}
+    for participant in found:
+        counts[participant.name] = counts.get(participant.name, 0) + 1
+    seen: dict[str, int] = {}
+    named = {}
+    for participant in found:
+        if counts[participant.name] == 1:
+            named[participant.id] = participant.name
+            continue
+        seen[participant.name] = seen.get(participant.name, 0) + 1
+        named[participant.id] = f"{participant.name} ({seen[participant.name]})"
+    return named

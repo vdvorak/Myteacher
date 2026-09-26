@@ -8,10 +8,10 @@ from typing import Literal
 
 from sqlalchemy import select
 
-from myteacher.accounts.models import Account
 from myteacher.lesson.schema import LessonDocument
 from myteacher.persistence import InstanceSession
-from myteacher.runs import attempts, releases
+from myteacher.runs import attempts, learners, releases
+from myteacher.runs.learners import Learner
 from myteacher.runs.models import Attempt, CourseRun, MaterialRelease
 
 Cell = Literal["right", "wrong", "open", "unanswered"]
@@ -19,7 +19,7 @@ Cell = Literal["right", "wrong", "open", "unanswered"]
 
 @dataclass
 class StudentResult:
-    student: Account
+    student: Learner
     # Still one of the release's recipients.
     in_run: bool
     standing: attempts.Standing
@@ -29,16 +29,15 @@ class StudentResult:
     cells: dict[str, Cell]
 
 
-def students_of(db: InstanceSession, run: CourseRun, released: MaterialRelease) -> list[Account]:
-    """Everyone the release is for, by name: its recipients now, the students chosen for it, and
-    whoever made an attempt, in the run or not any more."""
-    ids = {student.id for student in releases.recipients(db, run, released)}
+def students_of(db: InstanceSession, run: CourseRun, released: MaterialRelease) -> list[Learner]:
+    """Everyone the release is for, by name (participants in the order they joined): its
+    recipients now, the students chosen for it, and whoever made an attempt, in the run or not
+    any more."""
+    ids = {learner.id for learner in releases.recipients(db, run, released)}
     if released.audience == "chosen":
         ids |= {student.id for student in releases.chosen_students(db, released)}
-    ids |= set(db.scalars(select(Attempt.student_id).where(Attempt.release_id == released.id)))
-    return list(
-        db.scalars(select(Account).where(Account.id.in_(ids)).order_by(Account.name, Account.email))
-    )
+    ids |= set(db.scalars(select(learners.OWNER_ID).where(Attempt.release_id == released.id)))
+    return learners.with_ids(db, run, ids)
 
 
 def cells_of(db: InstanceSession, lesson: LessonDocument, attempt: Attempt) -> dict[str, Cell]:
@@ -59,7 +58,7 @@ def results(
     db: InstanceSession, run: CourseRun, released: MaterialRelease, now: datetime
 ) -> list[StudentResult]:
     lesson = attempts.lesson_of(db, released)
-    in_run = {student.id for student in releases.recipients(db, run, released)}
+    in_run = {learner.id for learner in releases.recipients(db, run, released)}
     found = []
     for student in students_of(db, run, released):
         standing = attempts.standing(db, released, student, now)

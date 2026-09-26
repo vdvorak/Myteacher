@@ -20,7 +20,8 @@ export function RunOverview(props: { run: CourseRun; releases: ListedRelease[] |
     for (const released of live()) {
       for (const id of released.overdue_student_ids) counts.set(id, (counts.get(id) ?? 0) + 1)
     }
-    return props.run.roster
+    const people = link() ? props.run.participants : props.run.roster
+    return people
       .filter((s) => counts.has(s.id))
       .map((s) => ({ student: s, count: counts.get(s.id)! }))
       .sort((a, b) => b.count - a.count || a.student.name.localeCompare(b.student.name))
@@ -89,7 +90,10 @@ export function RunOverview(props: { run: CourseRun; releases: ListedRelease[] |
               <For each={behind()}>
                 {(entry) => (
                   <li>
-                    <A href={`/students/${entry.student.id}`}>{entry.student.name}</A>
+                    {/* A participant has no page of their own, only their results in each release. */}
+                    <Show when={!link()} fallback={<span>{entry.student.name}</span>}>
+                      <A href={`/students/${entry.student.id}`}>{entry.student.name}</A>
+                    </Show>
                     <span class="badge" data-tone="attention">
                       {t('runOverview.overdue', { count: entry.count })}
                     </span>

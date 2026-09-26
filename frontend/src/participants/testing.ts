@@ -1,4 +1,6 @@
 import { vi } from 'vitest'
+import type { AttemptsApi } from '../attempts/api'
+import { fakeAttemptsApi } from '../attempts/testing'
 import type { JoinCheck, Participant, ParticipantsApi } from './api'
 
 interface FakeLinkRun {
@@ -20,7 +22,8 @@ export const lobbyRun: FakeLinkRun = {
 }
 
 /** A stand-in for joining link runs and reading a participant by their personal link. */
-export function fakeParticipantsApi(options: { runs?: FakeLinkRun[] } = {}) {
+export function fakeParticipantsApi(options: { runs?: FakeLinkRun[]; attempts?: AttemptsApi } = {}) {
+  const attempts = options.attempts ?? fakeAttemptsApi()
   const runs = structuredClone(options.runs ?? [lobbyRun]).map((run) => ({
     ...run,
     participants: run.participants ?? [],
@@ -58,5 +61,7 @@ export function fakeParticipantsApi(options: { runs?: FakeLinkRun[] } = {}) {
       return { token, participant: find(token)! }
     }),
     me: vi.fn(async (token: string) => find(token)),
+    // The personal link decides whose work it is; the fake has one participant's.
+    attempts: vi.fn((_token: string) => attempts),
   } satisfies ParticipantsApi
 }

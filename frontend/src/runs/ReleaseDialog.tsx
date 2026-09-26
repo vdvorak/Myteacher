@@ -60,7 +60,12 @@ export function ReleaseDialog(props: {
   const roster = () => (run.error ? [] : (run()?.roster ?? []))
   // A student unenrolled meanwhile loses their checkbox, so they no longer count as chosen.
   const stillChosen = () => chosen().filter((id) => roster().some((s) => s.id === id))
-  const audienceSize = () => (audience() === 'run' ? roster().length : stillChosen().length)
+  // A link run's releases are for all its participants, those who join later included.
+  const link = () => !run.error && run()?.mode === 'link'
+  // Chosen students do not carry over from an enrolled run to a link run picked after it.
+  const effectiveAudience = () => (link() ? 'run' : audience())
+  const audienceSize = () =>
+    link() ? (run()?.participant_count ?? 0) : audience() === 'run' ? roster().length : stillChosen().length
 
   // A material starts on its latest version, for the students it was made for.
   createEffect(
@@ -74,7 +79,7 @@ export function ReleaseDialog(props: {
   const change = <K extends keyof ReleaseSettings>(key: K, value: ReleaseSettings[K]) =>
     setSettings({ ...settings(), [key]: value })
   const toggle = (id: number, on: boolean) => setChosen(on ? [...chosen(), id] : chosen().filter((other) => other !== id))
-  const ready = () => material() !== undefined && (audience() === 'run' || stillChosen().length > 0)
+  const ready = () => material() !== undefined && (effectiveAudience() === 'run' || stillChosen().length > 0)
   const dueAt = () => (due() === '' ? null : new Date(due()).toISOString())
 
   async function release() {
@@ -86,8 +91,8 @@ export function ReleaseDialog(props: {
       const released = await api.release(Number(runId()), {
         material_id: current.id,
         version: Number(version()),
-        audience: audience(),
-        student_ids: audience() === 'chosen' ? [...stillChosen()].sort((a, b) => a - b) : null,
+        audience: effectiveAudience(),
+        student_ids: effectiveAudience() === 'chosen' ? [...stillChosen()].sort((a, b) => a - b) : null,
         ...settings(),
         // The browser gives local time without a zone; the server gets it with one.
         due_at: dueAt(),
@@ -175,38 +180,45 @@ export function ReleaseDialog(props: {
                       <For each={current().versions}>{(n) => <option value={String(n)}>{n}</option>}</For>
                     </select>
                   </label>
-                  <fieldset>
-                    <legend>{t('releases.audience')}</legend>
-                    <label class="settings-check">
-                      <input type="radio" name="audience" checked={audience() === 'run'} onChange={() => setAudience('run')} />
-                      {t('releases.toWholeRun')}
-                    </label>
-                    <label class="settings-check">
-                      <input
-                        type="radio"
-                        name="audience"
-                        checked={audience() === 'chosen'}
-                        onChange={() => setAudience('chosen')}
-                      />
-                      {t('releases.toChosen')}
-                    </label>
-                    <Show when={audience() === 'chosen'}>
-                      <div role="group" aria-label={t('releases.toChosen')}>
-                        <For each={roster()}>
-                          {(student) => (
-                            <label class="settings-check">
-                              <input
-                                type="checkbox"
-                                checked={chosen().includes(student.id)}
-                                onChange={(e) => toggle(student.id, e.currentTarget.checked)}
-                              />
-                              {student.name}
-                            </label>
-                          )}
-                        </For>
-                      </div>
-                    </Show>
-                  </fieldset>
+                  <Show when={!link()} fallback={<p class="settings-note">{t('releases.toParticipants')}</p>}>
+                    <fieldset>
+                      <legend>{t('releases.audience')}</legend>
+                      <label class="settings-check">
+                        <input
+                          type="radio"
+                          name="audience"
+                          checked={audience() === 'run'}
+                          onChange={() => setAudience('run')}
+                        />
+                        {t('releases.toWholeRun')}
+                      </label>
+                      <label class="settings-check">
+                        <input
+                          type="radio"
+                          name="audience"
+                          checked={audience() === 'chosen'}
+                          onChange={() => setAudience('chosen')}
+                        />
+                        {t('releases.toChosen')}
+                      </label>
+                      <Show when={audience() === 'chosen'}>
+                        <div role="group" aria-label={t('releases.toChosen')}>
+                          <For each={roster()}>
+                            {(student) => (
+                              <label class="settings-check">
+                                <input
+                                  type="checkbox"
+                                  checked={chosen().includes(student.id)}
+                                  onChange={(e) => toggle(student.id, e.currentTarget.checked)}
+                                />
+                                {student.name}
+                              </label>
+                            )}
+                          </For>
+                        </div>
+                      </Show>
+                    </fieldset>
+                  </Show>
                   <label>
                     {t('releases.feedback')}
                     <select
@@ -269,7 +281,9 @@ export function ReleaseDialog(props: {
           {(current) => (
             <section aria-label={t('releases.summary')} class="release-summary">
               <p>
-                <strong>{t('releases.summarySees', { count: audienceSize() })}</strong>
+                <strong>
+                  {t(link() ? 'releases.summarySeesParticipants' : 'releases.summarySees', { count: audienceSize() })}
+                </strong>
               </p>
               <dl class="settings-list">
                 <dt>{t('releases.material')}</dt>
@@ -278,7 +292,7 @@ export function ReleaseDialog(props: {
                 <dd>{run()?.name}</dd>
                 <dt>{t('releases.audience')}</dt>
                 <dd>
-                  {audience() === 'run'
+                  {effectiveAudience() === 'run'
                     ? t('releases.wholeRun')
                     : roster()
                         .filter((s) => stillChosen().includes(s.id))

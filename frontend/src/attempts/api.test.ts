@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../lesson/api'
 import type { RenderedAnswer } from '../lesson/schema'
 import { sampleLesson } from '../lesson/testing'
-import { attemptLessonApi, AttemptRefused, httpAttemptsApi, progressOf } from './api'
+import { attemptLessonApi, AttemptRefused, httpAttemptsApi, httpAttemptsApiWith, progressOf } from './api'
 import { attemptOf, fakeAttemptsApi } from './testing'
 
 afterEach(() => vi.unstubAllGlobals())
@@ -42,6 +42,18 @@ describe('attempts over HTTP', () => {
       vi.stubGlobal('fetch', fetch)
       await call()
       expect(sent(fetch)).toEqual({ url, method, body })
+    }
+  })
+
+  it('sends a participant’s personal link along with each request', async () => {
+    const fetch = answer(200, [])
+    vi.stubGlobal('fetch', fetch)
+
+    await httpAttemptsApiWith({ 'X-Participant-Token': 'personal' }).releases()
+    await httpAttemptsApiWith({ 'X-Participant-Token': 'personal' }).saveDraft(8, 'first', 'location', choice('es'))
+
+    for (const [, init] of fetch.mock.calls as unknown as [string, RequestInit][]) {
+      expect(new Headers(init.headers).get('X-Participant-Token')).toBe('personal')
     }
   })
 

@@ -1,5 +1,6 @@
-"""A student's releases and their attempts (ADR 0011): the student sees only what is released to
-them in the runs they are on, and works on it through an attempt the server owns (#19)."""
+"""A learner's releases and their attempts (ADR 0011): a student sees only what is released to
+them in the runs they are on, a participant what is released in their link run (ADR 0012), and
+they work on it through an attempt the server owns (#19)."""
 
 from datetime import datetime
 from typing import Annotated, Literal
@@ -7,8 +8,8 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field, field_serializer
 
-from myteacher.accounts.models import Account
-from myteacher.api.deps import Db, Now, requires
+from myteacher.api.deps import Db, Now
+from myteacher.api.participants import LearnerActor
 from myteacher.courses.models import ClassroomMaterial, ClassroomMaterialVersion, Course, Topic
 from myteacher.lesson.assessment import AnswerMismatch
 from myteacher.lesson.schema import (
@@ -23,14 +24,13 @@ from myteacher.lesson.schema import (
     to_public,
 )
 from myteacher.persistence import InstanceSession
-from myteacher.policy import is_student
 from myteacher.runs import attempts, open_assessment
 from myteacher.runs import service as runs
 from myteacher.runs.attempts import Round
+from myteacher.runs.learners import Learner
 from myteacher.runs.models import Assessment, Attempt, MaterialRelease
 
 router = APIRouter(tags=["attempts"])
-Student = Annotated[Account, requires(is_student)]
 
 TryOutcome = Annotated[AssessmentResult | AssessmentPending, Field(discriminator="status")]
 
@@ -194,7 +194,7 @@ class RoundSubmitted(BaseModel):
     tries: dict[str, Try]
 
 
-def _release_or_404(db: InstanceSession, actor: Account, release_id: int) -> MaterialRelease:
+def _release_or_404(db: InstanceSession, actor: Learner, release_id: int) -> MaterialRelease:
     released = attempts.release_for(db, actor, release_id)
     if released is None:
         raise HTTPException(status_code=404)
@@ -202,7 +202,7 @@ def _release_or_404(db: InstanceSession, actor: Account, release_id: int) -> Mat
 
 
 def _attempt_or_404(
-    db: InstanceSession, actor: Account, attempt_id: int, now: datetime
+    db: InstanceSession, actor: Learner, attempt_id: int, now: datetime
 ) -> tuple[Attempt, MaterialRelease]:
     found = attempts.attempt_for(db, actor, attempt_id)
     if found is None:
@@ -278,7 +278,7 @@ def attempt_out(
 
 
 def _summary(
-    db: InstanceSession, released: MaterialRelease, student: Account, standing: attempts.Standing
+    db: InstanceSession, released: MaterialRelease, student: Learner, standing: attempts.Standing
 ) -> StudentRelease:
     version = db.get_one(ClassroomMaterialVersion, released.version_id)
     topic = db.get_one(Topic, db.get_one(ClassroomMaterial, released.material_id).topic_id)
@@ -308,7 +308,7 @@ def _summary(
 
 
 @router.get("/my/releases")
-def my_releases(db: Db, now: Now, actor: Student) -> list[StudentRelease]:
+def my_releases(db: Db, now: Now, actor: LearnerActor) -> list[StudentRelease]:
     """The material released to the student in the runs they are on, the latest first."""
     return [
         _summary(db, released, actor, attempts.standing(db, released, actor, now))
@@ -317,7 +317,7 @@ def my_releases(db: Db, now: Now, actor: Student) -> list[StudentRelease]:
 
 
 @router.get("/my/releases/{release_id}")
-def my_release(release_id: int, db: Db, now: Now, actor: Student) -> ReleaseDetail:
+def my_release(release_id: int, db: Db, now: Now, actor: LearnerActor) -> ReleaseDetail:
     released = _release_or_404(db, actor, release_id)
     standing = attempts.standing(db, released, actor, now)
     shown = standing.open or standing.counting
@@ -345,7 +345,7 @@ def my_release(release_id: int, db: Db, now: Now, actor: Student) -> ReleaseDeta
     },
 )
 def start_attempt(
-    release_id: int, response: Response, db: Db, now: Now, actor: Student
+    release_id: int, response: Response, db: Db, now: Now, actor: LearnerActor
 ) -> AttemptOut:
     """Start an attempt on the release, or resume the one being worked on."""
     released = _release_or_404(db, actor, release_id)
@@ -363,7 +363,7 @@ def start_attempt(
 
 
 @router.get("/attempts/{attempt_id}")
-def read_attempt(attempt_id: int, db: Db, now: Now, actor: Student) -> AttemptOut:
+def read_attempt(attempt_id: int, db: Db, now: Now, actor: LearnerActor) -> AttemptOut:
     return attempt_out(db, *_attempt_or_404(db, actor, attempt_id, now))
 
 
@@ -397,7 +397,7 @@ def save_draft(
     body: ExerciseAnswer,
     db: Db,
     now: Now,
-    actor: Student,
+    actor: LearnerActor,
 ) -> Response:
     """Save the answer being composed, so the attempt continues on another device."""
     attempt, released = _attempt_or_404(db, actor, attempt_id, now)
@@ -419,7 +419,7 @@ def take_try(
     body: ExerciseAnswer,
     db: Db,
     now: Now,
-    actor: Student,
+    actor: LearnerActor,
 ) -> AssessmentResult | AssessmentPending:
     """Assess one try with immediate feedback; the attempt decides whether it may be taken and
     whether the solution comes with it."""
@@ -433,7 +433,7 @@ def take_try(
 
 @router.post("/attempts/{attempt_id}/rounds/{round}/submission")
 def submit_round(
-    attempt_id: int, round: Round, body: SubmissionIn, db: Db, now: Now, actor: Student
+    attempt_id: int, round: Round, body: SubmissionIn, db: Db, now: Now, actor: LearnerActor
 ) -> RoundSubmitted:
     """Submit a round with feedback at the end; submitting the first pass submits the attempt."""
     attempt, released = _attempt_or_404(db, actor, attempt_id, now)
@@ -445,7 +445,7 @@ def submit_round(
 
 
 @router.post("/attempts/{attempt_id}/second-round")
-def start_second_round(attempt_id: int, db: Db, now: Now, actor: Student) -> RoundOut:
+def start_second_round(attempt_id: int, db: Db, now: Now, actor: LearnerActor) -> RoundOut:
     """Start the second round, which repeats what failed the first time, or return it."""
     attempt, released = _attempt_or_404(db, actor, attempt_id, now)
     try:

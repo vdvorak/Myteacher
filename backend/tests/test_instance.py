@@ -1,8 +1,13 @@
 import sqlite3
+from importlib import resources
 
+from alembic import command
+from alembic.config import Config
 from fastapi.testclient import TestClient
 
 from myteacher.app import create_app
+from myteacher.db import migrate
+from myteacher.secret_box import SecretBox
 
 
 def test_database_is_created_by_migrations_on_start(settings, tmp_path):
@@ -39,3 +44,21 @@ def test_built_app_is_served_from_the_same_origin_as_the_api(settings, tmp_path)
             .startswith("application/json")
         )
         assert client.get("/api/nope").status_code == 404
+
+
+def test_the_link_run_migrations_go_down_and_up_again(tmp_path):
+    database = tmp_path / "myteacher.db"
+    url = f"sqlite:///{database}"
+    box = SecretBox("x" * 44)
+    migrate(url, box)
+    config = Config()
+    config.set_main_option("script_location", str(resources.files("myteacher") / "migrations"))
+    config.set_main_option("sqlalchemy.url", url)
+    config.attributes["secret_box"] = box
+
+    command.downgrade(config, "0031")
+    columns = {row[1] for row in sqlite3.connect(database).execute("pragma table_info(attempt)")}
+    assert "participant_id" not in columns
+    command.upgrade(config, "head")
+    columns = {row[1] for row in sqlite3.connect(database).execute("pragma table_info(attempt)")}
+    assert "participant_id" in columns

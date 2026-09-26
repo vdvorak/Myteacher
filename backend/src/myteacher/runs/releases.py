@@ -9,7 +9,9 @@ from sqlalchemy import exists, select
 from myteacher.accounts.models import Account
 from myteacher.courses.models import ClassroomMaterial, ClassroomMaterialVersion, Topic
 from myteacher.persistence import InstanceSession
+from myteacher.runs import learners
 from myteacher.runs import service as runs
+from myteacher.runs.learners import Learner
 from myteacher.runs.models import Attempt, CourseRun, MaterialRelease, ReleaseStudent
 
 
@@ -22,7 +24,8 @@ class UnknownVersion(Exception):
 
 
 class NotInRun(Exception):
-    """A chosen student is not on the run's roster, or no student was chosen."""
+    """A chosen student is not on the run's roster, or no student was chosen, or students were
+    chosen in a link run, whose releases are for all its participants."""
 
 
 class DueInThePast(Exception):
@@ -111,6 +114,8 @@ def release(
     if settings.due_at is not None and settings.due_at <= now:
         raise DueInThePast()
     chosen = sorted(set(student_ids)) if student_ids is not None else None
+    if chosen is not None and run.mode == "link":
+        raise NotInRun()
     if chosen is not None:
         on_roster = {entry.student.id for entry in runs.roster(db, run)}
         if not chosen or not set(chosen) <= on_roster:
@@ -186,12 +191,13 @@ def recipients(
     db: InstanceSession,
     run: CourseRun,
     released: MaterialRelease,
-    roster: list[Account] | None = None,
-) -> list[Account]:
-    """Who has the release now: the roster, or the chosen students still on it. The run's roster
-    may be given when it was read already."""
+    roster: list[Learner] | None = None,
+) -> list[Learner]:
+    """Who has the release now: everyone on the run, including a link run's participants who
+    joined after it, or the chosen students still on it. The run's learners may be given when
+    they were read already."""
     if roster is None:
-        roster = [entry.student for entry in runs.roster(db, run)]
+        roster = learners.of_run(db, run)
     if released.audience == "run":
         return roster
     chosen = {student.id for student in chosen_students(db, released)}
@@ -202,7 +208,7 @@ def submitted_of(
     db: InstanceSession,
     run: CourseRun,
     released: MaterialRelease,
-    roster: list[Account] | None = None,
+    roster: list[Learner] | None = None,
 ) -> tuple[int, int]:
     """How many of the release's recipients now have an attempt that counts, of how many."""
     ids = {student.id for student in recipients(db, run, released, roster)}
@@ -210,8 +216,8 @@ def submitted_of(
 
 
 def submitters(db: InstanceSession, released: MaterialRelease) -> set[int]:
-    """The students with an attempt at the release that counts: submitted, not retracted."""
-    counting = select(Attempt.student_id).where(
+    """The learners with an attempt at the release that counts: submitted, not retracted."""
+    counting = select(learners.OWNER_ID).where(
         Attempt.release_id == released.id,
         Attempt.submitted_at.is_not(None),
         Attempt.retracted_at.is_(None),

@@ -1,3 +1,4 @@
+import { httpAttemptsApiWith, type AttemptsApi } from '../attempts/api'
 import { ApiError } from '../lesson/api'
 
 /** Where a join link leads, before anyone types a name. */
@@ -28,6 +29,8 @@ export interface ParticipantsApi {
   join(joinToken: string, name: string): Promise<{ token: string; participant: Participant } | JoinRefusal>
   /** The participant the personal link belongs to; null for a link that does not work. */
   me(token: string): Promise<Participant | null>
+  /** The participant's releases and attempts, reached through their personal link. */
+  attempts(token: string): AttemptsApi
 }
 
 /** Where a participant's personal link leads; the token is in the fragment, which the browser never sends. */
@@ -56,6 +59,7 @@ export const httpParticipantsApi: ParticipantsApi = {
     if (!response.ok) throw new ApiError(response.status)
     return (await response.json()) as { token: string; participant: Participant }
   },
+  attempts: (token) => httpAttemptsApiWith({ 'X-Participant-Token': token }),
   me: async (token) => {
     const response = await fetch('/api/participant', { headers: { 'X-Participant-Token': token } })
     if (response.status === 401) return null

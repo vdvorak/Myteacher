@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, CheckConstraint, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from myteacher import erasure
@@ -113,18 +113,31 @@ class ReleaseStudent(InstanceOwned, Base):
 
 
 class Attempt(InstanceOwned, Base):
-    """One student's pass through a release's version, from opening to submission (ADR 0011).
-    The server owns it: it holds the seed, pins the variants and counts the tries."""
+    """One learner's pass through a release's version, from opening to submission (ADR 0011):
+    a student's, or a link run participant's (ADR 0012). The server owns it: it holds the seed,
+    pins the variants and counts the tries."""
 
     __tablename__ = "attempt"
-    __table_args__ = (UniqueConstraint("release_id", "student_id", "number"),)
+    __table_args__ = (
+        UniqueConstraint("release_id", "student_id", "number"),
+        UniqueConstraint(
+            "release_id", "participant_id", "number", name="uq_attempt_participant_number"
+        ),
+        CheckConstraint(
+            "(student_id IS NULL) != (participant_id IS NULL)", name="ck_attempt_one_owner"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     release_id: Mapped[int] = mapped_column(
         ForeignKey("material_release.id", ondelete="CASCADE"), index=True
     )
-    student_id: Mapped[int] = mapped_column(
+    # Exactly one of the two owns the attempt.
+    student_id: Mapped[int | None] = mapped_column(
         ForeignKey("account.id", ondelete="CASCADE"), index=True
+    )
+    participant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("participant.id", ondelete="CASCADE"), index=True
     )
     # 1 for the first attempt at the release; more where the release allows repeating.
     number: Mapped[int]

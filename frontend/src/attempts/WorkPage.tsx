@@ -13,6 +13,7 @@ import {
   type AttemptRefusal,
   type ReleaseDetail,
 } from './api'
+import { useWorkLinks } from './links'
 import './work.css'
 
 /** Written answers of the round still waiting for the teacher's published assessment. */
@@ -30,9 +31,10 @@ function pastDue(release: ReleaseDetail): boolean {
 
 /** One released material: opening it starts an attempt, or resumes it wherever it was left, on
  * any device; after submission it shows the results, and another attempt where the release allows. */
-export function WorkPage() {
+export function WorkPage(props: { participant?: boolean } = {}) {
   const { t, locale } = useI18n()
   const api = useApi().attempts
+  const links = useWorkLinks()
   const params = useParams<{ releaseId: string }>()
   const [detail, { refetch }] = createResource(() => Number(params.releaseId), (id) => api.release(id))
   const [attempt, setAttempt] = createSignal<Attempt>()
@@ -84,13 +86,21 @@ export function WorkPage() {
       fallback={
         <Show when={detail.error} fallback={<p>{t('work.loading')}</p>}>
           <p role="alert">
-            {detail.error instanceof ApiError && detail.error.status === 404 ? t('work.notFound') : t('work.loadFailed')}
+            {detail.error instanceof ApiError && detail.error.status === 404
+              ? t('work.notFound')
+              : props.participant && detail.error instanceof ApiError && detail.error.status === 401
+                ? t('participant.unknownLink')
+                : t('work.loadFailed')}
           </p>
         </Show>
       }
     >
       {(release) => (
         <>
+          {/* Outside the shell, no page header names the work. */}
+          <Show when={props.participant}>
+            <h1>{release().title}</h1>
+          </Show>
           <p class="settings-note">
             {t('work.meta', { topic: release().topic, run: release().run })}
             <Show when={release().due_at}>
@@ -169,7 +179,7 @@ export function WorkPage() {
               <Show when={waiting() > 0}>
                 <p>{t('work.result.pending')}</p>
               </Show>
-              <A href="/" class="work-action" data-variant="outlined">
+              <A href={links.home} class="work-action" data-variant="outlined">
                 {t('work.result.back')}
               </A>
             </section>

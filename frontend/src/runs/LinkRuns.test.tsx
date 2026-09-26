@@ -9,7 +9,35 @@ import { fakeAuthApi, invitedTeacher } from '../auth/testing'
 import { fakeCoursesApi, spanish } from '../courses/testing'
 import type { Locale } from '../i18n/messages'
 import { withI18n } from '../lesson/testing'
+import { defaultSettings, type ReleasableMaterial, type Release, type ReleaseResults } from './api'
 import { fakeRunsApi } from './testing'
+
+const preterite: ReleasableMaterial = {
+  id: 4,
+  topic: 'Pretérito indefinido',
+  title: 'Pretérito in class',
+  versions: [1],
+  target_student_ids: [],
+}
+const released: Release = {
+  ...defaultSettings,
+  id: 1,
+  material_id: 4,
+  title: 'Pretérito in class',
+  topic: 'Pretérito indefinido',
+  topic_id: 2,
+  version: 1,
+  audience: 'run',
+  students: [],
+  released_by_id: 2,
+  released_at: '2026-09-24T08:00:00Z',
+  retracted_at: null,
+  retraction_reason: null,
+}
+const twoJans = [
+  { id: 1, name: 'Jan Novák (1)', joined_at: '2026-09-25T08:00:00Z' },
+  { id: 2, name: 'Jan Novák (2)', joined_at: '2026-09-25T08:03:00Z' },
+]
 
 const teacher: Account = { ...invitedTeacher, language: null }
 
@@ -24,10 +52,23 @@ const linkRun = (participants: { id: number; name: string; joined_at: string }[]
   link: { capacity: 30, joinToken: 'join-7', participants },
 })
 
-function renderApp(path: string, options: { runs?: ReturnType<typeof linkRun>[]; locale?: Locale } = {}) {
+function renderApp(
+  path: string,
+  options: {
+    runs?: ReturnType<typeof linkRun>[]
+    locale?: Locale
+    releases?: Record<number, Release[]>
+    results?: Record<number, ReleaseResults>
+  } = {},
+) {
   const history = createMemoryHistory()
   history.set({ value: path })
-  const runs = fakeRunsApi({ runs: options.runs })
+  const runs = fakeRunsApi({
+    runs: options.runs,
+    materials: [preterite],
+    releases: options.releases,
+    results: options.results,
+  })
   const apis = fakeApis({
     auth: fakeAuthApi({ signedIn: teacher }),
     courses: fakeCoursesApi({ courses: [spanish] }),
@@ -219,5 +260,57 @@ describe('the lobby of a link run', () => {
 
     expect(await screen.findByLabelText('Odkaz pro připojení')).toBeInTheDocument()
     expect(screen.getByText('Zatím se nikdo nepřipojil.')).toBeInTheDocument()
+  })
+})
+
+describe('releasing to participants and their results', () => {
+  it('releases to every participant, and the summary counts them', async () => {
+    renderApp('/runs/7', { runs: [linkRun(twoJans)] })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Release material' }))
+    const form = within(screen.getByRole('dialog', { name: 'Release in a run' }))
+    await user.selectOptions(await form.findByLabelText('Material'), String(preterite.id))
+    expect(form.getByText('For every participant of the run, including those who join later.')).toBeInTheDocument()
+    expect(form.queryByRole('radio', { name: /Chosen students/ })).not.toBeInTheDocument()
+    await user.click(form.getByRole('button', { name: 'Continue to the summary' }))
+
+    const summary = within(screen.getByRole('region', { name: 'Summary' }))
+    expect(summary.getByText('Participants who will see the material right away: 2')).toBeInTheDocument()
+  })
+
+  it('names who is behind without a page of their own', async () => {
+    renderApp('/runs/7', {
+      runs: [linkRun(twoJans)],
+      releases: { 7: [{ ...released, due_at: '2026-09-24T18:00:00Z' }] },
+    })
+
+    const behind = within(await screen.findByRole('region', { name: 'Who is behind' }))
+    expect(behind.getByText('Jan Novák (2)')).toBeInTheDocument()
+    expect(behind.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('shows the results of participants, a name typed twice numbered', async () => {
+    const results: ReleaseResults = {
+      release: released,
+      open_answers: { waiting: 0, assessed: 0, flagged: 0, unpublished: 0 },
+      exercises: [],
+      students: twoJans.map(({ id, name }) => ({
+        id,
+        name,
+        in_run: true,
+        state: 'submitted',
+        late: false,
+        attempts: 1,
+        cells: {},
+      })),
+    }
+    renderApp('/runs/7/releases/1', { runs: [linkRun(twoJans)], releases: { 7: [released] }, results: { 1: results } })
+
+    expect(await screen.findByRole('link', { name: 'Jan Novák (2)' })).toHaveAttribute(
+      'href',
+      '/runs/7/releases/1/students/2',
+    )
+    expect(screen.getByRole('link', { name: 'Jan Novák (1)' })).toBeInTheDocument()
   })
 })

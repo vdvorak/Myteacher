@@ -230,6 +230,41 @@ describe('releasing a material in a run', () => {
     )
   })
 
+  it('releases to every participant of a link run chosen after chosen students of another run', async () => {
+    const linkRun = {
+      id: 8,
+      courseId: 1,
+      name: 'Den otevřených dveří',
+      classIds: [],
+      studentIds: [],
+      link: {
+        capacity: 30,
+        joinToken: 'join-8',
+        participants: [
+          { id: 1, name: 'Eva', joined_at: '2026-09-25T08:00:00Z' },
+          { id: 2, name: 'Adam', joined_at: '2026-09-25T08:01:00Z' },
+        ],
+      },
+    }
+    const { runs } = renderTopic({
+      materials: [serEstarMaterial],
+      runs: { runs: [inClass, linkRun], materials: [releasable] },
+    })
+    const user = userEvent.setup()
+
+    await user.click((await item('Ser, or estar?')).getByRole('button', { name: 'Release in a run…' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Release in a run' }))
+    await user.selectOptions(await dialog.findByLabelText('Course run'), '7')
+    await user.click(await dialog.findByRole('radio', { name: 'Chosen students' }))
+    await user.selectOptions(dialog.getByLabelText('Course run'), '8')
+    await dialog.findByText('For every participant of the run, including those who join later.')
+    await user.click(dialog.getByRole('button', { name: 'Continue to the summary' }))
+    expect(await dialog.findByText('Participants who will see the material right away: 2')).toBeInTheDocument()
+    await user.click(dialog.getByRole('button', { name: 'Release' }))
+
+    expect(runs.release).toHaveBeenCalledWith(8, expect.objectContaining({ audience: 'run', student_ids: null }))
+  })
+
   it('says when the material cannot be released in the run chosen', async () => {
     renderTopic({ materials: [serEstarMaterial], runs: { runs: [inClass], materials: [] } })
     const user = userEvent.setup()
