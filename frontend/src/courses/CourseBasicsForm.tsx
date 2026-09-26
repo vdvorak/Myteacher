@@ -4,6 +4,62 @@ import type { CourseBasics } from './api'
 import { LanguageSelect } from './languages'
 import './courses.css'
 
+/** The basics as a form holds them: the language of explanations is unset until chosen. */
+export type BasicsDraft = Omit<CourseBasics, 'instruction_language'> & { instruction_language: string | null }
+
+export const emptyBasics: BasicsDraft = { name: '', subject: '', taught_language: null, instruction_language: null }
+
+/** The basics to send, trimmed; none before the language of explanations is chosen. */
+export function basicsOf(draft: BasicsDraft): CourseBasics | null {
+  const language = draft.instruction_language
+  if (language === null) return null
+  return {
+    name: draft.name.trim(),
+    subject: draft.subject.trim(),
+    taught_language: draft.taught_language,
+    instruction_language: language,
+  }
+}
+
+/** The fields of name, subject and the two languages of a course, for a form that holds them. */
+export function CourseBasicsFields(props: { basics: BasicsDraft; onChange: (basics: BasicsDraft) => void }) {
+  const { t } = useI18n()
+  const change = (field: Partial<BasicsDraft>) => props.onChange({ ...props.basics, ...field })
+  return (
+    <>
+      <label>
+        {t('courses.name')}
+        <input
+          required
+          maxLength={200}
+          value={props.basics.name}
+          onInput={(e) => change({ name: e.currentTarget.value })}
+        />
+      </label>
+      <label>
+        {t('courses.subject')}
+        <input
+          required
+          maxLength={200}
+          value={props.basics.subject}
+          onInput={(e) => change({ subject: e.currentTarget.value })}
+        />
+      </label>
+      <LanguageSelect
+        label={t('courses.taughtLanguage')}
+        noneLabel={t('courses.noTaughtLanguage')}
+        value={props.basics.taught_language}
+        onChange={(tag) => change({ taught_language: tag })}
+      />
+      <LanguageSelect
+        label={t('courses.instructionLanguage')}
+        value={props.basics.instruction_language}
+        onChange={(tag) => change({ instruction_language: tag })}
+      />
+    </>
+  )
+}
+
 /** Name, subject and the two languages of a course, for creating or changing it. */
 export function CourseBasicsForm(props: {
   initial?: CourseBasics
@@ -13,24 +69,16 @@ export function CourseBasicsForm(props: {
   readOnly?: boolean
 }) {
   const { t } = useI18n()
-  const [name, setName] = createSignal(props.initial?.name ?? '')
-  const [subject, setSubject] = createSignal(props.initial?.subject ?? '')
-  const [taught, setTaught] = createSignal<string | null>(props.initial?.taught_language ?? null)
-  const [instruction, setInstruction] = createSignal<string | null>(props.initial?.instruction_language ?? null)
+  const [basics, setBasics] = createSignal<BasicsDraft>(props.initial ?? emptyBasics)
   const [busy, setBusy] = createSignal(false)
 
   async function submit(event: SubmitEvent) {
     event.preventDefault()
-    const language = instruction()
-    if (language === null) return
+    const chosen = basicsOf(basics())
+    if (chosen === null) return
     setBusy(true)
     try {
-      await props.onSubmit({
-        name: name().trim(),
-        subject: subject().trim(),
-        taught_language: taught(),
-        instruction_language: language,
-      })
+      await props.onSubmit(chosen)
     } finally {
       setBusy(false)
     }
@@ -39,21 +87,7 @@ export function CourseBasicsForm(props: {
   return (
     <form class="settings-form" onSubmit={submit}>
       <fieldset class="read-only-group" disabled={props.readOnly}>
-        <label>
-          {t('courses.name')}
-          <input required maxLength={200} value={name()} onInput={(e) => setName(e.currentTarget.value)} />
-        </label>
-        <label>
-          {t('courses.subject')}
-          <input required maxLength={200} value={subject()} onInput={(e) => setSubject(e.currentTarget.value)} />
-        </label>
-        <LanguageSelect
-          label={t('courses.taughtLanguage')}
-          noneLabel={t('courses.noTaughtLanguage')}
-          value={taught()}
-          onChange={setTaught}
-        />
-        <LanguageSelect label={t('courses.instructionLanguage')} value={instruction()} onChange={setInstruction} />
+        <CourseBasicsFields basics={basics()} onChange={setBasics} />
       </fieldset>
       <Show when={props.initial === undefined}>
         <p class="settings-note">{t('courses.languagesNote')}</p>

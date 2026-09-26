@@ -62,3 +62,13 @@
   align-items: baseline;
   gap: var(--space-1) var(--space-3);
 }
+
+/* The new course of the form turning a test into classroom material. */
+.turn-test fieldset {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+}

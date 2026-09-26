@@ -23,14 +23,14 @@ const refusals: Record<Exclude<MaterialRefusal, 'no_provider_key'>, MessageKey> 
   source_not_read: 'materials.sourceNotRead',
 }
 
-type Problem =
+export type Problem =
   | { kind: 'refused'; reason: MaterialRefusal }
   /** A file uploaded to be transcribed was refused. */
   | { kind: 'source'; reason: SourceRefusal }
   | { kind: 'failed' }
   | null
 
-function ProblemMessage(props: { problem: Problem }) {
+export function ProblemMessage(props: { problem: Problem }) {
   const { t } = useI18n()
   const message = (problem: Exclude<Problem, null>): MessageKey =>
     problem.kind === 'refused'
@@ -49,7 +49,7 @@ function ProblemMessage(props: { problem: Problem }) {
   )
 }
 
-const asProblem = (error: unknown): Problem =>
+export const asProblem = (error: unknown): Problem =>
   error instanceof MaterialRefused
     ? { kind: 'refused', reason: error.reason }
     : error instanceof SourceRefused

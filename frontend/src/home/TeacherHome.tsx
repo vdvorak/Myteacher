@@ -1,11 +1,12 @@
 import { A } from '@solidjs/router'
-import { createResource, For, Match, Show, Switch } from 'solid-js'
+import { createResource, createSignal, For, Match, Show, Switch } from 'solid-js'
 import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import { PageHeader } from '../shell/PageHeader'
 import type { AttentionItem, Checklist } from './api'
 import './home.css'
+import { TurnTestDialog } from './TurnTestDialog'
 
 /** The teacher's home: what to do now. */
 export function TeacherHome() {
@@ -13,10 +14,21 @@ export function TeacherHome() {
   const api = useApi().home
   const [home] = createResource(() => api.get())
   const found = () => (home.error ? undefined : home())
+  const [turningTest, setTurningTest] = createSignal(false)
 
   return (
     <div class="home">
-      <PageHeader title={t('nav.home')} />
+      <PageHeader
+        title={t('nav.home')}
+        action={
+          <button type="button" onClick={() => setTurningTest(true)}>
+            {t('turnTest.title')}
+          </button>
+        }
+      />
+      <Show when={turningTest()}>
+        <TurnTestDialog onClose={() => setTurningTest(false)} />
+      </Show>
       <Show when={home.error}>
         <p role="alert">{t('home.loadFailed')}</p>
       </Show>
