@@ -1,5 +1,5 @@
 import { createMemoryHistory } from '@solidjs/router'
-import { render, screen, waitFor, within } from '@solidjs/testing-library'
+import { cleanup, render, screen, waitFor, within } from '@solidjs/testing-library'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from '../App'
@@ -14,6 +14,8 @@ import { fakeJobsApi } from '../jobs/testing'
 import { sampleLesson, withI18n } from '../lesson/testing'
 import { fakeStudentsApi, jana } from '../students/testing'
 import { fakeRunsApi } from '../runs/testing'
+import { fakeSourcesApi, textbook } from '../sources/testing'
+import type { SourceDetail } from '../sources/api'
 import type { Material } from './api'
 import { fakeMaterialsApi, serEstarMaterial, written, type ScriptedMaterial } from './testing'
 
@@ -29,6 +31,7 @@ function renderApp(
     course?: Course
     script?: ScriptedMaterial[]
     runs?: Parameters<typeof fakeRunsApi>[0]
+    sources?: SourceDetail[]
   } = {},
 ) {
   const course = options.course ?? spanish
@@ -46,6 +49,7 @@ function renderApp(
     students: fakeStudentsApi(),
     materials,
     runs: fakeRunsApi(options.runs),
+    sources: fakeSourcesApi({ sources: { [course.id]: options.sources ?? [] }, jobs }),
     jobs,
   })
   render(withI18n(() => <App apis={apis} history={history} />, 'en'))
@@ -94,11 +98,13 @@ describe('classroom material of a topic', () => {
     expect(await (await section()).findByText(/same as for the whole class/)).toBeInTheDocument()
   })
 
-  it('asks for an approved concept map first', async () => {
+  it('asks for an approved concept map before generating, but not before transcribing', async () => {
     renderTopic({ map: preteritMap })
+    const materialSection = await section()
 
-    expect(await screen.findByText('This step opens once the concept map is approved: everything here is made from it.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Generate material' })).not.toBeInTheDocument()
+    expect(await materialSection.findByText('Approve the concept map to generate material from it.')).toBeInTheDocument()
+    expect(materialSection.queryByRole('button', { name: 'Generate material' })).not.toBeInTheDocument()
+    expect(materialSection.getByRole('form', { name: 'Create from a source' })).toBeInTheDocument()
   })
 
   it('says why a generation failed and tries it again', async () => {
@@ -297,9 +303,68 @@ describe('classroom material preview', () => {
     expect(within(key).getAllByRole('listitem')[0]).toHaveTextContent('está')
   })
 
+  it('marks answers the assistant proposed until the material is reviewed', async () => {
+    const proposing = { ...serEstarMaterial, proposed_answers: ['location'] }
+    renderApp('/preview/courses/1/topics/2/materials/41', { materials: [proposing] })
+
+    const key = await screen.findByRole('region', { name: 'Answer key' })
+    const flag = within(within(key).getAllByRole('listitem')[0]).getByText('Proposed by the assistant: check it')
+    expect(flag).toHaveClass('answer-key-proposed')
+    cleanup()
+    renderApp('/preview/courses/1/topics/2/materials/41', { materials: [{ ...proposing, reviewed: true }] })
+    const reviewed = await screen.findByRole('region', { name: 'Answer key' })
+    expect(within(reviewed).queryByText('Proposed by the assistant: check it')).not.toBeInTheDocument()
+  })
+
   it('says when the material is not there', async () => {
     renderApp('/preview/courses/1/topics/2/materials/99')
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No classroom material here.')
+  })
+})
+
+describe('classroom material transcribed from a source', () => {
+  const test3: SourceDetail = { ...textbook, id: 7, name: 'Test 3.pdf', extracted_with: 'ocr' }
+  const keySheet: SourceDetail = { ...textbook, id: 8, name: 'Klíč.pdf' }
+  const unread: SourceDetail = { ...textbook, id: 9, name: 'Scan.png', characters: null, text: null, extracted_with: null }
+  const proposed: ScriptedMaterial = {
+    ...written,
+    lesson: {
+      ...sampleLesson,
+      blocks: [...sampleLesson.blocks, { type: 'paper_only', id: 'timeline', prompt: 'Draw a timeline.', answer_lines: 4 }],
+    },
+    proposed_answers: ['location'],
+  }
+
+  it('transcribes a read source of the course, with an optional answer key, even before the concept map is approved', async () => {
+    const { materials } = renderTopic({
+      map: preteritMap,
+      sources: [test3, keySheet, unread],
+      script: [proposed],
+    })
+    const user = userEvent.setup()
+    const materialSection = await section()
+
+    const form = within(await materialSection.findByRole('form', { name: 'Create from a source' }))
+    const choice = form.getByRole('combobox', { name: 'Source to transcribe' })
+    expect(within(choice).queryByRole('option', { name: 'Scan.png' })).not.toBeInTheDocument()
+    await user.selectOptions(choice, 'Test 3.pdf')
+    await user.selectOptions(form.getByRole('combobox', { name: 'Answer key (optional)' }), 'Klíč.pdf')
+    await user.click(form.getByRole('button', { name: 'Transcribe' }))
+
+    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, 7, 8, [])
+    const material = await item('Ser, or estar?')
+    expect(material.getByText('Transcribed from Test 3.pdf')).toBeInTheDocument()
+    expect(material.getByText('Answers proposed by the assistant: 1. Check them in the preview.')).toBeInTheDocument()
+    expect(material.getByText('Paper-only exercises: 1. They are printed but not done in the app.')).toBeInTheDocument()
+  })
+
+  it('points to the sources to upload one when none is read yet', async () => {
+    renderTopic({ sources: [unread] })
+    const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
+
+    expect(form.getByText('Upload the test or worksheet as a source of the course first.')).toBeInTheDocument()
+    expect(form.getByRole('link', { name: 'Go to sources' })).toHaveAttribute('href', '/courses/1?tab=sources')
+    expect(form.queryByRole('button', { name: 'Transcribe' })).not.toBeInTheDocument()
   })
 })

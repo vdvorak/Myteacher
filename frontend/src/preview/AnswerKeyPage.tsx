@@ -5,8 +5,9 @@ import { Markdown } from '../lesson/Markdown'
 import { SolutionText } from '../lesson/exercises/SolutionText'
 import type { ExercisePublic } from '../lesson/schema'
 
-/** The canonical solutions of a lesson, printed on a page of their own after the lesson. */
-export function AnswerKeyPage(props: { lesson: LessonPublic; answerKey: AnswerKey }) {
+/** The canonical solutions of a lesson, printed on a page of their own after the lesson. `proposed`: the
+ * exercises whose answers the assistant proposed, marked for the teacher to check. */
+export function AnswerKeyPage(props: { lesson: LessonPublic; answerKey: AnswerKey; proposed?: string[] }) {
   const { t } = useI18n()
   const headingId = createUniqueId()
   const exercise = (id: string) =>
@@ -25,6 +26,9 @@ export function AnswerKeyPage(props: { lesson: LessonPublic; answerKey: AnswerKe
         <For each={props.answerKey.entries}>
           {(entry) => (
             <li class="answer-key-entry">
+              <Show when={props.proposed?.includes(entry.exercise_id)}>
+                <p class="answer-key-proposed">{t('answerKey.proposed')}</p>
+              </Show>
               <Show when={exercise(entry.exercise_id)?.prompt}>
                 {(prompt) => (
                   <div class="answer-key-prompt">

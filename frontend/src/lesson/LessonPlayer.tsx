@@ -6,6 +6,7 @@ import { exerciseLayout, ExerciseView } from './exercises/ExerciseView'
 import { Markdown } from './Markdown'
 import { TeacherReview } from './TeacherReview'
 import { isRendered, type RenderedAnswer, type TryOutcome } from './schema'
+import { PaperOnlyExercise } from './PaperOnlyExercise'
 import { UnsupportedExercise, type UnrenderedExercise } from './UnsupportedExercise'
 import {
   clearProgress,
@@ -274,7 +275,14 @@ export function LessonPlayer(props: LessonPlayerProps) {
             <Match when={isRendered(block) && block}>
               {(exercise) => renderExercise('first', exercise())}
             </Match>
-            <Match when={block.type !== 'explanation' && block.type !== 'passage' && !isRendered(block) && block}>
+            <Match when={block.type === 'paper_only' && block}>
+              {(paper) => <PaperOnlyExercise block={paper()} />}
+            </Match>
+            <Match
+              when={
+                block.type !== 'explanation' && block.type !== 'passage' && block.type !== 'paper_only' && !isRendered(block) && block
+              }
+            >
               {(exercise) => <UnsupportedExercise exercise={exercise() as UnrenderedExercise} />}
             </Match>
           </Switch>

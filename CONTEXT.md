@@ -167,7 +167,7 @@ An exercise outside the component catalog, delivered as assistant-written HTML i
 _Avoid_: experimental widget, escape hatch, ad-hoc exercise
 
 **Component Backlog**:
-The recorded needs for exercise types that do not exist yet, collected from custom exercises so they can become standard components.
+The recorded needs for exercise types that do not exist yet, collected from custom exercises and paper-only exercises so they can become standard components.
 _Avoid_: feature requests, wishlist
 
 **Rubric**:

@@ -9,6 +9,7 @@ from myteacher.accounts import service
 from myteacher.accounts.models import Account
 from myteacher.api.deps import AppSettings, Box, Db, MailSender, Now, requires
 from myteacher.api.invite import InvitationResult, ensure_invitable, send_invitation
+from myteacher.courses import materials
 from myteacher.mail import MailError, Security, SmtpConfig
 from myteacher.mail.store import deliver, save_settings, stored_settings
 from myteacher.mail.templates import Language, render
@@ -280,3 +281,33 @@ def erase_student(
     db.expire(student)
     student.erased_at = now
     service.record_event(db, "student_erased", at=now, actor=admin, subject=student)
+
+
+class ComponentNeedOut(BaseModel):
+    id: int
+    course_id: int
+    material_id: int | None
+    prompt: str
+    need: str
+    created_at: datetime
+
+    @field_serializer("created_at")
+    def _utc(self, at: datetime) -> str:
+        return at.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@router.get("/component-backlog")
+def list_component_backlog(db: Db, _: Admin) -> list[ComponentNeedOut]:
+    """The needs for exercise types that do not exist yet, newest first, recorded from the
+    paper-only exercises of transcribed classroom material."""
+    return [
+        ComponentNeedOut(
+            id=n.id,
+            course_id=n.course_id,
+            material_id=n.material_id,
+            prompt=n.prompt,
+            need=n.need,
+            created_at=n.created_at,
+        )
+        for n in materials.component_backlog(db)
+    ]

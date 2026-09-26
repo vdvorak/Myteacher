@@ -35,7 +35,7 @@ const names = async () =>
 const nextStep = () => screen.findByRole('complementary', { name: 'Next step' })
 
 describe('topic steps', () => {
-  it('opens on the concept map and keeps what is made from it locked until it is approved', async () => {
+  it('opens on the concept map and keeps what is made from it locked until it is approved, except material transcribed from a source', async () => {
     renderTopic()
 
     await screen.findByRole('region', { name: 'Concepts' })
@@ -43,18 +43,18 @@ describe('topic steps', () => {
       '1Additions, open',
       '[2Concept map, do this next]',
       '3Reference documents, locked',
-      '4Classroom material, locked',
+      '4Classroom material, open',
     ])
     expect(await nextStep()).toHaveTextContent('Let the assistant propose the concept map, or add the concepts yourself.')
   })
 
   it('says why a locked step is locked', async () => {
-    renderTopic({ tab: 'materials' })
+    renderTopic({ tab: 'documents' })
 
     expect(
       await screen.findByText('This step opens once the concept map is approved: everything here is made from it.'),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Classroom material' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Reference documents' })).not.toBeInTheDocument()
   })
 
   it('puts approving at the head of the map step', async () => {

@@ -1,8 +1,9 @@
 """Classroom material of a topic: generated and regenerated on an editor's key from the approved
-concept map, edited, targeted and discarded by the course's owner and editors, read and previewed
-by anyone who may view the course. Generation runs as a job; the client polls it, then reads the
-material again. Material is answered with its latest version: the lesson as it reaches the page,
-without solutions, and its answer key apart.
+concept map or transcribed from one of the course's sources, edited, targeted and discarded by
+the course's owner and editors, read and previewed by anyone who may view the course.
+Generation runs as a job; the client polls it, then reads the material again. Material is
+answered with its latest version: the lesson as it reaches the page, without solutions, and its
+answer key apart.
 """
 
 from datetime import datetime
@@ -17,9 +18,9 @@ from myteacher.api.deps import Db, Now, requires
 from myteacher.api.jobs import JobOut
 from myteacher.assistant import generations
 from myteacher.assistant.service import paying_credential
-from myteacher.courses import concepts, materials, topics
-from myteacher.courses.materials import Content
-from myteacher.courses.models import ClassroomMaterial, Course, Topic
+from myteacher.courses import concepts, materials, sources, topics
+from myteacher.courses.materials import ContentWithPaperOnly
+from myteacher.courses.models import ClassroomMaterial, Course, Source, Topic
 from myteacher.jobs import runner
 from myteacher.lesson.assessment import AnswerMismatch, answer_key, assess
 from myteacher.lesson.schema import (
@@ -58,6 +59,9 @@ class MaterialOut(BaseModel):
     job: JobOut | None
     # Stored for planning; they do not change what is generated yet.
     target_student_ids: list[int]
+    # The source it was transcribed from, and the one with its answer key.
+    source_id: int | None
+    key_source_id: int | None
 
     @field_serializer("created_at")
     def _utc(self, at: datetime) -> str:
@@ -82,6 +86,8 @@ class VersionOut(BaseModel):
 class MaterialDetail(MaterialOut):
     lesson: LessonPublic | None
     answer_key: AnswerKey | None
+    # The exercises of the latest version whose answers the assistant proposed.
+    proposed_answers: list[str]
     versions: list[VersionOut]
 
 
@@ -98,6 +104,15 @@ class MaterialIn(BaseModel):
     instruction: Instruction | None = None
 
 
+class Transcription(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: int
+    # A source holding the answer key; without one the assistant proposes the answers.
+    key_source_id: int | None = None
+    target_student_ids: list[int] = []
+
+
 class Regeneration(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -106,7 +121,7 @@ class Regeneration(BaseModel):
     based_on: int
 
 
-class Edit(Content):
+class Edit(ContentWithPaperOnly):
     # The version the teacher edited; a newer one refuses the edit.
     based_on: int
 
@@ -135,6 +150,8 @@ def _summary(db: InstanceSession, material: ClassroomMaterial) -> dict:
         "created_at": material.created_at,
         "job": JobOut.of(job) if job else None,
         "target_student_ids": materials.targets_of(db, material),
+        "source_id": material.source_id,
+        "key_source_id": material.key_source_id,
     }
 
 
@@ -146,6 +163,7 @@ def _detail(db: InstanceSession, material: ClassroomMaterial) -> MaterialDetail:
         **_summary(db, material),
         lesson=to_public(lesson) if lesson else None,
         answer_key=answer_key(lesson) if lesson else None,
+        proposed_answers=(versions[-1].proposed_answers or []) if versions else [],
         versions=[
             VersionOut(
                 number=v.number,
@@ -187,6 +205,15 @@ def _lesson(db: InstanceSession, material: ClassroomMaterial) -> LessonDocument:
     return materials.lesson_of(version)
 
 
+def _read_source(db: InstanceSession, course: Course, source_id: int) -> Source:
+    source = sources.get_source(db, course, source_id)
+    if source is None:
+        raise HTTPException(status_code=422, detail="unknown_source")
+    if not source.text:
+        raise HTTPException(status_code=409, detail="source_not_read")
+    return source
+
+
 def _map_approved(db: InstanceSession, topic_id: int, course: Course) -> None:
     concept_map = concepts.map_of(db, _topic(db, course, topic_id))
     if concept_map is None or concept_map.state != "approved":
@@ -216,9 +243,8 @@ def _schedule(
 ) -> Started:
     if paying_credential(db, actor) is None:
         raise HTTPException(status_code=409, detail="no_provider_key")
-    job = runner.create_job(
-        db, materials.TASK_KIND, starter=actor, course_id=material.course_id, now=now
-    )
+    kind = materials.TRANSCRIPTION_KIND if material.transcribed else materials.TASK_KIND
+    job = runner.create_job(db, kind, starter=actor, course_id=material.course_id, now=now)
     material.job_id = job.id
     db.flush()
     # Runs after the response, once this request's transaction has committed.
@@ -262,6 +288,37 @@ def generate_material(
     return _schedule(request, background, db, material, actor, now)
 
 
+@router.post(
+    "/from-source",
+    status_code=202,
+    responses={
+        409: {"description": "A source has no text read from it yet, or no provider key"},
+        422: {"description": "A source or student is not the course's"},
+    },
+)
+def transcribe_material(
+    course_id: int,
+    topic_id: int,
+    body: Transcription,
+    request: Request,
+    background: BackgroundTasks,
+    db: Db,
+    now: Now,
+    actor: Teacher,
+) -> Started:
+    """Let the assistant transcribe one of the course's sources, such as a scanned test,
+    faithfully into material, with the answers from the key source or proposed."""
+    course = editable_course(db, actor, course_id)
+    topic = _topic(db, course, topic_id)
+    source = _read_source(db, course, body.source_id)
+    key = _read_source(db, course, body.key_source_id) if body.key_source_id else None
+    if paying_credential(db, actor) is None:
+        raise HTTPException(status_code=409, detail="no_provider_key")
+    material = materials.start(db, topic, actor, now=now, source=source, key_source=key)
+    _targets(db, material, body.target_student_ids)
+    return _schedule(request, background, db, material, actor, now)
+
+
 @router.get("/{material_id}")
 def read_material(
     course_id: int, topic_id: int, material_id: int, db: Db, actor: Teacher
@@ -288,7 +345,8 @@ def retry_material(
     job = runner.get_job(db, material.job_id) if material.job_id else None
     if materials.latest_version(db, material) is not None or job is None or job.state != "failed":
         raise HTTPException(status_code=409, detail="nothing_to_retry")
-    _map_approved(db, topic_id, course)
+    if not material.transcribed:
+        _map_approved(db, topic_id, course)
     return _schedule(request, background, db, material, actor, now)
 
 
@@ -313,7 +371,8 @@ def regenerate_material(
     course, material = _editable(db, actor, course_id, topic_id, material_id)
     if _busy(db, material):
         raise HTTPException(status_code=409, detail="generation_running")
-    _map_approved(db, topic_id, course)
+    if not material.transcribed:
+        _map_approved(db, topic_id, course)
     latest = materials.latest_version(db, material)
     if latest is None or latest.number != body.based_on:
         raise HTTPException(status_code=409, detail="material_changed")
@@ -352,7 +411,7 @@ def edit_material(
     if _busy(db, material):
         # The running generation would land over the edit.
         raise HTTPException(status_code=409, detail="generation_running")
-    content = Content.model_validate(body.model_dump(exclude={"based_on"}))
+    content = ContentWithPaperOnly.model_validate(body.model_dump(exclude={"based_on"}))
     try:
         materials.edit(db, course, material, content, actor, based_on=body.based_on, now=now)
     except materials.MaterialChanged:

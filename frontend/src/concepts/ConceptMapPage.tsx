@@ -157,8 +157,9 @@ function ConceptMapDetail() {
   const approved = () => map()?.state === 'approved'
   const holds = () => ({ documents: topic()?.documents ?? 0, materials: topic()?.materials ?? 0 })
   const additionsGiven = () => Object.values(topic()?.additions ?? {}).some((value) => value)
-  // What the topic already holds stays within reach while its map is reopened for changes.
-  const reachable = (id: 'documents' | 'materials') => approved() || holds()[id] > 0
+  // Material is always within reach, as it can be transcribed from a source without the map.
+  // Documents already made stay within reach while the map is reopened for changes.
+  const reachable = (id: 'documents' | 'materials') => id === 'materials' || approved() || holds()[id] > 0
   const stepState = (id: TopicTab): StepState => {
     if (id === 'additions') return additionsGiven() ? 'done' : 'open'
     if (id === 'map') return approved() ? 'done' : 'next'

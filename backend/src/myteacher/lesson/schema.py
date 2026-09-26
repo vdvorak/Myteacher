@@ -68,6 +68,19 @@ class PassageBlock(_Model):
     markdown: Markdown
 
 
+class PaperOnlyBlock(_Model):
+    """A paper-only exercise of classroom material transcribed from paper, which no exercise type
+    represents, such as drawing a graph: printed with space to answer, neither done nor assessed
+    in the app."""
+
+    type: Literal["paper_only"]
+    id: Identifier
+    prompt: Markdown
+    answer_lines: Annotated[
+        int, Field(ge=0, le=40, description="Lines of space to answer in when printed.")
+    ] = 3
+
+
 class _Exercise(_Model):
     passage_id: Annotated[
         Identifier | None,
@@ -756,7 +769,9 @@ Exercise = (
     | ListeningExercise
     | CustomExercise
 )
-LessonBlock = Annotated[ExplanationBlock | PassageBlock | Exercise, Field(discriminator="type")]
+# The blocks that are not exercises: nothing is answered or assessed in them.
+NotExercise = ExplanationBlock | PassageBlock | PaperOnlyBlock
+LessonBlock = Annotated[NotExercise | Exercise, Field(discriminator="type")]
 
 
 class LessonDocument(_Model):
@@ -777,7 +792,10 @@ class LessonDocument(_Model):
         for block in self.blocks:
             if isinstance(block, PassageBlock):
                 passages_so_far.add(block.id)
-            elif not isinstance(block, ExplanationBlock) and block.passage_id is not None:
+            elif (
+                not isinstance(block, ExplanationBlock | PaperOnlyBlock)
+                and block.passage_id is not None
+            ):
                 if block.passage_id not in passages_so_far:
                     raise ValueError(
                         f"exercise {block.id!r} references passage {block.passage_id!r}, "
@@ -786,9 +804,7 @@ class LessonDocument(_Model):
         return self
 
     def exercises(self) -> list[Exercise]:
-        return [
-            block for block in self.blocks if not isinstance(block, ExplanationBlock | PassageBlock)
-        ]
+        return [block for block in self.blocks if not isinstance(block, NotExercise)]
 
     def exercise(self, exercise_id: str) -> Exercise | None:
         return next((block for block in self.exercises() if block.id == exercise_id), None)
@@ -945,9 +961,7 @@ ExercisePublic = (
     | ListeningExercisePublic
     | CustomExercisePublic
 )
-LessonBlockPublic = Annotated[
-    ExplanationBlock | PassageBlock | ExercisePublic, Field(discriminator="type")
-]
+LessonBlockPublic = Annotated[NotExercise | ExercisePublic, Field(discriminator="type")]
 
 
 class LessonPublic(_Model):
@@ -1202,9 +1216,7 @@ def to_public(lesson: LessonDocument) -> LessonPublic:
         language=lesson.language,
         feedback_mode=lesson.feedback_mode,
         blocks=[
-            block
-            if isinstance(block, ExplanationBlock | PassageBlock)
-            else exercise_to_public(block)
+            block if isinstance(block, NotExercise) else exercise_to_public(block)
             for block in lesson.blocks
         ],
     )

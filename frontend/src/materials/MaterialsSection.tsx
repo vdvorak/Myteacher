@@ -1,5 +1,5 @@
 import { A } from '@solidjs/router'
-import { createResource, createSignal, For, Show } from 'solid-js'
+import { createResource, createSignal, createUniqueId, For, Show } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { useApi } from '../api/context'
 import { DraftBadge } from '../shell/DraftBadge'
@@ -9,6 +9,7 @@ import type { MessageKey } from '../i18n/messages'
 import { finished } from '../jobs/api'
 import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
 import { ReleaseDialog } from '../runs/ReleaseDialog'
+import type { Source } from '../sources/api'
 import { MaterialRefused, type MaterialRefusal, type MaterialSummary } from './api'
 
 const refusals: Record<Exclude<MaterialRefusal, 'no_provider_key'>, MessageKey> = {
@@ -17,6 +18,8 @@ const refusals: Record<Exclude<MaterialRefusal, 'no_provider_key'>, MessageKey> 
   generation_running: 'materials.changedMeanwhile',
   material_changed: 'materials.changedMeanwhile',
   unknown_student: 'materials.unknownStudent',
+  unknown_source: 'materials.unknownSource',
+  source_not_read: 'materials.sourceNotRead',
 }
 
 type Problem = { kind: 'refused'; reason: MaterialRefusal } | { kind: 'failed' } | null
@@ -41,7 +44,8 @@ function ProblemMessage(props: { problem: Problem }) {
 const asProblem = (error: unknown): Problem =>
   error instanceof MaterialRefused ? { kind: 'refused', reason: error.reason } : { kind: 'failed' }
 
-/** The classroom material of a topic: exercises generated from its approved concept map. */
+/** The classroom material of a topic: exercises generated from its approved concept map, or transcribed
+ * from one of the course's sources. */
 export function MaterialsSection(props: {
   courseId: number
   topicId: number
@@ -67,6 +71,19 @@ export function MaterialsSection(props: {
     }
   })
   const nameOf = (id: number) => students()?.find((s) => s.id === id)?.name ?? `#${id}`
+  // The course's sources, to transcribe from and to name what material came from.
+  const [sources] = createResource(
+    () => props.courseId,
+    async (courseId) => {
+      try {
+        return await apis.sources.list(courseId)
+      } catch {
+        return []
+      }
+    },
+  )
+  const sourceName = (id: number) => sources()?.find((s) => s.id === id)?.name ?? `#${id}`
+  const readSources = () => (sources() ?? []).filter((s) => s.characters !== null)
 
   const [loaded] = createResource(
     () => [props.courseId, props.topicId] as const,
@@ -122,6 +139,7 @@ export function MaterialsSection(props: {
                     material={material}
                     canEdit={props.canEdit}
                     nameOf={nameOf}
+                    sourceName={sourceName}
                     onChanged={reload}
                   />
                 </li>
@@ -129,6 +147,15 @@ export function MaterialsSection(props: {
             </For>
           </ul>
         </Show>
+      </Show>
+      <Show when={props.canEdit && sources()}>
+        <TranscriptionForm
+          courseId={props.courseId}
+          topicId={props.topicId}
+          sources={readSources()}
+          onStarted={reload}
+          onProblem={setProblem}
+        />
       </Show>
       <Show when={props.canEdit}>
         <Show
@@ -186,12 +213,92 @@ export function MaterialsSection(props: {
   )
 }
 
+/** Material transcribed faithfully from a source the teacher uploaded, such as a scanned test. */
+function TranscriptionForm(props: {
+  courseId: number
+  topicId: number
+  /** The course's sources with text read from them. */
+  sources: Source[]
+  onStarted: () => Promise<void>
+  onProblem: (problem: Problem) => void
+}) {
+  const { t } = useI18n()
+  const api = useApi().materials
+  const headingId = createUniqueId()
+  const [sourceId, setSourceId] = createSignal<number | null>(null)
+  const [keyId, setKeyId] = createSignal<number | null>(null)
+  const [busy, setBusy] = createSignal(false)
+  const chosen = () => sourceId() ?? props.sources[0]?.id ?? null
+
+  async function transcribe(event: SubmitEvent) {
+    event.preventDefault()
+    const source = chosen()
+    if (source === null) return
+    setBusy(true)
+    props.onProblem(null)
+    try {
+      await api.transcribe(props.courseId, props.topicId, source, keyId(), [])
+      setKeyId(null)
+      await props.onStarted()
+    } catch (error) {
+      props.onProblem(asProblem(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form class="document-editor" aria-labelledby={headingId} onSubmit={transcribe}>
+      <h3 id={headingId}>{t('materials.fromSource')}</h3>
+      <p class="settings-note">{t('materials.fromSourceNote')}</p>
+      <Show
+        when={props.sources.length > 0}
+        fallback={
+          <>
+            <p class="settings-note">{t('materials.noReadSource')}</p>
+            <p>
+              <A class="button-link" href={`/courses/${props.courseId}?tab=sources`}>
+                {t('materials.toSources')}
+              </A>
+            </p>
+          </>
+        }
+      >
+        <label>
+          {t('materials.sourceToTranscribe')}
+          <select value={chosen() ?? ''} onChange={(e) => setSourceId(Number(e.currentTarget.value))}>
+            <For each={props.sources}>{(source) => <option value={source.id}>{source.name}</option>}</For>
+          </select>
+        </label>
+        <label>
+          {t('materials.keySource')}
+          <select
+            value={keyId() ?? ''}
+            onChange={(e) => setKeyId(e.currentTarget.value === '' ? null : Number(e.currentTarget.value))}
+          >
+            <option value="">{t('materials.noKeySource')}</option>
+            <For each={props.sources.filter((s) => s.id !== chosen())}>
+              {(source) => <option value={source.id}>{source.name}</option>}
+            </For>
+          </select>
+        </label>
+        <div class="settings-actions">
+          <button type="submit" disabled={busy()}>
+            {t('materials.transcribe')}
+          </button>
+        </div>
+      </Show>
+    </form>
+  )
+}
+
 function MaterialCard(props: {
   courseId: number
   topicId: number
   material: MaterialSummary
   canEdit: boolean
   nameOf: (id: number) => string
+  sourceName: (id: number) => string
   onChanged: () => Promise<void>
 }) {
   const { t } = useI18n()
@@ -227,6 +334,7 @@ function MaterialCard(props: {
     },
   )
   const latest = () => detail()?.versions.at(-1)
+  const paperOnly = () => detail()?.lesson?.blocks.filter((block) => block.type === 'paper_only').length ?? 0
 
   const running = () => {
     const job = props.material.job
@@ -267,6 +375,15 @@ function MaterialCard(props: {
             <DraftBadge reviewed={props.material.reviewed} /> <span>{t('materials.version', { version: version() })}</span>
           </p>
         )}
+      </Show>
+      <Show when={props.material.source_id}>
+        {(id) => <p class="settings-note">{t('materials.transcribedFrom', { name: props.sourceName(id()) })}</p>}
+      </Show>
+      <Show when={!props.material.reviewed && (detail()?.proposed_answers.length ?? 0) > 0}>
+        <p class="settings-note">{t('materials.answersProposed', { count: detail()!.proposed_answers.length })}</p>
+      </Show>
+      <Show when={paperOnly() > 0}>
+        <p class="settings-note">{t('materials.paperOnly', { count: paperOnly() })}</p>
       </Show>
       <Show when={latest()?.instruction}>
         {(text) => (

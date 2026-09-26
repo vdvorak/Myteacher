@@ -361,3 +361,25 @@ describe('exercise types without a renderer in this phase', () => {
     expect(await screen.findByText('Lesson finished')).toBeInTheDocument()
   })
 })
+
+describe('a paper-only exercise', () => {
+  const withPaperOnly: LessonPublic = {
+    ...atTheEndLesson,
+    blocks: [
+      ...atTheEndLesson.blocks,
+      { type: 'paper_only', id: 'timeline', prompt: 'Draw a **timeline**.', answer_lines: 4 },
+    ],
+  }
+
+  it('shows its instruction as done on paper, with lines to answer on in print, and asks nothing in the app', () => {
+    play(withPaperOnly)
+
+    const item = screen.getByRole('note', { name: 'Paper only' })
+    expect(within(item).getByText('timeline')).toBeInTheDocument()
+    expect(within(item).queryByRole('textbox')).not.toBeInTheDocument()
+    expect(item.querySelectorAll('.paper-only-line')).toHaveLength(4)
+    // Only the exercises count as unanswered.
+    const exercises = atTheEndLesson.blocks.filter((b) => b.type !== 'explanation' && b.type !== 'passage')
+    expect(screen.getByText(`${exercises.length} unanswered`)).toBeInTheDocument()
+  })
+})

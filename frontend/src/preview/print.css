@@ -35,6 +35,12 @@
   color: var(--color-text-muted);
 }
 
+.answer-key-proposed {
+  margin: 0;
+  font-weight: 600;
+  color: var(--color-warning);
+}
+
 @media print {
   .page-header,
   .print-toolbar,
@@ -47,8 +53,15 @@
   .exercise-error,
   .lesson-actions,
   .lesson-round,
-  .lesson-finished {
+  .lesson-finished,
+  .paper-only-title,
+  .paper-only-note,
+  .answer-key-proposed {
     display: none !important;
+  }
+
+  .paper-only-lines {
+    display: block;
   }
 
   .page {

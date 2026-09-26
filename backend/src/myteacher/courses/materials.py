@@ -1,5 +1,7 @@
 """Classroom material: exercises for a topic that the teacher projects or prints, written by the
-assistant from the approved concept map, the brief, the topic's additions and the sources.
+assistant from the approved concept map, the brief, the topic's additions and the sources, or
+transcribed faithfully from one source, such as a scanned test, with its answer key read from
+another source or proposed by the assistant.
 
 Material is a lesson document bound to no student, using the exercise types of lessons; its answer
 key prints on a page of its own. The generated document is version 1. Regenerating with an
@@ -22,12 +24,14 @@ from myteacher.assistant.generations import GenerationReaction, ReactionKind
 from myteacher.assistant.service import Task, generate_recorded
 from myteacher.courses import concepts
 from myteacher.courses import service as courses
-from myteacher.courses.documents import source_inputs
+from myteacher.courses.documents import source_input, source_inputs
 from myteacher.courses.models import (
     ClassroomMaterial,
     ClassroomMaterialTarget,
     ClassroomMaterialVersion,
+    ComponentNeed,
     Course,
+    Source,
     Topic,
 )
 from myteacher.courses.sources import sources_of
@@ -35,28 +39,42 @@ from myteacher.courses.topic_interview import topic_inputs
 from myteacher.jobs.models import Job
 from myteacher.jobs.runner import JobContext, Work
 from myteacher.lesson.catalog import COMPONENT_CATALOG
-from myteacher.lesson.schema import LessonBlock, LessonDocument
+from myteacher.lesson.schema import (
+    Exercise,
+    ExplanationBlock,
+    Identifier,
+    LessonBlock,
+    LessonDocument,
+    NotExercise,
+    PaperOnlyBlock,
+    PassageBlock,
+)
 from myteacher.persistence import InstanceSession
 
 TASK_KIND = "classroom_material"
+TRANSCRIPTION_KIND = "classroom_material_transcription"
 
 Instruction = Annotated[str, Field(min_length=1, max_length=2000)]
 
 
-class Content(BaseModel):
-    """What the assistant writes, and what an edit sends: a title and the lesson's blocks."""
+# Generated material has no paper-only exercises: it is written for the catalog from the start.
+GeneratedBlock = Annotated[ExplanationBlock | PassageBlock | Exercise, Field(discriminator="type")]
+
+
+class _Material(BaseModel):
+    """A title and the lesson's blocks, which each kind of content below declares."""
 
     model_config = ConfigDict(extra="forbid")
 
     title: Annotated[str, Field(min_length=1, max_length=200)]
-    blocks: Annotated[list[LessonBlock], Field(min_length=1, max_length=60)]
 
     @model_validator(mode="after")
     def _a_lesson_of_catalog_types(self) -> Self:
+        blocks = self.blocks  # type: ignore[attr-defined]
         outside = {
             b.type
-            for b in self.blocks
-            if b.type not in ("explanation", "passage") and b.type not in COMPONENT_CATALOG
+            for b in blocks
+            if not isinstance(b, NotExercise) and b.type not in COMPONENT_CATALOG
         }
         if outside:
             raise ValueError(f"exercise types outside the catalog: {sorted(outside)}")
@@ -67,10 +85,54 @@ class Content(BaseModel):
                 title=self.title,
                 language="en",
                 feedback_mode="at_the_end",
-                blocks=self.blocks,
+                blocks=blocks,
             )
         except ValidationError as error:
             raise ValueError(error.errors()[0]["msg"]) from None
+        return self
+
+
+class Content(_Material):
+    """What the assistant writes when generating: exercises of the catalog only."""
+
+    blocks: Annotated[list[GeneratedBlock], Field(min_length=1, max_length=60)]
+
+
+class ContentWithPaperOnly(_Material):
+    """What an edit sends: material that may have paper-only exercises, as transcribed material
+    does."""
+
+    blocks: Annotated[list[LessonBlock], Field(min_length=1, max_length=60)]
+
+
+class NeededType(BaseModel):
+    """What a paper-only exercise would need to become an exercise: an entry of the component
+    backlog."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    block_id: Identifier
+    need: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+class Transcribed(ContentWithPaperOnly):
+    """What the assistant writes when transcribing a source: the material, the exercises whose
+    answers it proposed because no answer key gave them, and what each paper-only exercise
+    would need to become an exercise."""
+
+    proposed_answers: Annotated[list[Identifier], Field(max_length=60)] = []
+    component_needs: Annotated[list[NeededType], Field(max_length=60)] = []
+
+    @model_validator(mode="after")
+    def _proposals_and_needs_name_their_blocks(self) -> Self:
+        exercises = {b.id for b in self.blocks if not isinstance(b, NotExercise)}
+        unknown = set(self.proposed_answers) - exercises
+        if unknown:
+            raise ValueError(f"proposed_answers name no exercise: {sorted(unknown)}")
+        paper_only = [b.id for b in self.blocks if isinstance(b, PaperOnlyBlock)]
+        needed = [n.block_id for n in self.component_needs]
+        if sorted(needed) != sorted(paper_only):
+            raise ValueError("component_needs must name each paper_only block once")
         return self
 
 
@@ -149,14 +211,20 @@ def start(
     *,
     now: datetime,
     instruction: str | None = None,
+    source: Source | None = None,
+    key_source: Source | None = None,
 ):
-    """New material for the topic, its first version to follow `instruction` when given."""
+    """New material for the topic, its first version to follow `instruction` when given, or to
+    be transcribed from `source` with the answer key in `key_source`."""
     material = ClassroomMaterial(
         course_id=topic.course_id,
         topic_id=topic.id,
         created_by_id=creator.id,
         created_at=now,
         instruction=instruction,
+        transcribed=source is not None,
+        source_id=source.id if source else None,
+        key_source_id=key_source.id if key_source else None,
     )
     db.add(material)
     db.flush()
@@ -183,7 +251,7 @@ def _add_version(
     db: InstanceSession,
     material: ClassroomMaterial,
     course: Course,
-    content: Content,
+    content: _Material,
     *,
     previous: ClassroomMaterialVersion | None,
     instruction: str | None,
@@ -216,6 +284,9 @@ def _add_version(
         generation_id=generation_id,
         author_id=author_id,
         created_at=now,
+        proposed_answers=(
+            content.proposed_answers or None if isinstance(content, Transcribed) else None
+        ),
     )
     savepoint = db.begin_nested()
     db.add(version)
@@ -272,7 +343,7 @@ def edit(
     db: InstanceSession,
     course: Course,
     material: ClassroomMaterial,
-    content: Content,
+    content: ContentWithPaperOnly,
     editor: Account,
     *,
     based_on: int,
@@ -311,6 +382,41 @@ def clear_failure(db: InstanceSession, material: ClassroomMaterial) -> None:
 def discard(db: InstanceSession, material: ClassroomMaterial, teacher: Account, *, now: datetime):
     material.discarded_at = now
     react(db, latest_version(db, material), "discarded", teacher, now=now)
+
+
+# The component backlog
+
+
+def _record_needs(
+    db: InstanceSession,
+    material: ClassroomMaterial,
+    content: Transcribed,
+    generation_id: int | None,
+    now: datetime,
+) -> None:
+    """Add the paper-only exercises of the material to the backlog, each once however often the
+    material is reworked."""
+    recorded = set(
+        db.scalars(select(ComponentNeed.block_id).where(ComponentNeed.material_id == material.id))
+    )
+    prompts = {b.id: b.prompt for b in content.blocks if isinstance(b, PaperOnlyBlock)}
+    db.add_all(
+        ComponentNeed(
+            course_id=material.course_id,
+            material_id=material.id,
+            block_id=need.block_id,
+            prompt=prompts[need.block_id],
+            need=need.need,
+            generation_id=generation_id,
+            created_at=now,
+        )
+        for need in content.component_needs
+        if need.block_id not in recorded
+    )
+
+
+def component_backlog(db: InstanceSession) -> list[ComponentNeed]:
+    return list(db.scalars(select(ComponentNeed).order_by(ComponentNeed.id.desc())))
 
 
 # The generation job
@@ -354,9 +460,39 @@ def _inputs(
     return inputs
 
 
+def _transcription_inputs(
+    db: InstanceSession,
+    course: Course,
+    material: ClassroomMaterial,
+    previous: ClassroomMaterialVersion | None,
+    instruction: str | None,
+) -> dict[str, Any]:
+    source = db.get(Source, material.source_id) if material.source_id else None
+    key = db.get(Source, material.key_source_id) if material.key_source_id else None
+    inputs: dict[str, Any] = {
+        "course": {
+            "name": course.name,
+            "subject": course.subject,
+            "taught_language": course.taught_language,
+            "instruction_language": course.instruction_language,
+        },
+    }
+    if source is not None:
+        inputs["source"] = source_input(source)
+    if key is not None:
+        inputs["answer_key"] = source_input(key)
+    if previous is not None:
+        lesson = previous.lesson
+        inputs["previous"] = {"title": lesson["title"], "blocks": lesson["blocks"]}
+    if instruction is not None:
+        inputs["instruction"] = instruction
+    return inputs
+
+
 # A lesson with its exercises and answer key is long: code, passages, a dozen exercises. The
 # request is not streamed, so the limit stays one the model writes within the timeout.
 GENERATE = Task(TASK_KIND, Content, slot="strong", timeout_s=600, max_tokens=20_000)
+TRANSCRIBE = Task(TRANSCRIPTION_KIND, Transcribed, slot="strong", timeout_s=600, max_tokens=20_000)
 
 
 def generation(
@@ -384,13 +520,12 @@ def generation(
             if based_on is not None
             else None
         )
+        if material.transcribed:
+            task, inputs = TRANSCRIBE, _transcription_inputs(db, course, material, previous, asked)
+        else:
+            task, inputs = GENERATE, _inputs(db, course, topic, previous, asked)
         content, generation_id = await generate_recorded(
-            ctx.assistant,
-            db,
-            GENERATE,
-            teacher=teacher,
-            inputs=_inputs(db, course, topic, previous, asked),
-            course_id=course.id,
+            ctx.assistant, db, task, teacher=teacher, inputs=inputs, course_id=course.id
         )
         # Claim the material for this result, once, unless it was discarded or asked again
         # meanwhile.
@@ -427,6 +562,8 @@ def generation(
             except IntegrityError:
                 if attempt == 1:
                     raise
+        if isinstance(content, Transcribed):
+            _record_needs(db, material, content, generation_id, now)
         return {"material_id": material_id, "version": version.number}
 
     return work

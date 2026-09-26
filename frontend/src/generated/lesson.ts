@@ -502,6 +502,7 @@ export interface LessonDocument {
     (
       | ExplanationBlock
       | PassageBlock
+      | PaperOnlyBlock
       | MultipleChoiceExercise
       | ShortAnswerExercise
       | ClozeExercise
@@ -519,6 +520,7 @@ export interface LessonDocument {
     ...(
       | ExplanationBlock
       | PassageBlock
+      | PaperOnlyBlock
       | MultipleChoiceExercise
       | ShortAnswerExercise
       | ClozeExercise
@@ -549,6 +551,26 @@ export interface PassageBlock {
    * Constrained Markdown (CommonMark without raw HTML).
    */
   markdown: string
+}
+/**
+ * A paper-only exercise of classroom material transcribed from paper, which no exercise type
+ * represents, such as drawing a graph: printed with space to answer, neither done nor assessed
+ * in the app.
+ *
+ * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
+ * via the `definition` "PaperOnlyBlock".
+ */
+export interface PaperOnlyBlock {
+  type: 'paper_only'
+  id: string
+  /**
+   * Constrained Markdown (CommonMark without raw HTML).
+   */
+  prompt: string
+  /**
+   * Lines of space to answer in when printed.
+   */
+  answer_lines?: number
 }
 /**
  * This interface was referenced by `MyteacherLessonSchema`'s JSON-Schema
@@ -903,6 +925,7 @@ export interface LessonPublic {
   blocks: (
     | ExplanationBlock
     | PassageBlock
+    | PaperOnlyBlock
     | MultipleChoiceExercisePublic
     | ShortAnswerExercisePublic
     | ClozeExercisePublic

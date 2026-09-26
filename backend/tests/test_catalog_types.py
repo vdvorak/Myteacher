@@ -42,14 +42,18 @@ def all_types_document() -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+# Blocks that are not exercises: nothing is answered or assessed in them.
+NOT_EXERCISES = {"explanation", "passage", "paper_only"}
+
+
 def catalog_types() -> set[str]:
     schema = lesson_json_schema()
     mapping = schema["$defs"]["LessonDocument"]["properties"]["blocks"]["items"]["discriminator"]
-    return set(mapping["mapping"]) - {"explanation", "passage"}
+    return set(mapping["mapping"]) - NOT_EXERCISES
 
 
 def test_the_all_types_fixture_holds_every_type_in_the_catalog(all_types):
-    served = {block["type"] for block in all_types["blocks"]} - {"explanation", "passage"}
+    served = {block["type"] for block in all_types["blocks"]} - NOT_EXERCISES
 
     assert served == catalog_types()
     assert {"span_highlight", "table_fill", "numeric", "listening", "custom"} <= served

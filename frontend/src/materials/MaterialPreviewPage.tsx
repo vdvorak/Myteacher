@@ -46,7 +46,13 @@ export function MaterialPreviewPage() {
                   <>
                     <LessonPlayer lesson={lesson()} seed="1" api={api.lessonApi(...ids())} />
                     <Show when={loaded().answer_key}>
-                      {(key) => <AnswerKeyPage lesson={lesson()} answerKey={key()} />}
+                      {(key) => (
+                        <AnswerKeyPage
+                          lesson={lesson()}
+                          answerKey={key()}
+                          proposed={loaded().reviewed ? [] : loaded().proposed_answers}
+                        />
+                      )}
                     </Show>
                   </>
                 )}

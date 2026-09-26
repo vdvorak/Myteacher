@@ -16,6 +16,9 @@ export interface MaterialSummary {
   job: Job | null
   /** Stored for planning; they do not change what is generated yet. */
   target_student_ids: number[]
+  /** The source it was transcribed from, and the one with its answer key; null when generated. */
+  source_id: number | null
+  key_source_id: number | null
 }
 
 export interface MaterialVersion {
@@ -33,6 +36,8 @@ export interface Material extends MaterialSummary {
   /** The latest version as it reaches the page, without solutions. */
   lesson: LessonPublic | null
   answer_key: AnswerKey | null
+  /** The exercises of the latest version whose answers the assistant proposed. */
+  proposed_answers: string[]
   versions: MaterialVersion[]
 }
 
@@ -49,6 +54,9 @@ export type MaterialRefusal =
   /** A newer version was saved since the one the teacher saw. */
   | 'material_changed'
   | 'unknown_student'
+  | 'unknown_source'
+  /** The source has no text read from it yet. */
+  | 'source_not_read'
 
 /** A generation or a change was refused; `reason` says why. */
 export class MaterialRefused extends Error {
@@ -71,6 +79,15 @@ export interface MaterialsApi {
     topicId: number,
     targetStudentIds: number[],
     instruction: string | null,
+  ): Promise<MaterialStarted>
+  /** Transcribes a read source of the course faithfully, the answers from `keySourceId` or proposed;
+   * needs no approved concept map. */
+  transcribe(
+    courseId: number,
+    topicId: number,
+    sourceId: number,
+    keySourceId: number | null,
+    targetStudentIds: number[],
   ): Promise<MaterialStarted>
   retry(courseId: number, topicId: number, materialId: number): Promise<MaterialStarted>
   /** Reworks version `basedOn` by the instruction into a new version; recorded as a reaction. */
@@ -97,6 +114,8 @@ const refusals: ReadonlySet<string> = new Set<MaterialRefusal>([
   'generation_running',
   'material_changed',
   'unknown_student',
+  'unknown_source',
+  'source_not_read',
 ])
 
 async function checked(response: Response): Promise<Response> {
@@ -131,6 +150,14 @@ export const httpMaterialsApi: MaterialsApi = {
   generate: async (courseId, topicId, targetStudentIds, instruction) =>
     json(
       await send('POST', materialsUrl(courseId, topicId), { target_student_ids: targetStudentIds, instruction }),
+    ),
+  transcribe: async (courseId, topicId, sourceId, keySourceId, targetStudentIds) =>
+    json(
+      await send('POST', `${materialsUrl(courseId, topicId)}/from-source`, {
+        source_id: sourceId,
+        key_source_id: keySourceId,
+        target_student_ids: targetStudentIds,
+      }),
     ),
   retry: async (courseId, topicId, materialId) =>
     json(await send('POST', `${materialUrl(courseId, topicId, materialId)}/retry`)),

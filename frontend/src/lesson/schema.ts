@@ -6,6 +6,7 @@ import type {
   AssessmentUnavailable,
   FreeTextAnswer,
   FreeTextExercisePublic,
+  PaperOnlyBlock,
   PassageBlock,
   TranslationAnswer,
   TranslationExercisePublic,
@@ -26,7 +27,7 @@ import type {
 } from '../generated/lesson'
 
 export type LessonBlockPublic = LessonPublic['blocks'][number]
-export type ExercisePublic = Exclude<LessonBlockPublic, ExplanationBlock | PassageBlock>
+export type ExercisePublic = Exclude<LessonBlockPublic, ExplanationBlock | PassageBlock | PaperOnlyBlock>
 export type AssessmentOutcome = AssessmentResult | AssessmentPending | AssessmentUnavailable
 /** What the player records for a try: a score, or an open answer awaiting assessment. */
 export type TryOutcome = AssessmentResult | AssessmentPending

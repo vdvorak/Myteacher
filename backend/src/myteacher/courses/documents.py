@@ -238,17 +238,19 @@ def discard(db: InstanceSession, document: ReferenceDocument, teacher: Account, 
 # The generation job
 
 
+def source_input(source: Source, share: int = SOURCE_BUDGET) -> dict[str, Any]:
+    """The source as the assistant reads it: its text up to `share` characters."""
+    text = source.text or ""
+    item: dict[str, Any] = {"id": source.id, "name": source.name, "text": text[:share]}
+    if len(text) > share:
+        item["truncated"] = True
+    return item
+
+
 def source_inputs(sources: list[Source]) -> list[dict[str, Any]]:
     readable = [s for s in sources if s.text]
     share = SOURCE_BUDGET // max(len(readable), 1)
-    inputs = []
-    for source in readable:
-        text = source.text or ""
-        item: dict[str, Any] = {"id": source.id, "name": source.name, "text": text[:share]}
-        if len(text) > share:
-            item["truncated"] = True
-        inputs.append(item)
-    return inputs
+    return [source_input(source, share) for source in readable]
 
 
 def _inputs(

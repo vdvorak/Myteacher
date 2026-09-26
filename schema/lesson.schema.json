@@ -1224,6 +1224,7 @@
                 "matching": "#/$defs/MatchingExercise",
                 "multiple_choice": "#/$defs/MultipleChoiceExercise",
                 "numeric": "#/$defs/NumericExercise",
+                "paper_only": "#/$defs/PaperOnlyBlock",
                 "passage": "#/$defs/PassageBlock",
                 "short_answer": "#/$defs/ShortAnswerExercise",
                 "span_highlight": "#/$defs/SpanHighlightExercise",
@@ -1240,6 +1241,9 @@
               },
               {
                 "$ref": "#/$defs/PassageBlock"
+              },
+              {
+                "$ref": "#/$defs/PaperOnlyBlock"
               },
               {
                 "$ref": "#/$defs/MultipleChoiceExercise"
@@ -1337,6 +1341,7 @@
                 "matching": "#/$defs/MatchingExercisePublic",
                 "multiple_choice": "#/$defs/MultipleChoiceExercisePublic",
                 "numeric": "#/$defs/NumericExercisePublic",
+                "paper_only": "#/$defs/PaperOnlyBlock",
                 "passage": "#/$defs/PassageBlock",
                 "short_answer": "#/$defs/ShortAnswerExercisePublic",
                 "span_highlight": "#/$defs/SpanHighlightExercisePublic",
@@ -1353,6 +1358,9 @@
               },
               {
                 "$ref": "#/$defs/PassageBlock"
+              },
+              {
+                "$ref": "#/$defs/PaperOnlyBlock"
               },
               {
                 "$ref": "#/$defs/MultipleChoiceExercisePublic"
@@ -2310,6 +2318,45 @@
         "text"
       ],
       "title": "OrderToken",
+      "type": "object"
+    },
+    "PaperOnlyBlock": {
+      "additionalProperties": false,
+      "description": "A paper-only exercise of classroom material transcribed from paper, which no exercise type\nrepresents, such as drawing a graph: printed with space to answer, neither done nor assessed\nin the app.",
+      "properties": {
+        "type": {
+          "const": "paper_only",
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "prompt": {
+          "description": "Constrained Markdown (CommonMark without raw HTML).",
+          "maxLength": 20000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "answer_lines": {
+          "default": 3,
+          "description": "Lines of space to answer in when printed.",
+          "maximum": 40,
+          "minimum": 0,
+          "title": "Answer Lines",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "prompt"
+      ],
+      "title": "PaperOnlyBlock",
       "type": "object"
     },
     "PassageBlock": {

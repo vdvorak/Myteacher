@@ -7,7 +7,9 @@ import { sampleLesson } from '../lesson/testing'
 import { MaterialRefused, type Material, type MaterialsApi } from './api'
 
 /** What the fake assistant writes: a lesson with its answer key, or why it failed. */
-export type ScriptedMaterial = { lesson: LessonPublic; answer_key: AnswerKey } | { fail: JobFailure }
+export type ScriptedMaterial =
+  | { lesson: LessonPublic; answer_key: AnswerKey; proposed_answers?: string[] }
+  | { fail: JobFailure }
 
 export const serEstarKey: AnswerKey = {
   lesson_id: sampleLesson.id,
@@ -29,8 +31,11 @@ export const serEstarMaterial: Material = {
   reviewed: false,
   job: null,
   target_student_ids: [],
+  source_id: null,
+  key_source_id: null,
   lesson: sampleLesson,
   answer_key: serEstarKey,
+  proposed_answers: [],
   versions: [{ number: 1, instruction: null, previous: null, generated: true, created_at: '2026-09-24T08:00:00Z' }],
 }
 
@@ -60,6 +65,21 @@ export function fakeMaterialsApi(
   // A generation as a job; the scripted material lands as a new version when the job ends.
   // What each material's first version was asked for with, for retrying it.
   const firstInstructions = new Map<number, string | null>()
+  const fresh = (targetStudentIds: number[]): Material => ({
+    id: nextId++,
+    title: null,
+    version: null,
+    created_at: '2026-09-24T08:00:00Z',
+    reviewed: false,
+    job: null,
+    target_student_ids: [...new Set(targetStudentIds)].sort((a, b) => a - b),
+    source_id: null,
+    key_source_id: null,
+    lesson: null,
+    answer_key: null,
+    proposed_answers: [],
+    versions: [],
+  })
   const schedule = (material: Material, instruction: string | null) => {
     if (options.hasKey === false) throw new MaterialRefused('no_provider_key')
     const job = jobs.start('classroom_material', () => {
@@ -75,6 +95,7 @@ export function fakeMaterialsApi(
         version: number,
         lesson: step.lesson,
         answer_key: step.answer_key,
+        proposed_answers: step.proposed_answers ?? [],
         job: null,
         // A new generated version is a draft again.
         reviewed: false,
@@ -101,22 +122,26 @@ export function fakeMaterialsApi(
       async (_courseId: number, topicId: number, targetStudentIds: number[], instruction: string | null) => {
         if (options.unapproved?.includes(topicId)) throw new MaterialRefused('map_not_approved')
         if (options.hasKey === false) throw new MaterialRefused('no_provider_key')
-        const material: Material = {
-          id: nextId++,
-          title: null,
-          version: null,
-          created_at: '2026-09-24T08:00:00Z',
-          reviewed: false,
-          job: null,
-          target_student_ids: [...new Set(targetStudentIds)].sort((a, b) => a - b),
-          lesson: null,
-          answer_key: null,
-          versions: [],
-        }
+        const material = fresh(targetStudentIds)
         listOf(topicId).push(material)
         const asked = instruction?.trim() || null
         firstInstructions.set(material.id, asked)
         return schedule(material, asked)
+      },
+    ),
+    transcribe: vi.fn(
+      async (
+        _courseId: number,
+        topicId: number,
+        sourceId: number,
+        keySourceId: number | null,
+        targetStudentIds: number[],
+      ) => {
+        if (options.hasKey === false) throw new MaterialRefused('no_provider_key')
+        const material = { ...fresh(targetStudentIds), source_id: sourceId, key_source_id: keySourceId }
+        listOf(topicId).push(material)
+        firstInstructions.set(material.id, null)
+        return schedule(material, null)
       },
     ),
     retry: vi.fn(async (_courseId: number, topicId: number, materialId: number) => {

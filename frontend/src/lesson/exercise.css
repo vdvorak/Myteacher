@@ -84,6 +84,29 @@
   margin: 0;
 }
 
+.paper-only {
+  border-style: dashed;
+}
+
+.paper-only-title,
+.paper-only-note {
+  margin: 0;
+}
+
+.paper-only-note {
+  color: var(--color-text-muted);
+}
+
+/* The lines to answer in appear on the printed sheet only. */
+.paper-only-lines {
+  display: none;
+}
+
+.paper-only-line {
+  height: var(--space-8);
+  border-bottom: var(--border-width) solid var(--color-text);
+}
+
 .exercise-text-input,
 .cloze-gap-input {
   font: inherit;

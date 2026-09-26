@@ -157,10 +157,17 @@ class ArchiveMaterialVersion(_Model):
     instruction: str | None
     # The number of the version it came from.
     previous: int | None
+    # The exercises whose answers the assistant proposed.
+    proposed_answers: list[str] | None = None
 
 
 class ArchiveMaterial(_Model):
     versions: Annotated[list[ArchiveMaterialVersion], Field(min_length=1)]
+    # Whether it was transcribed, and the keys of the sources it was transcribed from and its
+    # answer key came from.
+    transcribed: bool = False
+    source: str | None = None
+    key_source: str | None = None
 
     @model_validator(mode="after")
     def _linked(self) -> Self:
@@ -276,7 +283,9 @@ def _reference_documents(
     return archived
 
 
-def _materials(db: InstanceSession, topic: Topic, topic_key: str) -> list[ArchiveMaterial]:
+def _materials(
+    db: InstanceSession, topic: Topic, topic_key: str, source_keys: dict[int, str]
+) -> list[ArchiveMaterial]:
     archived = []
     for material in materials.materials_of(db, topic):
         versions = materials.versions_of(db, material)
@@ -295,9 +304,15 @@ def _materials(db: InstanceSession, topic: Topic, topic_key: str) -> list[Archiv
                         previous=numbers.get(v.previous_version_id)
                         if v.previous_version_id
                         else None,
+                        proposed_answers=v.proposed_answers,
                     )
                     for v in versions
-                ]
+                ],
+                transcribed=material.transcribed,
+                source=source_keys.get(material.source_id) if material.source_id else None,
+                key_source=(
+                    source_keys.get(material.key_source_id) if material.key_source_id else None
+                ),
             )
         )
     return archived
@@ -359,7 +374,7 @@ def export(db: InstanceSession, course: Course, *, now: datetime) -> bytes:
                 else None,
                 concept_map=_concept_map(db, topic),
                 reference_documents=_reference_documents(db, topic, source_keys),
-                classroom_materials=_materials(db, topic, f"topic-{n}"),
+                classroom_materials=_materials(db, topic, f"topic-{n}", source_keys),
             )
             for n, topic in enumerate(topics_of(db, course), 1)
         ],
@@ -485,12 +500,22 @@ def _import_materials(
     archived: list[ArchiveMaterial],
     course: Course,
     topic: Topic,
+    source_ids: dict[str, int],
     owner: Account,
     now: datetime,
 ) -> None:
     for material in archived:
+        for key in (material.source, material.key_source):
+            if key is not None and key not in source_ids:
+                raise ArchiveInvalid(f"unknown source {key!r}")
         row = ClassroomMaterial(
-            course_id=course.id, topic_id=topic.id, created_by_id=owner.id, created_at=now
+            course_id=course.id,
+            topic_id=topic.id,
+            created_by_id=owner.id,
+            created_at=now,
+            transcribed=material.transcribed,
+            source_id=source_ids[material.source] if material.source else None,
+            key_source_id=source_ids[material.key_source] if material.key_source else None,
         )
         db.add(row)
         db.flush()
@@ -509,6 +534,7 @@ def _import_materials(
                 lesson=lesson.model_dump(mode="json"),
                 instruction=version.instruction,
                 previous_version_id=previous.id if previous else None,
+                proposed_answers=version.proposed_answers,
                 author_id=owner.id,
                 created_at=now,
             )
@@ -590,6 +616,6 @@ def import_course(
         if t.concept_map is not None:
             _import_concepts(db, t.concept_map, course, topic, owner, now)
         _import_documents(db, t.reference_documents, course, topic, source_ids, owner, now)
-        _import_materials(db, t.classroom_materials, course, topic, owner, now)
+        _import_materials(db, t.classroom_materials, course, topic, source_ids, owner, now)
     db.flush()
     return course

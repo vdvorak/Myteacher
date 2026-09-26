@@ -367,6 +367,12 @@ class ClassroomMaterial(InstanceOwned, Base):
     discarded_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     # What the teacher asked the first version for, kept for retrying a failed generation.
     instruction: Mapped[str | None] = mapped_column(Text)
+    # Whether it was transcribed from a source rather than generated from the concept map; it
+    # stays so when the sources are removed.
+    transcribed: Mapped[bool] = mapped_column(default=False)
+    # The source it was transcribed from, and the one holding its answer key.
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("source.id", ondelete="SET NULL"))
+    key_source_id: Mapped[int | None] = mapped_column(ForeignKey("source.id", ondelete="SET NULL"))
 
 
 class ClassroomMaterialVersion(InstanceOwned, Base):
@@ -388,9 +394,31 @@ class ClassroomMaterialVersion(InstanceOwned, Base):
     previous_version_id: Mapped[int | None] = mapped_column(
         ForeignKey("classroom_material_version.id")
     )
+    # The exercises whose answers the assistant proposed, not read from an answer key.
+    proposed_answers: Mapped[list[str] | None] = mapped_column(JSON)
     # The generation that wrote it; None for the teacher's edits.
     generation_id: Mapped[int | None] = mapped_column(ForeignKey("generation_record.id"))
     author_id: Mapped[int] = mapped_column(ForeignKey("account.id"))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+
+class ComponentNeed(InstanceOwned, Base):
+    """A need for an exercise type that does not exist yet, recorded from a paper-only exercise
+    of transcribed classroom material: the component backlog."""
+
+    __tablename__ = "component_need"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("course.id", ondelete="CASCADE"), index=True)
+    material_id: Mapped[int | None] = mapped_column(
+        ForeignKey("classroom_material.id", ondelete="SET NULL"), index=True
+    )
+    # The paper-only exercise and its instruction, as the assistant wrote them.
+    block_id: Mapped[str] = mapped_column(String(64))
+    prompt: Mapped[str] = mapped_column(Text)
+    # What kind of exercise type would represent it, in the assistant's words.
+    need: Mapped[str] = mapped_column(Text)
+    generation_id: Mapped[int | None] = mapped_column(ForeignKey("generation_record.id"))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
 
