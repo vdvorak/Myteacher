@@ -114,6 +114,10 @@ describe('starting a link run', () => {
     expect(screen.queryByRole('spinbutton', { name: 'Capacity' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('radio', { name: 'People with a link' }))
     expect(screen.getByRole('spinbutton', { name: 'Capacity' })).toBeInTheDocument()
+    // Each choice beside its label, as elsewhere in the forms, not stacked above it.
+    for (const choice of [...screen.getAllByRole('radio'), screen.getByRole('checkbox')]) {
+      expect(choice.closest('label')).toHaveClass('settings-check')
+    }
   })
 
   it('does not start a link run without the confirmation', async () => {

@@ -84,7 +84,7 @@ export function RunsSection(props: { courseId: number; canEdit: boolean }) {
           </label>
           <fieldset class="run-mode">
             <legend>{t('runs.for')}</legend>
-            <label>
+            <label class="settings-check">
               <input
                 type="radio"
                 name="run-mode"
@@ -93,7 +93,7 @@ export function RunsSection(props: { courseId: number; canEdit: boolean }) {
               />
               {t('runs.forEnrolled')}
             </label>
-            <label>
+            <label class="settings-check">
               <input
                 type="radio"
                 name="run-mode"
@@ -115,7 +115,7 @@ export function RunsSection(props: { courseId: number; canEdit: boolean }) {
                   onInput={(e) => setCapacity(e.currentTarget.valueAsNumber)}
                 />
               </label>
-              <label>
+              <label class="settings-check">
                 <input
                   type="checkbox"
                   required
