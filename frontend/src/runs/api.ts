@@ -67,6 +67,8 @@ export interface CourseRun {
   participants: { id: number; name: string }[]
   /** Whether a link run takes newcomers; always true for an enrolled run. */
   joining_open: boolean
+  /** When a link run's participants' names and answers were deleted, if they were. */
+  participants_erased_at: string | null
 }
 
 export type RunMode = 'enrolled' | 'link'
@@ -282,6 +284,8 @@ export interface RunsApi {
   renameParticipant(id: number, participantId: number, name: string): Promise<Lobby['participants'][number]>
   /** Their personal link stops working; their answers stay with the teacher. */
   removeParticipant(id: number, participantId: number): Promise<void>
+  /** Deletes the participants' names and answers now, not 90 days after the last release. */
+  eraseParticipants(id: number): Promise<CourseRun>
   get(id: number): Promise<CourseRun>
   rename(id: number, name: string): Promise<CourseRun>
   enrolClass(id: number, classId: number): Promise<CourseRun>
@@ -336,6 +340,7 @@ export const httpRunsApi: RunsApi = {
   replaceJoinLink: async (id) => json(await send('POST', `/api/runs/${id}/join-link`)),
   renameParticipant: async (id, participantId, name) =>
     json(await send('PATCH', `/api/runs/${id}/participants/${participantId}`, { name })),
+  eraseParticipants: async (id) => json(await send('DELETE', `/api/runs/${id}/participant-data`)),
   removeParticipant: async (id, participantId) => {
     const response = await send('DELETE', `/api/runs/${id}/participants/${participantId}`)
     if (!response.ok) throw new ApiError(response.status)

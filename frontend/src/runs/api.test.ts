@@ -46,6 +46,7 @@ describe('runs over HTTP', () => {
       [() => httpRunsApi.replaceJoinLink(7), '/api/runs/7/join-link', 'POST', undefined],
       [() => httpRunsApi.renameParticipant(7, 3, 'Jan'), '/api/runs/7/participants/3', 'PATCH', { name: 'Jan' }],
       [() => httpRunsApi.removeParticipant(7, 3), '/api/runs/7/participants/3', 'DELETE', undefined],
+      [() => httpRunsApi.eraseParticipants(7), '/api/runs/7/participant-data', 'DELETE', undefined],
     ]
     for (const [call, url, method, body] of calls) {
       const fetch = answer(200, {})

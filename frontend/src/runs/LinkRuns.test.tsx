@@ -43,13 +43,16 @@ const teacher: Account = { ...invitedTeacher, language: null }
 
 afterEach(() => vi.useRealTimers())
 
-const linkRun = (participants: { id: number; name: string; joined_at: string }[] = []) => ({
+const linkRun = (
+  participants: { id: number; name: string; joined_at: string }[] = [],
+  state: { erasedAt?: string; closed?: boolean } = {},
+) => ({
   id: 7,
   courseId: spanish.id,
   name: 'Den otevřených dveří',
   classIds: [],
   studentIds: [],
-  link: { capacity: 30, joinToken: 'join-7', participants },
+  link: { capacity: 30, joinToken: 'join-7', participants, ...state },
 })
 
 function renderApp(
@@ -423,5 +426,69 @@ describe('managing the lobby', () => {
     await vi.advanceTimersByTimeAsync(5_000)
 
     expect(document.activeElement).toBe(remove)
+  })
+})
+
+describe('deleting the participants’ names and answers', () => {
+  const zone = async () => within(await screen.findByRole('region', { name: 'Participants’ names and answers' }))
+
+  it('deletes them from the settings after confirming', async () => {
+    const { runs } = renderApp('/runs/7?tab=settings', { runs: [linkRun(twoJans)] })
+    const user = userEvent.setup()
+
+    const danger = await zone()
+    expect(danger.getByText(/deleted automatically 90 days after the last release/)).toBeInTheDocument()
+    await user.click(danger.getByRole('button', { name: 'Delete names and answers now' }))
+    const dialog = within(screen.getByRole('alertdialog'))
+    expect(dialog.getByText(/This cannot be undone/)).toBeInTheDocument()
+    await user.click(dialog.getByRole('button', { name: 'Delete names and answers now' }))
+
+    expect(await danger.findByRole('status')).toHaveTextContent(/were deleted on/)
+    expect(runs.eraseParticipants).toHaveBeenCalledWith(7)
+    expect(danger.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('keeps them when deleting is cancelled', async () => {
+    const { runs } = renderApp('/runs/7?tab=settings', { runs: [linkRun(twoJans)] })
+    const user = userEvent.setup()
+
+    await user.click((await zone()).getByRole('button', { name: 'Delete names and answers now' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' }))
+
+    expect(runs.eraseParticipants).not.toHaveBeenCalled()
+  })
+
+  it('says when they could not be deleted', async () => {
+    const { runs } = renderApp('/runs/7?tab=settings', { runs: [linkRun(twoJans)] })
+    runs.eraseParticipants.mockRejectedValueOnce(new Error('offline'))
+    const user = userEvent.setup()
+
+    await user.click((await zone()).getByRole('button', { name: 'Delete names and answers now' }))
+    const dialog = within(screen.getByRole('alertdialog'))
+    await user.click(dialog.getByRole('button', { name: 'Delete names and answers now' }))
+
+    expect(await (await zone()).findByRole('alert')).toHaveTextContent('They could not be deleted. Try again.')
+  })
+
+  it('says when they were deleted', async () => {
+    renderApp('/runs/7?tab=settings', { runs: [linkRun(twoJans, { erasedAt: '2026-12-24T08:00:00Z' })] })
+
+    expect(await (await zone()).findByRole('status')).toHaveTextContent('deleted on December 24, 2026')
+  })
+
+  it('offers no reopening of joining once they were deleted', async () => {
+    renderApp('/runs/7?tab=participants', {
+      runs: [linkRun(twoJans, { erasedAt: '2026-12-24T08:00:00Z', closed: true })],
+    })
+
+    expect(await screen.findByText(/Joining is closed/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open joining' })).not.toBeInTheDocument()
+  })
+
+  it('is not there for an enrolled run', async () => {
+    renderApp('/runs/7?tab=settings', { runs: [{ ...linkRun(), link: undefined }] as never })
+
+    expect(await screen.findByLabelText('Run name')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Participants’ names and answers' })).not.toBeInTheDocument()
   })
 })

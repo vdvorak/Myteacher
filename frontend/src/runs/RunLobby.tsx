@@ -102,14 +102,17 @@ export function RunLobby(props: {
         <button type="button" class="button-secondary" disabled={busy()} onClick={() => void replaceLink()}>
           {t('lobby.replace')}
         </button>
-        <button
-          type="button"
-          class="button-secondary"
-          disabled={busy()}
-          onClick={() => void changeRun(() => api.setJoining(props.run.id, !props.run.joining_open))}
-        >
-          {t(props.run.joining_open ? 'lobby.closeJoining' : 'lobby.openJoining')}
-        </button>
+        {/* Once the participants' data is deleted, joining stays closed for good. */}
+        <Show when={!props.run.participants_erased_at}>
+          <button
+            type="button"
+            class="button-secondary"
+            disabled={busy()}
+            onClick={() => void changeRun(() => api.setJoining(props.run.id, !props.run.joining_open))}
+          >
+            {t(props.run.joining_open ? 'lobby.closeJoining' : 'lobby.openJoining')}
+          </button>
+        </Show>
       </div>
       <Show when={!props.run.joining_open}>
         <p role="status">{t('lobby.closed')}</p>

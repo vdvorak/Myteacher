@@ -1,5 +1,7 @@
+import asyncio
 import json
-from contextlib import asynccontextmanager
+import logging
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -44,8 +46,37 @@ from myteacher.db import migrate
 from myteacher.jobs.runner import JobContext, fail_interrupted
 from myteacher.mail import Sender, SmtpSender
 from myteacher.persistence import Clock, make_engine, open_session, singleton_instance_id, utc_now
+from myteacher.runs import participants as link_runs
 from myteacher.secret_box import SecretBox
 from myteacher.settings import Settings
+
+# How often link runs are checked for participants' data kept past its time (ADR 0012).
+SWEEP_EVERY_S = 3600
+log = logging.getLogger(__name__)
+
+
+def sweep_link_runs(engine: Engine, instance_id: int, clock: Clock) -> int:
+    """Erase the participants' names and answers of every link run past its time."""
+    with open_session(engine, instance_id) as db:
+        erased = link_runs.sweep(db, clock())
+        db.commit()
+    return erased
+
+
+def _sweep_safely(engine: Engine, instance_id: int, clock: Clock) -> None:
+    try:
+        sweep_link_runs(engine, instance_id, clock)
+    except Exception:
+        # The next sweep tries again: a failure must neither stop the app from starting nor
+        # stop the sweeps after it.
+        log.exception("sweeping link runs failed")
+
+
+async def _sweep_link_runs(engine: Engine, instance_id: int, clock: Clock) -> None:
+    """Every hour after the sweep on start, for as long as the app runs, off the event loop."""
+    while True:
+        await asyncio.sleep(SWEEP_EVERY_S)
+        await asyncio.to_thread(_sweep_safely, engine, instance_id, clock)
 
 
 def create_app(
@@ -83,7 +114,12 @@ def create_app(
             fail_interrupted(db, clock())
             db.commit()
         bootstrap_admin(engine, settings, clock)
+        _sweep_safely(engine, app.state.instance_id, clock)
+        sweeping = asyncio.create_task(_sweep_link_runs(engine, app.state.instance_id, clock))
         yield
+        sweeping.cancel()
+        with suppress(asyncio.CancelledError):
+            await sweeping
         engine.dispose()
 
     app = FastAPI(title="Myteacher", lifespan=lifespan)

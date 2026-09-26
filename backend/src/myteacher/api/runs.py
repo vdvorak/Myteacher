@@ -116,10 +116,12 @@ class RunOut(BaseModel):
     participants: list["StudentRef"]
     # Whether a link run takes newcomers; always True for an enrolled run.
     joining_open: bool
+    # When a link run's participants' names and answers were deleted, if they were.
+    participants_erased_at: datetime | None
 
-    @field_serializer("created_at")
-    def _utc(self, at: datetime) -> str:
-        return at.strftime("%Y-%m-%dT%H:%M:%SZ")
+    @field_serializer("created_at", "participants_erased_at")
+    def _utc(self, at: datetime | None) -> str | None:
+        return at.strftime("%Y-%m-%dT%H:%M:%SZ") if at else None
 
 
 class RunIn(BaseModel):
@@ -264,6 +266,7 @@ def run_out(db: InstanceSession, run: CourseRun) -> RunOut:
             if participant_id in in_run
         ],
         joining_open=run.joining_open,
+        participants_erased_at=run.participants_erased_at,
     )
 
 

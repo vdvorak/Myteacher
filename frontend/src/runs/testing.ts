@@ -27,7 +27,13 @@ interface StoredRun {
   classIds: number[]
   studentIds: number[]
   /** A link run: how many it takes, the secret of its join link and who joined. */
-  link?: { capacity: number; joinToken: string; participants: Lobby['participants']; closed?: boolean }
+  link?: {
+    capacity: number
+    joinToken: string
+    participants: Lobby['participants']
+    closed?: boolean
+    erasedAt?: string
+  }
 }
 
 interface StoredClass {
@@ -121,6 +127,7 @@ export function fakeRunsApi(
       participant_count: stored.link?.participants.length ?? 0,
       participants: (stored.link?.participants ?? []).map(({ id, name }) => ({ id, name })),
       joining_open: !stored.link?.closed,
+      participants_erased_at: stored.link?.erasedAt ?? null,
     }
   }
   const store = (next: StoredRun) => {
@@ -197,6 +204,14 @@ export function fakeRunsApi(
       if (!found) throw new ApiError(404)
       found.name = name.trim()
       return { ...found }
+    }),
+    eraseParticipants: vi.fn(async (id: number) => {
+      const stored = linked(id)
+      const participants = stored.link!.participants.map((p, index) => ({ ...p, name: `Participant ${index + 1}` }))
+      return store({
+        ...stored,
+        link: { ...stored.link!, participants, closed: true, erasedAt: stored.link!.erasedAt ?? now.toISOString() },
+      })
     }),
     removeParticipant: vi.fn(async (id: number, participantId: number) => {
       const link = linked(id).link!

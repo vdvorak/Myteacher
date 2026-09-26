@@ -204,10 +204,22 @@ def read_lobby(run_id: int, db: Db, actor: Teacher) -> Lobby:
     )
 
 
+@router.delete("/runs/{run_id}/participant-data")
+def erase_participant_data(run_id: int, db: Db, now: Now, actor: Teacher) -> RunOut:
+    """Delete the participants' names and answers now, rather than 90 days after the last
+    release; the run, its releases and its results stay, with anonymous rows."""
+    run = _link_run(db, actor, run_id)
+    participants.erase(db, run, now=now)
+    return run_out(db, run)
+
+
 @router.put("/runs/{run_id}/joining")
 def set_joining(run_id: int, body: JoiningIn, db: Db, actor: Teacher) -> RunOut:
     """Close joining once everyone is in, or open it again."""
     run = _link_run(db, actor, run_id)
+    if body.open and run.participants_erased_at is not None:
+        # Newcomers' data would outlive the erasure, which is not done twice.
+        raise HTTPException(status_code=409, detail="participants_erased")
     run.joining_open = body.open
     return run_out(db, run)
 

@@ -5,6 +5,7 @@ import { useI18n } from '../i18n/i18n'
 import '../admin/admin.css'
 import { useBreadcrumbs } from '../shell/breadcrumbs'
 import { PageHeader } from '../shell/PageHeader'
+import { useConfirm } from '../shell/confirm'
 import { StepTabs } from '../shell/StepTabs'
 import { TeachersOnly } from '../students/StudentsPage'
 import type { CourseRun } from './api'
@@ -168,22 +169,82 @@ function RunSettings(props: { run: CourseRun; onChanged: (run: CourseRun) => voi
   }
 
   return (
-    <form class="settings-form" onSubmit={rename}>
-      <label>
-        {t('runs.name')}
-        <input required maxLength={200} value={name()} onInput={(e) => setName(e.currentTarget.value)} />
-      </label>
-      <div class="settings-actions">
-        <button type="submit" disabled={busy()}>
-          {t('runs.rename')}
-        </button>
-      </div>
-      <Show when={outcome() === 'saved'}>
-        <p role="status">{t('runs.renamed')}</p>
+    <>
+      <form class="settings-form" onSubmit={rename}>
+        <label>
+          {t('runs.name')}
+          <input required maxLength={200} value={name()} onInput={(e) => setName(e.currentTarget.value)} />
+        </label>
+        <div class="settings-actions">
+          <button type="submit" disabled={busy()}>
+            {t('runs.rename')}
+          </button>
+        </div>
+        <Show when={outcome() === 'saved'}>
+          <p role="status">{t('runs.renamed')}</p>
+        </Show>
+        <Show when={outcome() === 'failed'}>
+          <p role="alert">{t('smtp.requestFailed')}</p>
+        </Show>
+      </form>
+      <Show when={props.run.mode === 'link'}>
+        <ParticipantData run={props.run} onChanged={props.onChanged} />
       </Show>
-      <Show when={outcome() === 'failed'}>
-        <p role="alert">{t('smtp.requestFailed')}</p>
+    </>
+  )
+}
+
+/** A link run's participants' names and answers: deleted 90 days after the last release, or now. */
+function ParticipantData(props: { run: CourseRun; onChanged: (run: CourseRun) => void }) {
+  const { t, locale } = useI18n()
+  const api = useApi().runs
+  const confirm = useConfirm()
+  const [busy, setBusy] = createSignal(false)
+  const [failed, setFailed] = createSignal(false)
+
+  async function erase() {
+    const erasing = await confirm({
+      title: t('participantData.confirm'),
+      body: t('participantData.what'),
+      action: t('participantData.erase'),
+    })
+    if (!erasing) return
+    setBusy(true)
+    setFailed(false)
+    try {
+      props.onChanged(await api.eraseParticipants(props.run.id))
+    } catch {
+      setFailed(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section class="danger-zone settings-form" aria-labelledby="participant-data-heading">
+      <h2 id="participant-data-heading">{t('participantData.heading')}</h2>
+      <Show
+        when={props.run.participants_erased_at}
+        fallback={
+          <>
+            <p class="settings-note">{t('participantData.kept')}</p>
+            <div class="settings-actions">
+              <button type="button" class="button-danger" disabled={busy()} onClick={() => void erase()}>
+                {t('participantData.erase')}
+              </button>
+            </div>
+          </>
+        }
+      >
+        {(at) => (
+          <p role="status">
+            {t('participantData.erased', { date: new Date(at()).toLocaleDateString(locale(), { dateStyle: 'long' }) })}
+          </p>
+        )}
       </Show>
-    </form>
+      <Show when={failed()}>
+        <p role="alert">{t('participantData.failed')}</p>
+      </Show>
+    </section>
   )
 }

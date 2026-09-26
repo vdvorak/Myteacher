@@ -2,13 +2,23 @@
 a name, and come back through their personal link."""
 
 import secrets
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, insert, literal, select
+from sqlalchemy import delete, func, insert, literal, select, update
 
+from myteacher.accounts.models import Account
 from myteacher.accounts.service import token_hash
+from myteacher.assistant.generations import GenerationRecord
+from myteacher.jobs.models import Job
 from myteacher.persistence import InstanceSession
-from myteacher.runs.models import CourseRun, Participant
+from myteacher.runs.models import (
+    Assessment,
+    Attempt,
+    AttemptDraft,
+    CourseRun,
+    MaterialRelease,
+    Participant,
+)
 
 DEFAULT_CAPACITY = 30
 MAX_CAPACITY = 200
@@ -115,3 +125,101 @@ def display_names(db: InstanceSession, run: CourseRun) -> dict[int, str]:
         seen[participant.name] = seen.get(participant.name, 0) + 1
         named[participant.id] = f"{participant.name} ({seen[participant.name]})"
     return named
+
+
+# Names and answers of a link run's participants are kept this long after its last release.
+KEPT_FOR = timedelta(days=90)
+_ANONYMOUS = {"cs": "Účastník {number}", "en": "Participant {number}"}
+
+
+def erase(db: InstanceSession, run: CourseRun, *, now: datetime) -> None:
+    """Delete what the run's participants gave (ADR 0012): each name becomes "Participant 1"
+    in the teacher's language, their personal links stop working, and their answers lose
+    anything written, as do the assistant's assessments of them and its generation records.
+    Scores stay, so the run's results and counts stay readable. Joining closes for good.
+
+    A teacher who set no language gets English names: the instance has no language of its own
+    to fall back to, and the browser's is not known here."""
+    if run.participants_erased_at is not None:
+        return
+    teacher = db.get_one(Account, run.teacher_id)
+    anonymous = _ANONYMOUS["cs" if teacher.language == "cs" else "en"]
+    everyone = participants_of(db, run, removed_too=True)
+    for number, participant in enumerate(everyone, start=1):
+        participant.name = anonymous.format(number=number)
+        # A hash no token has: the personal link leads nowhere.
+        participant.token_hash = f"erased-{participant.id}"
+    ids = [participant.id for participant in everyone]
+    attempts = select(Attempt.id).where(Attempt.participant_id.in_(ids))
+    db.execute(delete(AttemptDraft).where(AttemptDraft.attempt_id.in_(attempts)))
+    for row in db.scalars(select(Assessment).where(Assessment.attempt_id.in_(attempts))):
+        row.answer = _unwritten(row.answer)
+        row.justification = None
+        row.feedback = None
+        if row.published is not None:
+            row.published = {**row.published, "feedback": None}
+    # Every call on their answers, failed ones included, which no assessment points to.
+    db.execute(
+        update(GenerationRecord)
+        .where(GenerationRecord.participant_id.in_(ids))
+        .values(inputs={}, output=None, raw_output=None)
+        .execution_options(synchronize_session=False)
+    )
+    # What a failed assessment job kept of the model's answer may quote theirs. A job names only
+    # its course and teacher, so those of the run's other runs of the course lose it too.
+    db.execute(
+        update(Job)
+        .where(
+            Job.kind == "open_assessment",
+            Job.course_id == run.course_id,
+            Job.account_id == run.teacher_id,
+        )
+        .values(raw_output=None)
+        .execution_options(synchronize_session=False)
+    )
+    run.joining_open = False
+    run.participants_erased_at = now
+
+
+def _unwritten(answer: dict) -> dict:
+    """The answer without anything written: free text, gaps, cells and a custom exercise's
+    value go, the shape stays, so it still validates and the results still show it."""
+    blank = dict(answer)
+    if "text" in blank:
+        blank["text"] = ""
+    for key in ("gaps", "cells"):
+        if isinstance(blank.get(key), dict):
+            blank[key] = dict.fromkeys(blank[key], "")
+    if blank.get("type") == "custom":
+        blank["value"] = None
+    return blank
+
+
+def due_for_erasure(db: InstanceSession, now: datetime) -> list[CourseRun]:
+    """The link runs whose participants' data is kept no longer: 90 days after the last
+    release, or after the run started when it released nothing."""
+    last = (
+        select(MaterialRelease.run_id, func.max(MaterialRelease.released_at).label("at"))
+        .group_by(MaterialRelease.run_id)
+        .subquery()
+    )
+    found = db.execute(
+        select(CourseRun, last.c.at)
+        .outerjoin(last, last.c.run_id == CourseRun.id)
+        .where(CourseRun.mode == "link", CourseRun.participants_erased_at.is_(None))
+    ).tuples()
+    due = []
+    for run, released_at in found:
+        # The subquery's column is naive in SQLite; the run's own dates are aware.
+        since = released_at.replace(tzinfo=UTC) if released_at is not None else run.created_at
+        if now - since >= KEPT_FOR:
+            due.append(run)
+    return due
+
+
+def sweep(db: InstanceSession, now: datetime) -> int:
+    """Erase every link run that is due; returns how many."""
+    due = due_for_erasure(db, now)
+    for run in due:
+        erase(db, run, now=now)
+    return len(due)

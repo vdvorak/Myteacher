@@ -29,6 +29,9 @@ class CourseRun(InstanceOwned, Base):
     join_token: Mapped[str | None] = mapped_column(String(64), unique=True)
     # Whether a link run takes newcomers; the teacher closes it once everyone is in.
     joining_open: Mapped[bool] = mapped_column(default=True)
+    # Set once a link run's participants' names and answers were deleted: 90 days after its last
+    # release, or earlier when its teacher asked (ADR 0012).
+    participants_erased_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
 
 
 class Participant(InstanceOwned, Base):

@@ -907,6 +907,15 @@ const en = {
     'Their personal link stops working and their answers stay here. The join link still takes anyone: close joining or replace the link to stop that.',
   'lobby.removed': '{name} was removed.',
   'lobby.actionFailed': 'The change could not be made. Try again.',
+  'participantData.heading': 'Participants’ names and answers',
+  'participantData.kept':
+    'They are deleted automatically 90 days after the last release. The run, its releases and its results stay, with anonymous rows.',
+  'participantData.erase': 'Delete names and answers now',
+  'participantData.confirm': 'Delete the participants’ names and answers?',
+  'participantData.what':
+    'Names become “Participant 1”, personal links stop working, written answers and the assistant’s feedback go, and joining closes. Scores stay. This cannot be undone.',
+  'participantData.erased': 'The participants’ names and answers were deleted on {date}.',
+  'participantData.failed': 'They could not be deleted. Try again.',
   'copyLink.copy': 'Copy the link',
   'copyLink.copied': 'Copied',
   'copyLink.failed': 'The link could not be copied. It can be selected and copied by hand.',
@@ -1911,6 +1920,15 @@ const cs: Record<MessageKey, string> = {
     'Osobní odkaz přestane fungovat a odpovědi tu zůstanou. Odkaz pro připojení ale dál přijme kohokoli: zabráníte tomu uzavřením připojování nebo výměnou odkazu.',
   'lobby.removed': 'Odebráno: {name}.',
   'lobby.actionFailed': 'Změnu se nepodařilo provést. Zkuste to znovu.',
+  'participantData.heading': 'Jména a odpovědi účastníků',
+  'participantData.kept':
+    'Smažou se samy 90 dní po posledním vydání. Běh, jeho vydání a výsledky zůstanou, s anonymními řádky.',
+  'participantData.erase': 'Smazat jména a odpovědi hned',
+  'participantData.confirm': 'Smazat jména a odpovědi účastníků?',
+  'participantData.what':
+    'Jména se změní na „Účastník 1“, osobní odkazy přestanou fungovat, psané odpovědi a zpětná vazba asistenta zmizí a připojování se uzavře. Skóre zůstanou. Nejde to vrátit.',
+  'participantData.erased': 'Jména a odpovědi účastníků byly smazány {date}.',
+  'participantData.failed': 'Nepodařilo se je smazat. Zkuste to znovu.',
   'copyLink.copy': 'Zkopírovat odkaz',
   'copyLink.copied': 'Zkopírováno',
   'copyLink.failed': 'Odkaz se nepodařilo zkopírovat. Dá se označit a zkopírovat ručně.',

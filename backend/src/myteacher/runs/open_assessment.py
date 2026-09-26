@@ -186,8 +186,6 @@ def assessing(release_id: int) -> Work:
                 # Retracted while the job ran: it counts for nothing, so it is not paid for.
                 continue
             text = getattr(attempts.answer_of(row), "text", "")
-            # None for a link run's participant, who has no account to erase.
-            student_id = attempt.student_id
             try:
                 output, generation_id = await generate_recorded(
                     ctx.assistant,
@@ -196,7 +194,8 @@ def assessing(release_id: int) -> Work:
                     teacher=teacher,
                     inputs=_inputs(exercise, text, lesson.language, course.instruction_language),
                     course_id=course.id,
-                    student_id=student_id,
+                    student_id=attempt.student_id,
+                    participant_id=attempt.participant_id,
                 )
             except AssistantFailed as failure:
                 # An assessment that does not fit, or was cut off, is the teacher's to make.

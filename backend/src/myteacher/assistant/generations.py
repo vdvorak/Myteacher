@@ -31,6 +31,10 @@ class GenerationRecord(InstanceOwned, Base):
     )
     # The student whose work the inputs hold, if any.
     student_id: Mapped[int | None] = mapped_column(ForeignKey("account.id"), index=True)
+    # Or the link run participant whose work they hold, whose run's erasure blanks them.
+    participant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("participant.id", ondelete="SET NULL"), index=True
+    )
     provider: Mapped[str] = mapped_column(String(50))
     model: Mapped[str] = mapped_column(String(200))
     inputs: Mapped[dict[str, Any]] = mapped_column(JSON)
