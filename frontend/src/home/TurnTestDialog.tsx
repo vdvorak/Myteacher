@@ -4,7 +4,7 @@ import { useApi } from '../api/context'
 import { useSession } from '../auth/session'
 import { basicsOf, CourseBasicsFields, emptyBasics, type BasicsDraft } from '../courses/CourseBasicsForm'
 import { useI18n } from '../i18n/i18n'
-import { asProblem, ProblemMessage, type Problem } from '../materials/MaterialsSection'
+import { asProblem, isPdf, PagesField, ProblemMessage, type Problem } from '../materials/MaterialsSection'
 import { Dialog } from '../shell/Dialog'
 import { sourceFileTypes } from '../sources/api'
 import './home.css'
@@ -52,6 +52,10 @@ export function TurnTestDialog(props: { onClose: () => void }) {
   const [topicName, setTopicName] = createSignal('')
   const [testFile, setTestFile] = createSignal<File | null>(null)
   const [keyFile, setKeyFile] = createSignal<File | null>(null)
+  const [testPages, setTestPages] = createSignal('')
+  const [keyPages, setKeyPages] = createSignal('')
+  // The pages written of a PDF; empty is the whole file.
+  const pagesOf = (file: File | null, written: string) => (isPdf(file) && written.trim() !== '' ? written.trim() : null)
   const [busy, setBusy] = createSignal(false)
   const [problem, setProblem] = createSignal<Problem>(null)
 
@@ -74,13 +78,15 @@ export function TurnTestDialog(props: { onClose: () => void }) {
     return id
   }
 
-  // The files uploaded to each course, so trying again does not upload them twice.
-  const uploaded = new Map<File, { course: number; source: number }>()
+  // The files uploaded to each course, so trying again does not upload them twice, nor the same file chosen as the
+  // test and as the answer key, which are then other pages of one source.
+  const uploaded = new Map<string, { course: number; source: number }>()
   async function sourceOf(course: number, file: File): Promise<number> {
-    const known = uploaded.get(file)
+    const identity = `${file.name}\n${file.size}\n${file.lastModified}`
+    const known = uploaded.get(identity)
     if (known?.course === course) return known.source
     const { source } = await apis.sources.store(course, file)
-    uploaded.set(file, { course, source: source.id })
+    uploaded.set(identity, { course, source: source.id })
     return source.id
   }
 
@@ -99,7 +105,13 @@ export function TurnTestDialog(props: { onClose: () => void }) {
       const topicId = await topicOf(courseId, topic)
       const source = await sourceOf(courseId, test)
       const keySource = answers === null ? null : await sourceOf(courseId, answers)
-      await apis.materials.transcribe(courseId, topicId, source, keySource, [])
+      await apis.materials.transcribe(courseId, topicId, {
+        source_id: source,
+        key_source_id: keySource,
+        target_student_ids: [],
+        source_pages: pagesOf(test, testPages()),
+        key_pages: pagesOf(answers, keyPages()),
+      })
       navigate(`/courses/${courseId}/topics/${topicId}?tab=materials`)
     } catch (error) {
       setProblem(asProblem(error))
@@ -191,6 +203,9 @@ export function TurnTestDialog(props: { onClose: () => void }) {
                   onChange={(e) => setTestFile(e.currentTarget.files?.[0] ?? null)}
                 />
               </label>
+              <Show when={isPdf(testFile())}>
+                <PagesField label={t('materials.testPages')} pages={testPages()} onPages={setTestPages} />
+              </Show>
               <label>
                 {t('turnTest.keyFile')}
                 <input
@@ -199,6 +214,9 @@ export function TurnTestDialog(props: { onClose: () => void }) {
                   onChange={(e) => setKeyFile(e.currentTarget.files?.[0] ?? null)}
                 />
               </label>
+              <Show when={isPdf(keyFile())}>
+                <PagesField label={t('materials.keyPages')} pages={keyPages()} onPages={setKeyPages} />
+              </Show>
               <p class="settings-note">{t('turnTest.uploadNote')}</p>
               <ProblemMessage problem={problem()} />
               <div class="dialog-actions">

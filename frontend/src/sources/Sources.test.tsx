@@ -162,6 +162,16 @@ describe('course sources', () => {
     expect((await item('Učebnice, kapitola 1.pdf')).getByRole('button', { name: 'Read with OCR' })).toBeInTheDocument()
   })
 
+  it('names the pages of a PDF its file holds no text for, and offers OCR for them', async () => {
+    renderSources({ sources: [{ ...textbook, extracted_with: 'ocr', page_count: 9, pages_without_text: [2, 6, 7, 8] }] })
+
+    const source = await item('Učebnice, kapitola 1.pdf')
+    expect(
+      source.getByText('The file holds no text for pages 2, 6–8, such as a scan or handwriting. Read it with OCR to include them.'),
+    ).toBeInTheDocument()
+    expect(source.getByRole('button', { name: 'Read with OCR' })).toBeInTheDocument()
+  })
+
   it('offers no OCR for a text file', async () => {
     renderSources({ sources: [{ ...textbook, kind: 'text', name: 'notes.txt', media_type: 'text/plain' }] })
 
@@ -265,6 +275,8 @@ describe('web pages as sources', () => {
     url: 'https://spanish.example/preterito',
     fetched_at: '2026-09-24T08:00:00Z',
     characters: 120,
+    page_count: null,
+    pages_without_text: [],
     job: null,
     text: 'Se usa para acciones terminadas.',
   }

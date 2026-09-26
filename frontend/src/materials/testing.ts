@@ -5,7 +5,35 @@ import { fakeJobsApi, type FakeJobs } from '../jobs/testing'
 import { ApiError } from '../lesson/api'
 import { sampleLesson } from '../lesson/testing'
 import type { SourcesApi } from '../sources/api'
-import { MaterialRefused, type Material, type MaterialsApi } from './api'
+import { MaterialRefused, type Material, type MaterialsApi, type Transcription } from './api'
+
+/** The pages written as the server reads them, in order and each once; null for the whole file. */
+function parsedPages(written: string | null): number[] | null {
+  if (written === null || written.trim() === '') return null
+  const pages = new Set<number>()
+  for (const part of written.replace(/–/g, '-').split(',')) {
+    const match = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(part.trim())
+    if (!match) throw new MaterialRefused('bad_pages')
+    const [first, last] = [Number(match[1]), Number(match[2] ?? match[1])]
+    if (last < first) throw new MaterialRefused('bad_pages')
+    for (let page = first; page <= last; page++) pages.add(page)
+  }
+  return [...pages].sort((a, b) => a - b)
+}
+
+/** A transcription as the forms ask for it, for the whole class: whole files, or the pages written. */
+export const transcription = (
+  source_id: number,
+  key_source_id: number | null,
+  pages: Partial<Pick<Transcription, 'source_pages' | 'key_pages'>> = {},
+): Transcription => ({
+  source_id,
+  key_source_id,
+  target_student_ids: [],
+  source_pages: null,
+  key_pages: null,
+  ...pages,
+})
 
 /** What the fake assistant writes: a lesson with its answer key, or why it failed. */
 export type ScriptedMaterial =
@@ -34,6 +62,8 @@ export const serEstarMaterial: Material = {
   target_student_ids: [],
   source_id: null,
   key_source_id: null,
+  source_pages: null,
+  key_pages: null,
   lesson: sampleLesson,
   answer_key: serEstarKey,
   proposed_answers: [],
@@ -78,6 +108,8 @@ export function fakeMaterialsApi(
     target_student_ids: [...new Set(targetStudentIds)].sort((a, b) => a - b),
     source_id: null,
     key_source_id: null,
+    source_pages: null,
+    key_pages: null,
     lesson: null,
     answer_key: null,
     proposed_answers: [],
@@ -139,22 +171,34 @@ export function fakeMaterialsApi(
         return schedule(material, asked)
       },
     ),
-    transcribe: vi.fn(
-      async (
-        courseId: number,
-        topicId: number,
-        sourceId: number,
-        keySourceId: number | null,
-        targetStudentIds: number[],
-      ) => {
-        if (options.hasKey === false) throw new MaterialRefused('no_provider_key')
-        const material = { ...fresh(targetStudentIds), source_id: sourceId, key_source_id: keySourceId }
-        listOf(topicId).push(material)
-        firstInstructions.set(material.id, null)
-        const reading = (await unread(courseId, sourceId)) || (await unread(courseId, keySourceId))
-        return schedule(material, null, reading)
-      },
-    ),
+    transcribe: vi.fn(async (courseId: number, topicId: number, transcription: Transcription) => {
+      const { source_id, key_source_id } = transcription
+      const [sourcePages, keyPages] = [parsedPages(transcription.source_pages), parsedPages(transcription.key_pages)]
+      // Pages are of a PDF, and within it once its pages are known.
+      for (const [id, pages] of [
+        [source_id, sourcePages],
+        [key_source_id, keyPages],
+      ] as const) {
+        if (id === null || pages === null || options.sources === undefined) continue
+        const source = await options.sources.get(courseId, id)
+        if (source.kind !== 'pdf') throw new MaterialRefused('pages_not_pdf')
+        if (source.page_count !== null && pages.some((page) => page < 1 || page > source.page_count!)) {
+          throw new MaterialRefused('pages_outside')
+        }
+      }
+      if (options.hasKey === false) throw new MaterialRefused('no_provider_key')
+      const material: Material = {
+        ...fresh(transcription.target_student_ids),
+        source_id,
+        key_source_id,
+        source_pages: sourcePages,
+        key_pages: keyPages,
+      }
+      listOf(topicId).push(material)
+      firstInstructions.set(material.id, null)
+      const reading = (await unread(courseId, source_id)) || (await unread(courseId, key_source_id))
+      return schedule(material, null, reading)
+    }),
     retry: vi.fn(async (_courseId: number, topicId: number, materialId: number) => {
       const material = find(topicId, materialId)
       if (material.version !== null || material.job?.state !== 'failed') throw new MaterialRefused('nothing_to_retry')

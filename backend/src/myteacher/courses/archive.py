@@ -7,7 +7,8 @@ identifiers. Who owns the course and whom it is shared with are not part of it, 
 anything about students (ADR 0008): the targets of classroom material stay behind. Neither are
 the transcripts of the course and topic interviews, generation records or retired concepts: what
 the interviews established is in the brief and the topics' additions, and whether they finished in
-the course's `brief_done` (version 2).
+the course's `brief_done` (version 2). A PDF source keeps its text page by page, and transcribed
+material the pages it came from (version 3).
 
 A later slice that adds to the format raises `VERSION`; a reader refuses versions it does not know.
 Importing builds a new course from an archive with identifiers of its own; a fork is an export
@@ -49,7 +50,7 @@ from myteacher.lesson.schema import LessonDocument
 from myteacher.persistence import InstanceSession
 
 FORMAT = "myteacher-course"
-VERSION = 2
+VERSION = 3
 DOCUMENT_NAME = "course.json"
 
 UtcTime = Annotated[
@@ -80,6 +81,13 @@ class ArchiveCourse(_Model):
     sources_skipped: bool = False
 
 
+class ArchivePage(_Model):
+    text: str
+    read_with: Literal["file", "ocr"]
+    # Whether the file holds no text of its own for the page: a scan or handwriting.
+    scan: bool = False
+
+
 class ArchiveSource(_Model):
     key: str
     name: Name
@@ -89,6 +97,8 @@ class ArchiveSource(_Model):
     visible_to_students: bool
     text: str | None
     extracted_with: str | None
+    # A PDF's text page by page; None when its pages were not kept.
+    pages: list[ArchivePage] | None = None
     url: str | None
     fetched_at: UtcTime | None
     # The path of the original file in the archive; None for a web page, kept as its text.
@@ -168,6 +178,9 @@ class ArchiveMaterial(_Model):
     transcribed: bool = False
     source: str | None = None
     key_source: str | None = None
+    # The pages of those sources it was transcribed from; None for the whole file.
+    source_pages: list[Annotated[int, Field(ge=1)]] | None = None
+    key_pages: list[Annotated[int, Field(ge=1)]] | None = None
 
     @model_validator(mode="after")
     def _linked(self) -> Self:
@@ -205,7 +218,7 @@ class ArchiveTopic(_Model):
 class Archive(_Model):
     format: Literal["myteacher-course"]
     # 1 lacks the course's confirmed steps.
-    version: Literal[1, 2]
+    version: Literal[1, 2, 3]
     exported_at: UtcTime
     course: ArchiveCourse
     brief: CourseBrief
@@ -313,6 +326,8 @@ def _materials(
                 key_source=(
                     source_keys.get(material.key_source_id) if material.key_source_id else None
                 ),
+                source_pages=material.source_pages,
+                key_pages=material.key_pages,
             )
         )
     return archived
@@ -328,6 +343,7 @@ def _source(source: Source, key: str, has_file: bool) -> ArchiveSource:
         visible_to_students=source.visible_to_students,
         text=source.text,
         extracted_with=source.extracted_with,
+        pages=[ArchivePage(**page) for page in source.pages] if source.pages is not None else None,
         url=source.url,
         fetched_at=source.fetched_at,
         file=_file_name(key, source.name) if has_file else None,
@@ -516,6 +532,8 @@ def _import_materials(
             transcribed=material.transcribed,
             source_id=source_ids[material.source] if material.source else None,
             key_source_id=source_ids[material.key_source] if material.key_source else None,
+            source_pages=material.source_pages,
+            key_pages=material.key_pages,
         )
         db.add(row)
         db.flush()
@@ -589,6 +607,7 @@ def import_course(
             visible_to_students=s.visible_to_students,
             text=s.text,
             extracted_with=s.extracted_with,
+            pages=[page.model_dump() for page in s.pages] if s.pages is not None else None,
             url=s.url,
             fetched_at=s.fetched_at,
             uploaded_by_id=owner.id,

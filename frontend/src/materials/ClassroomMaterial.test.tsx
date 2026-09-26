@@ -17,7 +17,7 @@ import { fakeRunsApi } from '../runs/testing'
 import { fakeSourcesApi, textbook } from '../sources/testing'
 import type { SourceDetail } from '../sources/api'
 import type { Material } from './api'
-import { fakeMaterialsApi, serEstarMaterial, written, type ScriptedMaterial } from './testing'
+import { fakeMaterialsApi, serEstarMaterial, transcription, written, type ScriptedMaterial } from './testing'
 
 const teacher: Account = { ...invitedTeacher, language: 'en' }
 const approvedMap: ConceptMap = { ...preteritMap, state: 'approved', approved_at: '2026-09-24T08:00:00Z', approved_before: true }
@@ -341,6 +341,7 @@ describe('classroom material transcribed from a source', () => {
     name: 'Reading.png',
     job: { id: 90, kind: 'source_extraction', state: 'running', progress: 'extracting', result: null, error_kind: null, raw_output: null },
   }
+  const appendix: SourceDetail = { ...textbook, id: 11, name: 'Příloha.pdf', page_count: 4 }
   const proposed: ScriptedMaterial = {
     ...written,
     lesson: {
@@ -372,7 +373,7 @@ describe('classroom material transcribed from a source', () => {
     await user.selectOptions(form.getByRole('combobox', { name: 'Answer key (optional)' }), 'Klíč.pdf')
     await user.click(form.getByRole('button', { name: 'Transcribe' }))
 
-    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, 7, 8, [])
+    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, transcription(7, 8))
     const material = await item('Ser, or estar?')
     expect(material.getByText('Transcribed from Test 3.pdf')).toBeInTheDocument()
     expect(material.getByText('Answers proposed by the assistant: 1. Check them in the preview.')).toBeInTheDocument()
@@ -392,7 +393,7 @@ describe('classroom material transcribed from a source', () => {
     await user.click(form.getByRole('button', { name: 'Transcribe' }))
 
     expect(sources.store).toHaveBeenCalledTimes(2)
-    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, 100, 101, [])
+    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, transcription(100, 101))
     expect(await (await section()).findByRole('status')).toHaveTextContent('Reading the text…')
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('The assistant is working…'))
     const material = await item('Ser, or estar?')
@@ -425,6 +426,78 @@ describe('classroom material transcribed from a source', () => {
     expect(materials.transcribe).not.toHaveBeenCalled()
   })
 
+  it('transcribes chosen pages, with the answer key on other pages of the same PDF, and names them on the material', async () => {
+    const { materials } = renderTopic({ sources: [appendix], script: [written] })
+    const user = userEvent.setup()
+    const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
+
+    await user.type(form.getByRole('textbox', { name: 'Pages of the test' }), '1-2')
+    await user.selectOptions(form.getByRole('combobox', { name: 'Answer key (optional)' }), 'Příloha.pdf')
+    await user.type(form.getByRole('textbox', { name: 'Pages of the answer key' }), '4')
+    await user.click(form.getByRole('button', { name: 'Transcribe' }))
+
+    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, transcription(11, 11, { source_pages: '1-2', key_pages: '4' }))
+    expect((await item('Ser, or estar?')).getByText('Transcribed from Příloha.pdf, pages 1–2')).toBeInTheDocument()
+  })
+
+  it('asks for pages only of a PDF, an uploaded one too', async () => {
+    renderTopic({ sources: [{ ...unread, kind: 'image', media_type: 'image/png' }] })
+    const user = userEvent.setup()
+    const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
+
+    expect(form.queryByRole('textbox', { name: 'Pages of the test' })).not.toBeInTheDocument()
+    await user.selectOptions(form.getByRole('combobox', { name: 'Source to transcribe' }), 'Upload a new file…')
+    await user.upload(form.getByLabelText('Test file'), new File(['%PDF-'], 'Příloha.pdf', { type: 'application/pdf' }))
+    expect(form.getByRole('textbox', { name: 'Pages of the test' })).toHaveAttribute(
+      'placeholder',
+      'Such as 1-2 or 3, 5-7; empty for the whole file',
+    )
+  })
+
+  it('transcribes the pages chosen of a PDF uploaded right in the form', async () => {
+    const { materials } = renderTopic({ script: [written] })
+    const user = userEvent.setup()
+    const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
+
+    await user.upload(form.getByLabelText('Test file'), new File(['%PDF-'], 'Příloha.pdf', { type: 'application/pdf' }))
+    await user.type(form.getByRole('textbox', { name: 'Pages of the test' }), '2-3')
+    await user.click(form.getByRole('button', { name: 'Transcribe' }))
+
+    await waitFor(() => expect(materials.transcribe).toHaveBeenCalledWith(1, 2, transcription(100, null, { source_pages: '2-3' })))
+  })
+
+  it('says a PDF read before its pages were kept is read again for the pages chosen', async () => {
+    renderTopic({ sources: [{ ...appendix, page_count: null }] })
+
+    const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
+    expect(form.getByText('Choosing pages reads the file again, page by page.')).toBeInTheDocument()
+  })
+
+  it('explains pages the file does not have', async () => {
+    renderTopic({ sources: [appendix] })
+    const user = userEvent.setup()
+    const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
+
+    await user.type(form.getByRole('textbox', { name: 'Pages of the test' }), '4-5')
+    await user.click(form.getByRole('button', { name: 'Transcribe' }))
+
+    expect(await (await section()).findByRole('alert')).toHaveTextContent('The file does not have all of those pages.')
+  })
+
+  it('explains pages written other than as numbers and ranges', async () => {
+    const { materials } = renderTopic({ sources: [appendix] })
+    const user = userEvent.setup()
+    const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
+
+    await user.type(form.getByRole('textbox', { name: 'Pages of the test' }), 'the first two')
+    await user.click(form.getByRole('button', { name: 'Transcribe' }))
+
+    expect(await (await section()).findByRole('alert')).toHaveTextContent(
+      'Write the pages as numbers and ranges, such as 1-2 or 3, 5-7.',
+    )
+    expect(materials.list).toHaveBeenCalledTimes(1)
+  })
+
   it('says on the material why its source could not be read, and reads it again', async () => {
     const { materials } = renderTopic({ sources: [unread], script: [{ fail: 'nothing_read' }, written] })
     const user = userEvent.setup()
@@ -432,7 +505,7 @@ describe('classroom material transcribed from a source', () => {
 
     await user.click(form.getByRole('button', { name: 'Transcribe' }))
 
-    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, 9, null, [])
+    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, transcription(9, null))
     const failed = await item('Classroom material')
     const retry = await failed.findByRole('button', { name: 'Try again' })
     expect(failed.getByText(/The assistant found no text in the file/)).toBeInTheDocument()

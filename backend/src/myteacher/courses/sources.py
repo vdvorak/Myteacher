@@ -1,16 +1,19 @@
 """Sources of a course: the files a teacher supplies and the text read from them.
 
 The kind of a file is read from its content, never from what the browser declared. Text is
-extracted by a job: from the file itself for text files and PDFs with a text layer, and by the
-assistant (OCR, on the teacher's key) for images and scanned PDFs when the teacher asks for it.
+extracted by a job: from the file itself for text files and the text layer of PDFs, page by page,
+and by the assistant (OCR, on the teacher's key) only for what the file holds no text for, images
+and the pages of a PDF that are scans or handwriting, when the teacher asks for it or a
+transcription needs them.
 """
 
 import hashlib
 import io
 import logging
 import os
+import re
 from datetime import datetime
-from typing import Any
+from typing import Any, NamedTuple
 
 import anyio
 from pydantic import BaseModel, Field
@@ -31,9 +34,12 @@ TASK_KIND = "source_extraction"
 # A textbook scan fits; a whole library does not.
 MAX_SIZE = 20 * 1024 * 1024
 MAX_NAME = 200
-# Fewer characters than this per page, on average, is a scan's text layer: a page number or a
-# scanner's stamp at best.
+# Fewer characters than this on a page is a scan's text layer: a page number or a scanner's stamp
+# at best.
 SCAN_LAYER = 40
+# Fewer characters than this on a page holding an image is a scan below a typed heading; a page
+# of text with a picture holds more.
+SCAN_WITH_HEADING = 300
 
 
 class ReadText(BaseModel):
@@ -45,6 +51,14 @@ OCR = Task("source_ocr", ReadText, slot="fast", timeout_s=300)
 
 class UnsupportedFile(Exception):
     pass
+
+
+class BadPages(ValueError):
+    """Pages written other than as numbers and ranges, such as "1-2" or "3, 5-7"."""
+
+
+class PagesOutside(ValueError):
+    """Pages the document does not have."""
 
 
 def _is_text(content: bytes) -> bool:
@@ -218,38 +232,220 @@ def claim_extraction(db: InstanceSession, source: Source, job: Job) -> bool:
     return True
 
 
-def pdf_pages(content: bytes) -> list[str]:
-    """The text layer of a PDF, page by page; raises `JobFailed` for a file pypdf cannot read."""
+class PdfPage(NamedTuple):
+    text: str
+    # Whether the page holds an image, such as a scan.
+    has_image: bool
+
+
+def _draws_image(content: Any, resources: Any, pdf: Any, depth: int = 0) -> bool:
+    """Whether a page's content, or a form it draws, draws an image: listed among the page's
+    resources is not enough, as pages often share them."""
+    from pypdf.generic import ContentStream
+
+    if content is None or depth > 2:
+        return False
+    listed = resources.get_object().get("/XObject") if resources is not None else None
+    objects = listed.get_object() if listed is not None else {}
+    stream = content if isinstance(content, ContentStream) else ContentStream(content, pdf)
+    for operands, operator in stream.operations:
+        if operator == b"INLINE IMAGE":
+            return True
+        if operator != b"Do" or not operands or operands[0] not in objects:
+            continue
+        drawn = objects[operands[0]].get_object()
+        if drawn.get("/Subtype") == "/Image":
+            return True
+        if drawn.get("/Subtype") == "/Form" and _draws_image(
+            drawn, drawn.get("/Resources") or resources, pdf, depth + 1
+        ):
+            return True
+    return False
+
+
+def pdf_pages(content: bytes) -> list[PdfPage]:
+    """The text layer of a PDF page by page, and whether each page holds an image; raises
+    `JobFailed` for a file pypdf cannot read."""
     from pypdf import PdfReader
     from pypdf.errors import PyPdfError
 
     try:
         reader = PdfReader(io.BytesIO(content))
-        return [(page.extract_text() or "").strip() for page in reader.pages]
+        return [
+            PdfPage(
+                (page.extract_text() or "").strip(),
+                _draws_image(page.get_contents(), page.get("/Resources"), reader),
+            )
+            for page in reader.pages
+        ]
     except (PyPdfError, ValueError, KeyError, TypeError, OSError) as error:
         logger.info("unreadable PDF: %r", error)
         raise JobFailed("unreadable_file") from None
 
 
-async def _ocr(db: InstanceSession, ctx: JobContext, job: Job, source: Source, content: bytes):
+def pdf_split(content: bytes) -> list[bytes]:
+    """Each page of a PDF as a PDF of its own, for the assistant to read one page at a time;
+    raises `JobFailed` for a file pypdf cannot read."""
+    from pypdf import PdfReader, PdfWriter
+    from pypdf.errors import PyPdfError
+
+    try:
+        split = []
+        for page in PdfReader(io.BytesIO(content)).pages:
+            writer = PdfWriter()
+            writer.add_page(page)
+            buffer = io.BytesIO()
+            writer.write(buffer)
+            split.append(buffer.getvalue())
+        return split
+    except (PyPdfError, ValueError, KeyError, TypeError, OSError) as error:
+        logger.info("unreadable PDF: %r", error)
+        raise JobFailed("unreadable_file") from None
+
+
+def page_count(db: InstanceSession, source: Source) -> int:
+    """How many pages a PDF source has, from its kept pages or else its file; none for a file
+    pypdf cannot read."""
+    if source.pages is not None:
+        return len(source.pages)
+    from pypdf import PdfReader
+    from pypdf.errors import PyPdfError
+
+    try:
+        return len(PdfReader(io.BytesIO(file_of(db, source))).pages)
+    except (PyPdfError, ValueError, KeyError, TypeError, OSError):
+        return 0
+
+
+_RANGE = re.compile(r"(\d+)(?:\s*-\s*(\d+))?")
+
+
+def chosen_pages(written: str, count: int) -> list[int]:
+    """The pages a teacher wrote, such as "1-2" or "3, 5–7", in order and each once; raises
+    `BadPages` or `PagesOutside` for a document of `count` pages."""
+    ranges = []
+    for part in written.replace("–", "-").split(","):
+        match = _RANGE.fullmatch(part.strip())
+        if match is None:
+            raise BadPages()
+        first, last = int(match[1]), int(match[2] or match[1])
+        if last < first:
+            raise BadPages()
+        ranges.append((first, last))
+    # Checked before the ranges are spelled out, which a range such as 1-999999999 would not be.
+    if any(first < 1 or last > count for first, last in ranges):
+        raise PagesOutside()
+    return sorted({page for first, last in ranges for page in range(first, last + 1)})
+
+
+def scanned(text: str, has_image: bool) -> bool:
+    """Whether a page holds no text of its own but a scan or handwriting: its text layer is
+    thin, or it holds an image below a typed heading at most."""
+    length = len(text.strip())
+    return length < SCAN_LAYER or (has_image and length < SCAN_WITH_HEADING)
+
+
+def pages_without_text(source: Source) -> list[int]:
+    """The pages of a PDF read from its file that hold no text of their own, numbered from 1."""
+    return [
+        number
+        for number, page in enumerate(source.pages or [], 1)
+        if page["read_with"] == "file" and page["scan"]
+    ]
+
+
+def text_of_pages(source: Source, pages: list[int] | None) -> str:
+    """The source's text, or only that of the pages given when its pages are kept."""
+    if pages is None or source.pages is None:
+        return source.text or ""
+    kept = source.pages
+    return "\n\n".join(kept[n - 1]["text"] for n in pages if n <= len(kept) and kept[n - 1]["text"])
+
+
+def lacks_text_for(source: Source, pages: list[int] | None) -> bool:
+    """Whether the source lacks text that a transcription of the pages (all when None) needs: it
+    was never read, or it is a PDF whose pages were not kept though pages are chosen, or some of
+    whose wanted pages the file holds no text for."""
+    if not source.text:
+        return True
+    if source.kind != "pdf":
+        return False
+    if source.pages is None:
+        return pages is not None
+    wanted = pages if pages is not None else range(1, len(source.pages) + 1)
+    return bool(set(wanted) & set(pages_without_text(source)))
+
+
+async def _ocr(
+    db: InstanceSession,
+    ctx: JobContext,
+    job: Job,
+    source: Source,
+    content: bytes,
+    page: int | None = None,
+) -> str:
+    """The text the assistant reads in an image, or in one page of a PDF given as its own file."""
     teacher = get_account(db, job.account_id)
     assert teacher is not None
+    inputs: dict[str, Any] = {
+        "source_id": source.id,
+        "name": source.name,
+        "media_type": source.media_type,
+        "size": len(content),
+        "sha256": hashlib.sha256(content).hexdigest(),
+    }
+    if page is not None:
+        inputs["page"] = page
     read = await generate(
         ctx.assistant,
         db,
         OCR,
         teacher=teacher,
-        inputs={
-            "source_id": source.id,
-            "name": source.name,
-            "media_type": source.media_type,
-            "size": source.size,
-            "sha256": hashlib.sha256(content).hexdigest(),
-        },
+        inputs=inputs,
         course_id=source.course_id,
         attachments=[BinaryContent(data=content, media_type=source.media_type)],
     )
     return read.text
+
+
+async def _read_pdf(
+    db: InstanceSession,
+    ctx: JobContext,
+    job: Job,
+    source: Source,
+    content: bytes,
+    *,
+    ocr: bool,
+    ocr_if_no_text: bool,
+    wanted: list[int] | None,
+) -> list[dict[str, Any]]:
+    """The pages of a PDF, each read from the file, and by the assistant when the file holds no
+    text for it: see `extraction`."""
+    # CPU-bound and long for a whole textbook, so off the event loop.
+    layers = await anyio.to_thread.run_sync(pdf_pages, content)
+    pages: list[dict[str, Any]] = [
+        {"text": page.text, "read_with": "file", "scan": scanned(page.text, page.has_image)}
+        for page in layers
+    ]
+    # What the assistant read before stays: it is not paid for twice.
+    before = source.pages if source.pages is not None and len(source.pages) == len(pages) else []
+    for number, page in enumerate(pages, 1):
+        if page["scan"] and before and before[number - 1]["read_with"] == "ocr":
+            pages[number - 1] = before[number - 1]
+    unread = [n for n, page in enumerate(pages, 1) if page["scan"] and page["read_with"] == "file"]
+    if ocr:
+        # With nothing left without text, the teacher asks because the text read is wrong.
+        to_read = unread or list(range(1, len(pages) + 1))
+    elif ocr_if_no_text:
+        to_read = [n for n in unread if wanted is None or n in wanted]
+    else:
+        to_read = []
+    if to_read:
+        split = await anyio.to_thread.run_sync(pdf_split, content)
+        for number in to_read:
+            text = await _ocr(db, ctx, job, source, split[number - 1], page=number)
+            pages[number - 1] = {**pages[number - 1], "text": text.strip(), "read_with": "ocr"}
+    return pages
 
 
 async def _snapshot(
@@ -280,9 +476,15 @@ async def _snapshot(
     return {"source_id": source_id, "characters": len(page.text), "extracted_with": "page"}
 
 
-def extraction(source_id: int, *, ocr: bool, ocr_if_no_text: bool = False) -> Work:
-    """The work of an extraction job for the source: by OCR when `ocr`, else from the file, and
-    then by OCR when `ocr_if_no_text` and the file has no text, or a PDF only a scan's."""
+def extraction(
+    source_id: int, *, ocr: bool, ocr_if_no_text: bool = False, pages: list[int] | None = None
+) -> Work:
+    """The work of an extraction job for the source. A text file is read as it is, and a PDF
+    page by page from its file; the assistant reads by OCR only what the file holds no text for:
+    an image, or the pages of a PDF that are scans or handwriting. It does so when `ocr`, then
+    reading a PDF with no page left without text wholly, as the teacher asks because the text read
+    is wrong; and when `ocr_if_no_text`, for the pages among `pages` (all when None). Pages the
+    assistant read before are kept rather than read again."""
 
     async def work(db: InstanceSession, job: Job, ctx: JobContext) -> dict[str, Any]:
         source = db.get(Source, source_id)
@@ -292,32 +494,29 @@ def extraction(source_id: int, *, ocr: bool, ocr_if_no_text: bool = False) -> Wo
         if source.kind == "url":
             return await _snapshot(db, ctx, job, source)
         content = file_of(db, source)
-        text: str | None = None
-        method = "file"
+        read: list[dict[str, Any]] | None = None
         if source.kind == "text":
-            text = _decoded(content)
-        elif source.kind == "pdf" and not ocr:
-            # CPU-bound and long for a whole textbook, so off the event loop.
-            pages = await anyio.to_thread.run_sync(pdf_pages, content)
-            text = "\n\n".join(pages).strip()
-            if ocr_if_no_text and len(text) < SCAN_LAYER * max(len(pages), 1):
-                text = None
-        if not (text or "").strip():
-            # A scan or an image. With OCR asked for, a PDF is read by the assistant even when
-            # it has a text layer, which in a scan holds a page number or a stamp at best.
-            if source.kind == "text" or not (ocr or ocr_if_no_text):
-                raise JobFailed("no_text")
+            text, method = _decoded(content) or "", "file"
+        elif source.kind == "pdf":
+            read = await _read_pdf(
+                db, ctx, job, source, content, ocr=ocr, ocr_if_no_text=ocr_if_no_text, wanted=pages
+            )
+            text = "\n\n".join(page["text"] for page in read if page["text"]).strip()
+            method = "ocr" if any(page["read_with"] == "ocr" for page in read) else "file"
+        elif ocr or ocr_if_no_text:
             text, method = await _ocr(db, ctx, job, source, content), "ocr"
-            if not text.strip():
-                raise JobFailed("nothing_read")
+        else:
+            text, method = "", "file"
+        if not text.strip():
+            raise JobFailed("nothing_read" if method == "ocr" else "no_text")
         # Only if the job is still the source's current extraction, which the model call may
         # have changed.
         db.execute(
             update(Source)
             .where(Source.id == source_id, Source.job_id == job.id)
-            .values(text=text, extracted_with=method)
+            .values(text=text, extracted_with=method, pages=read)
             .execution_options(synchronize_session=False)
         )
-        return {"source_id": source_id, "characters": len(text or ""), "extracted_with": method}
+        return {"source_id": source_id, "characters": len(text), "extracted_with": method}
 
     return work

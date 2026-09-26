@@ -66,7 +66,7 @@ def test_the_archive_is_a_versioned_document_with_the_source_files(teacher, cour
     assert ".myteacher.zip" in exported.headers["content-disposition"]
     document, files = unpacked(exported)
     assert document["format"] == "myteacher-course"
-    assert document["version"] == 2
+    assert document["version"] == 3
     assert document["exported_at"].endswith("Z")
     [source] = document["sources"]
     assert source["name"] == "Učebnice 3.txt"
@@ -186,9 +186,9 @@ def test_the_document_reads_back_as_the_archive_format(teacher, course):
     document, _ = unpacked(export(teacher, course["course"]))
 
     archive = Archive.model_validate(document)
-    assert archive.version == 2
+    assert archive.version == 3
     with pytest.raises(ValueError):
-        Archive.model_validate({**document, "version": 3})
+        Archive.model_validate({**document, "version": 4})
 
 
 def test_an_archive_of_the_first_version_still_reads(teacher, course):

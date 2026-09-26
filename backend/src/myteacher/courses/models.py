@@ -193,9 +193,13 @@ class Source(InstanceOwned, Base):
     visible_to_students: Mapped[bool] = mapped_column(default=False)
     # None until an extraction succeeded.
     text: Mapped[str | None] = mapped_column(Text)
-    # "file" when read from the file itself, "ocr" when the assistant read it, "page" when read
-    # from a fetched web page.
+    # "file" when read from the file itself, "ocr" when the assistant read it or some of its
+    # pages, "page" when read from a fetched web page.
     extracted_with: Mapped[str | None] = mapped_column(String(10))
+    # For a PDF, its text page by page, each as {"text": ..., "read_with": "file" | "ocr",
+    # "scan": whether the file holds no text of its own for it}; None for other kinds and for a
+    # PDF read before pages were kept.
+    pages: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
     # The page a "url" source was fetched from, and when: its snapshot is taken once.
     url: Mapped[str | None] = mapped_column(String(2000))
     fetched_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
@@ -373,6 +377,9 @@ class ClassroomMaterial(InstanceOwned, Base):
     # The source it was transcribed from, and the one holding its answer key.
     source_id: Mapped[int | None] = mapped_column(ForeignKey("source.id", ondelete="SET NULL"))
     key_source_id: Mapped[int | None] = mapped_column(ForeignKey("source.id", ondelete="SET NULL"))
+    # The pages of those PDFs it was transcribed from, numbered from 1; None for the whole file.
+    source_pages: Mapped[list[int] | None] = mapped_column(JSON)
+    key_pages: Mapped[list[int] | None] = mapped_column(JSON)
 
 
 class ClassroomMaterialVersion(InstanceOwned, Base):

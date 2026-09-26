@@ -20,6 +20,10 @@ export interface Source {
   fetched_at: string | null
   /** How long the extracted text is; null before it was extracted. */
   characters: number | null
+  /** For a PDF read page by page, how many pages it has; null otherwise. */
+  page_count: number | null
+  /** The pages of such a PDF, numbered from 1, that its file holds no text for: scans or handwriting, which OCR reads. */
+  pages_without_text: number[]
   /** The latest extraction. */
   job: Job | null
 }

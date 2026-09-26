@@ -19,6 +19,20 @@ export interface MaterialSummary {
   /** The source it was transcribed from, and the one with its answer key; null when generated. */
   source_id: number | null
   key_source_id: number | null
+  /** The pages of those PDFs it was transcribed from, numbered from 1; null for the whole file. */
+  source_pages: number[] | null
+  key_pages: number[] | null
+}
+
+/** A transcription asked for: the source and the answer key, if any, each a whole file or chosen pages of a PDF. */
+export interface Transcription {
+  source_id: number
+  /** Without one the assistant proposes the answers; it may be the same PDF as the source, with other pages. */
+  key_source_id: number | null
+  target_student_ids: number[]
+  /** Pages as the teacher wrote them, such as "1-2" or "3, 5-7"; null for the whole file. */
+  source_pages: string | null
+  key_pages: string | null
 }
 
 export interface MaterialVersion {
@@ -55,8 +69,14 @@ export type MaterialRefusal =
   | 'material_changed'
   | 'unknown_student'
   | 'unknown_source'
-  /** The source has no text read from it yet. */
+  /** The source is being read. */
   | 'source_not_read'
+  /** Pages written other than as numbers and ranges. */
+  | 'bad_pages'
+  /** Pages the document does not have. */
+  | 'pages_outside'
+  /** Pages chosen of a file that is not a PDF. */
+  | 'pages_not_pdf'
 
 /** A generation or a change was refused; `reason` says why. */
 export class MaterialRefused extends Error {
@@ -80,15 +100,9 @@ export interface MaterialsApi {
     targetStudentIds: number[],
     instruction: string | null,
   ): Promise<MaterialStarted>
-  /** Transcribes a read source of the course faithfully, the answers from `keySourceId` or proposed;
-   * needs no approved concept map. */
-  transcribe(
-    courseId: number,
-    topicId: number,
-    sourceId: number,
-    keySourceId: number | null,
-    targetStudentIds: number[],
-  ): Promise<MaterialStarted>
+  /** Transcribes a source of the course faithfully, the answers from the key source or proposed, reading the sources
+   * first when they lack text; needs no approved concept map. */
+  transcribe(courseId: number, topicId: number, transcription: Transcription): Promise<MaterialStarted>
   retry(courseId: number, topicId: number, materialId: number): Promise<MaterialStarted>
   /** Reworks version `basedOn` by the instruction into a new version; recorded as a reaction. */
   regenerate(
@@ -116,6 +130,9 @@ const refusals: ReadonlySet<string> = new Set<MaterialRefusal>([
   'unknown_student',
   'unknown_source',
   'source_not_read',
+  'bad_pages',
+  'pages_outside',
+  'pages_not_pdf',
 ])
 
 async function checked(response: Response): Promise<Response> {
@@ -151,14 +168,8 @@ export const httpMaterialsApi: MaterialsApi = {
     json(
       await send('POST', materialsUrl(courseId, topicId), { target_student_ids: targetStudentIds, instruction }),
     ),
-  transcribe: async (courseId, topicId, sourceId, keySourceId, targetStudentIds) =>
-    json(
-      await send('POST', `${materialsUrl(courseId, topicId)}/from-source`, {
-        source_id: sourceId,
-        key_source_id: keySourceId,
-        target_student_ids: targetStudentIds,
-      }),
-    ),
+  transcribe: async (courseId, topicId, transcription) =>
+    json(await send('POST', `${materialsUrl(courseId, topicId)}/from-source`, transcription)),
   retry: async (courseId, topicId, materialId) =>
     json(await send('POST', `${materialUrl(courseId, topicId, materialId)}/retry`)),
   regenerate: async (courseId, topicId, materialId, instruction, basedOn) =>

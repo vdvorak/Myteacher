@@ -1,5 +1,7 @@
 import asyncio
 import hashlib
+import json
+import re
 
 import pytest
 from pydantic_ai.exceptions import ModelHTTPError
@@ -22,20 +24,44 @@ from tests.test_interview import add_key
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
 TEXT = "Pretérito indefinido: hablé, hablaste, habló.\nČeská poznámka: šťastný.\n"
+# Two pages of text, each more than a scan's text layer.
+TEST_A = ("Test A: el preterito indefinido", "1. Ayer yo ___ con Ana. a) hable b) hablo")
+TEST_B = ("Test B: el preterito imperfecto", "1. De nino yo ___ mucho. a) jugaba b) juego")
 
 
 def pdf_with_text(*lines: str) -> bytes:
     """A one-page PDF whose text layer holds the lines; none makes a page with no text."""
-    shown = "".join(f"({line}) Tj 0 -16 Td " for line in lines)
-    stream = f"BT /F1 12 Tf 72 720 Td {shown}ET".encode("latin-1")
+    return pdf_with_pages(lines)
+
+
+# Among a page's lines, a scanned image drawn on the page.
+SCANNED_IMAGE = object()
+
+
+def pdf_with_pages(*pages: tuple[object, ...]) -> bytes:
+    """A PDF whose pages' text layers hold the lines given for each, and a scanned image where
+    `SCANNED_IMAGE` is among them; an empty page has no text."""
+    kids = [5 + 2 * index for index in range(len(pages))]
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-        b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Pages /Kids [%s] /Count %d >>"
+        % (b" ".join(b"%d 0 R" % kid for kid in kids), len(pages)),
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+        b"<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray "
+        b"/BitsPerComponent 8 /Length 1 >>\nstream\n\x80\nendstream",
     ]
+    for kid, lines in zip(kids, pages, strict=True):
+        texts = [line for line in lines if isinstance(line, str)]
+        escaped = (re.sub(r"([()\\])", r"\\\1", line) for line in texts)
+        shown = "".join(f"({line}) Tj 0 -16 Td " for line in escaped)
+        drawn = "q 400 0 0 500 72 100 cm /Im1 Do Q " if SCANNED_IMAGE in lines else ""
+        stream = f"{drawn}BT /F1 12 Tf 72 720 Td {shown}ET".encode("latin-1")
+        objects.append(
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+            b"/Resources << /Font << /F1 3 0 R >> /XObject << /Im1 4 0 R >> >> "
+            b"/Contents %d 0 R >>" % (kid + 1)
+        )
+        objects.append(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
     out = bytearray(b"%PDF-1.4\n")
     offsets = []
     for number, body in enumerate(objects, 1):
@@ -104,6 +130,8 @@ def test_a_teacher_uploads_a_text_file_and_sees_the_extracted_text(teacher, cour
         "url": None,
         "fetched_at": None,
         "characters": len(TEXT),
+        "page_count": None,
+        "pages_without_text": [],
         "job": read["job"],
         "text": TEXT,
     }
@@ -192,6 +220,29 @@ def test_the_text_layer_of_a_pdf_is_extracted(teacher, course, models):
     assert "El presente" in read["text"]
     # No assistant was needed.
     assert models.calls == []
+
+
+def test_the_text_of_a_pdf_is_kept_page_by_page_naming_the_pages_without_text(teacher, course):
+    content = pdf_with_pages(TEST_A, (), TEST_B, ())
+
+    sid = upload(teacher, course, content, "appendix.pdf", "application/pdf").json()["source"]["id"]
+
+    read = source(teacher, course, sid)
+    assert read["page_count"] == 4
+    assert read["pages_without_text"] == [2, 4]
+    assert "Test A" in read["text"]
+    assert "Test B" in read["text"]
+
+
+def test_a_page_with_a_scan_below_a_typed_heading_has_no_text_of_its_own(teacher, course):
+    heading = ("Priloha 3: Vyplneny test z ceskeho jazyka a literatury", SCANNED_IMAGE)
+    # A page of text with a picture is text.
+    illustrated = (*TEST_A, *TEST_B) * 3 + (SCANNED_IMAGE,)
+    content = pdf_with_pages(TEST_A, heading, illustrated)
+
+    sid = upload(teacher, course, content, "appendix.pdf", "application/pdf").json()["source"]["id"]
+
+    assert source(teacher, course, sid)["pages_without_text"] == [2]
 
 
 def test_the_list_holds_the_sources_without_their_text(teacher, course):
@@ -355,6 +406,40 @@ def test_ocr_reads_a_scanned_pdf(teacher, course, models):
 
     assert source(teacher, course, body["source"]["id"])["text"] == "Kapitola 1"
     assert models.requests[0]["attachments"] == ["application/pdf"]
+
+
+def test_ocr_reads_only_the_pages_the_file_holds_no_text_for_one_page_at_a_time(
+    teacher, course, models
+):
+    add_key(teacher)
+    models.script({"text": "Jana: 1. hable"}, {"text": "Petr: 1. jugaba"})
+    content = pdf_with_pages(TEST_A, (), TEST_B, ())
+
+    body = upload(teacher, course, content, "appendix.pdf", "application/pdf", ocr=True).json()
+
+    assert [json.loads(r["prompt"])["page"] for r in models.requests] == [2, 4]
+    assert [r["attachments"] for r in models.requests] == [["application/pdf"]] * 2
+    read = source(teacher, course, body["source"]["id"])
+    assert read["extracted_with"] == "ocr"
+    assert read["page_count"] == 4
+    assert read["pages_without_text"] == []
+    assert "Test A" in read["text"]
+    assert "Jana: 1. hable" in read["text"]
+    assert read["text"].endswith("Petr: 1. jugaba")
+
+
+def test_ocr_asked_for_a_pdf_whose_every_page_has_text_reads_them_all(teacher, course, models):
+    # The teacher asks because the text layer is wrong.
+    sid = upload(teacher, course, pdf_with_pages(TEST_A, TEST_B), "u.pdf", "application/pdf")
+    add_key(teacher)
+    models.script({"text": "Test A"}, {"text": "Test B"})
+
+    again = teacher.post(
+        f"{sources_url(course)}/{sid.json()['source']['id']}/extract", json={"ocr": True}
+    )
+
+    assert job(teacher, again.json()["job"]["id"])["state"] == "succeeded"
+    assert [json.loads(r["prompt"])["page"] for r in models.requests] == [1, 2]
 
 
 def test_ocr_asked_for_reads_a_pdf_even_with_a_thin_text_layer(teacher, course, models):

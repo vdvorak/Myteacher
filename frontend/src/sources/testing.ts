@@ -21,6 +21,8 @@ export const textbook: SourceDetail = {
   url: null,
   fetched_at: null,
   characters: 27,
+  page_count: 1,
+  pages_without_text: [],
   job: null,
   text: 'Unidad 1\n\nEl presente de ser',
 }
@@ -104,6 +106,8 @@ export function fakeSourcesApi(
       url: null,
       fetched_at: null,
       characters: null,
+      page_count: null,
+      pages_without_text: [],
       job: null,
       text: null,
     }
@@ -171,6 +175,8 @@ export function fakeSourcesApi(
         url,
         fetched_at: null,
         characters: null,
+        page_count: null,
+        pages_without_text: [],
         job: null,
         text: null,
       }
@@ -192,6 +198,8 @@ export function fakeSourcesApi(
         url: null,
         fetched_at: null,
         characters: null,
+        page_count: null,
+        pages_without_text: [],
         job: null,
         text: null,
       }

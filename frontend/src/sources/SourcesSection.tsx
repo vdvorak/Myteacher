@@ -14,6 +14,7 @@ import {
   type SourceRefusal,
   type SourceStarted,
 } from './api'
+import { pageRanges } from './pages'
 import './sources.css'
 
 const kindNames: Record<SourceKind, MessageKey> = {
@@ -284,6 +285,9 @@ function SourceItem(props: {
           })}
         </p>
       </Show>
+      <Show when={!running() && props.source.pages_without_text.length > 0}>
+        <p>{t('sources.pagesWithoutText', { pages: pageRanges(props.source.pages_without_text) })}</p>
+      </Show>
       {/* Stored for a transcription, which reads it first. */}
       <Show when={props.source.job === null && props.source.characters === null && !isPage()}>
         <p>{t('sources.notRead')}</p>
@@ -314,14 +318,14 @@ function SourceItem(props: {
             {t('sources.fetchAgain')}
           </button>
         </Show>
-        {/* A scan or an image not read by the assistant yet, or whose reading failed. */}
+        {/* A scan or an image not read by the assistant yet or whose reading failed, or a PDF's pages without text. */}
         <Show
           when={
             props.canEdit &&
             !running() &&
             props.source.kind !== 'text' &&
             !isPage() &&
-            (props.source.extracted_with !== 'ocr' || failure())
+            (props.source.extracted_with !== 'ocr' || failure() || props.source.pages_without_text.length > 0)
           }
         >
           <button type="button" disabled={busy()} onClick={() => void props.onExtract(true)}>

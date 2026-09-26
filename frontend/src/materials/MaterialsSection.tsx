@@ -10,6 +10,7 @@ import { finished } from '../jobs/api'
 import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
 import { ReleaseDialog } from '../runs/ReleaseDialog'
 import { SourceRefused, sourceFileTypes, type Source, type SourceRefusal } from '../sources/api'
+import { pageRanges } from '../sources/pages'
 import { sourceRefusals } from '../sources/SourcesSection'
 import { MaterialRefused, type MaterialRefusal, type MaterialSummary } from './api'
 
@@ -21,6 +22,9 @@ const refusals: Record<Exclude<MaterialRefusal, 'no_provider_key'>, MessageKey> 
   unknown_student: 'materials.unknownStudent',
   unknown_source: 'materials.unknownSource',
   source_not_read: 'materials.sourceNotRead',
+  bad_pages: 'materials.badPages',
+  pages_outside: 'materials.pagesOutside',
+  pages_not_pdf: 'materials.pagesNotPdf',
 }
 
 export type Problem =
@@ -233,6 +237,10 @@ type SourceChoice = number | 'upload'
 const choiceOf = (value: string): SourceChoice | null =>
   value === '' ? null : value === 'upload' ? 'upload' : Number(value)
 
+/** Whether a file chosen to upload is a PDF, whose pages may be chosen. */
+export const isPdf = (file: File | null) =>
+  file !== null && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))
+
 /** Material transcribed faithfully from a source the teacher uploaded, such as a scanned test, or from a file
  * uploaded here, which is read first. */
 function TranscriptionForm(props: {
@@ -252,11 +260,20 @@ function TranscriptionForm(props: {
   const [keyChoice, setKeyChoice] = createSignal<SourceChoice | null>(null)
   const [testFile, setTestFile] = createSignal<File | null>(null)
   const [keyFile, setKeyFile] = createSignal<File | null>(null)
+  const [testPages, setTestPages] = createSignal('')
+  const [keyPages, setKeyPages] = createSignal('')
   const [busy, setBusy] = createSignal(false)
   // Read sources, and those whose transcription will read them first; not one being read now.
   const offered = () =>
     props.sources.filter((s) => s.characters !== null || (s.job?.state !== 'queued' && s.job?.state !== 'running'))
   const testChoice = (): SourceChoice => sourceChoice() ?? offered()[0]?.id ?? 'upload'
+  const sourceOfChoice = (choice: SourceChoice | null) =>
+    typeof choice === 'number' ? props.sources.find((s) => s.id === choice) : undefined
+  const pdfChosen = (choice: SourceChoice | null, file: File | null) =>
+    choice === 'upload' ? isPdf(file) : sourceOfChoice(choice)?.kind === 'pdf'
+  // The pages written, when pages may be chosen; empty is the whole file.
+  const pagesOf = (choice: SourceChoice | null, file: File | null, written: string) =>
+    pdfChosen(choice, file) && written.trim() !== '' ? written.trim() : null
   const missingFile = () => (testChoice() === 'upload' && !testFile()) || (keyChoice() === 'upload' && !keyFile())
 
   /** The chosen source, uploading the file first when a new one was chosen. */
@@ -273,14 +290,25 @@ function TranscriptionForm(props: {
     event.preventDefault()
     setBusy(true)
     props.onProblem(null)
+    // Read before a file is uploaded, which chooses the new source before it is listed.
+    const sourcePages = pagesOf(testChoice(), testFile(), testPages())
+    const keyPagesChosen = pagesOf(keyChoice(), keyFile(), keyPages())
     try {
       const source = await sourceOf(testChoice(), testFile(), setSourceChoice)
       const key = keyChoice() === null ? null : await sourceOf(keyChoice()!, keyFile(), setKeyChoice)
-      await apis.materials.transcribe(props.courseId, props.topicId, source, key, [])
+      await apis.materials.transcribe(props.courseId, props.topicId, {
+        source_id: source,
+        key_source_id: key,
+        target_student_ids: [],
+        source_pages: sourcePages,
+        key_pages: keyPagesChosen,
+      })
       setSourceChoice(null)
       setKeyChoice(null)
       setTestFile(null)
       setKeyFile(null)
+      setTestPages('')
+      setKeyPages('')
       await props.onStarted()
     } catch (error) {
       props.onProblem(asProblem(error))
@@ -296,19 +324,28 @@ function TranscriptionForm(props: {
       <SourceField
         label={t('materials.sourceToTranscribe')}
         fileLabel={t('materials.testFile')}
+        pagesLabel={t('materials.testPages')}
         sources={offered()}
         choice={testChoice()}
+        pdfChosen={pdfChosen(testChoice(), testFile())}
+        pages={testPages()}
         onChoice={setSourceChoice}
         onFile={setTestFile}
+        onPages={setTestPages}
       />
       <SourceField
         label={t('materials.keySource')}
         fileLabel={t('materials.keyFile')}
+        pagesLabel={t('materials.keyPages')}
         none={t('materials.noKeySource')}
-        sources={offered().filter((s) => s.id !== testChoice())}
+        // The key may be other pages of the test's PDF.
+        sources={offered().filter((s) => s.id !== testChoice() || s.kind === 'pdf')}
         choice={keyChoice()}
+        pdfChosen={pdfChosen(keyChoice(), keyFile())}
+        pages={keyPages()}
         onChoice={setKeyChoice}
         onFile={setKeyFile}
+        onPages={setKeyPages}
       />
       <Show when={testChoice() === 'upload' || keyChoice() === 'upload'}>
         <p class="settings-note">{t('materials.uploadNote')}</p>
@@ -322,20 +359,31 @@ function TranscriptionForm(props: {
   )
 }
 
-/** A choice of source, or of a new file to upload as one, with the file input it then needs. */
+/** A choice of source, or of a new file to upload as one, with the file input it then needs, and of a PDF's pages. */
 function SourceField(props: {
   label: string
   fileLabel: string
+  pagesLabel: string
   /** What choosing no source is called, when that may be chosen. */
   none?: string
   sources: Source[]
   choice: SourceChoice | null
+  /** Whether the choice is a PDF, whose pages may be chosen. */
+  pdfChosen: boolean
+  pages: string
   onChoice: (choice: SourceChoice | null) => void
   onFile: (file: File | null) => void
+  onPages: (pages: string) => void
 }) {
   const { t } = useI18n()
   const name = (source: Source) =>
     source.characters === null ? t('materials.notReadYet', { name: source.name }) : source.name
+  const chosen = () => props.sources.find((s) => s.id === props.choice)
+  // A PDF read before its pages were kept.
+  const readAgain = () => {
+    const source = chosen()
+    return source !== undefined && source.characters !== null && source.page_count === null
+  }
   return (
     <>
       <label>
@@ -343,8 +391,9 @@ function SourceField(props: {
         <select
           value={props.choice === null ? '' : String(props.choice)}
           onChange={(e) => {
-            // A file chosen before is no longer shown, so it is not uploaded either.
+            // A file and pages chosen before are no longer shown, so they are not used either.
             props.onFile(null)
+            props.onPages('')
             props.onChoice(choiceOf(e.currentTarget.value))
           }}
         >
@@ -362,6 +411,36 @@ function SourceField(props: {
             onChange={(e) => props.onFile(e.currentTarget.files?.[0] ?? null)}
           />
         </label>
+      </Show>
+      <Show when={props.pdfChosen}>
+        <PagesField label={props.pagesLabel} pages={props.pages} readAgain={readAgain()} onPages={props.onPages} />
+      </Show>
+    </>
+  )
+}
+
+/** The pages of a PDF to use, as the teacher writes them; empty for the whole file. */
+export function PagesField(props: {
+  label: string
+  pages: string
+  /** Whether the PDF was read before its pages were kept, so choosing pages reads it again. */
+  readAgain?: boolean
+  onPages: (pages: string) => void
+}) {
+  const { t } = useI18n()
+  return (
+    <>
+      <label>
+        {props.label}
+        <input
+          maxLength={200}
+          value={props.pages}
+          placeholder={t('materials.pagesPlaceholder')}
+          onInput={(e) => props.onPages(e.currentTarget.value)}
+        />
+      </label>
+      <Show when={props.readAgain}>
+        <p class="settings-note">{t('materials.pagesReadAgain')}</p>
       </Show>
     </>
   )
@@ -452,7 +531,16 @@ function MaterialCard(props: {
         )}
       </Show>
       <Show when={props.material.source_id}>
-        {(id) => <p class="settings-note">{t('materials.transcribedFrom', { name: props.sourceName(id()) })}</p>}
+        {(id) => (
+          <p class="settings-note">
+            {props.material.source_pages
+              ? t('materials.transcribedFromPages', {
+                  name: props.sourceName(id()),
+                  pages: pageRanges(props.material.source_pages),
+                })
+              : t('materials.transcribedFrom', { name: props.sourceName(id()) })}
+          </p>
+        )}
       </Show>
       <Show when={!props.material.reviewed && (detail()?.proposed_answers.length ?? 0) > 0}>
         <p class="settings-note">{t('materials.answersProposed', { count: detail()!.proposed_answers.length })}</p>

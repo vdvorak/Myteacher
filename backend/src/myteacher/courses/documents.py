@@ -28,7 +28,7 @@ from myteacher.courses.models import (
     Source,
     Topic,
 )
-from myteacher.courses.sources import sources_of
+from myteacher.courses.sources import sources_of, text_of_pages
 from myteacher.jobs.models import Job
 from myteacher.jobs.runner import JobContext, Work
 from myteacher.lesson.schema import Markdown
@@ -238,10 +238,16 @@ def discard(db: InstanceSession, document: ReferenceDocument, teacher: Account, 
 # The generation job
 
 
-def source_input(source: Source, share: int = SOURCE_BUDGET) -> dict[str, Any]:
-    """The source as the assistant reads it: its text up to `share` characters."""
-    text = source.text or ""
-    item: dict[str, Any] = {"id": source.id, "name": source.name, "text": text[:share]}
+def source_input(
+    source: Source, share: int = SOURCE_BUDGET, pages: list[int] | None = None
+) -> dict[str, Any]:
+    """The source as the assistant reads it: its text, or that of the pages given, up to `share`
+    characters."""
+    text = text_of_pages(source, pages)
+    item: dict[str, Any] = {"id": source.id, "name": source.name}
+    if pages is not None:
+        item["pages"] = pages
+    item["text"] = text[:share]
     if len(text) > share:
         item["truncated"] = True
     return item

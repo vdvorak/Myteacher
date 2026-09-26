@@ -8,6 +8,7 @@ import pytest
 
 from myteacher.accounts.service import find_account_by_email
 from myteacher.assistant import prompts
+from myteacher.courses.models import Source
 from myteacher.jobs.models import Job
 from myteacher.jobs.runner import create_job, run_after
 from myteacher.persistence import open_session
@@ -35,7 +36,15 @@ from tests.test_interview import KEY, add_key, generations, job
 from tests.test_reference_documents import approve_map
 from tests.test_releases import edit
 from tests.test_results import EXERCISES, results
-from tests.test_sources import PNG, pdf_with_text, sources_url, upload
+from tests.test_sources import (
+    PNG,
+    TEST_A,
+    TEST_B,
+    pdf_with_pages,
+    pdf_with_text,
+    sources_url,
+    upload,
+)
 from tests.test_topics import add
 
 TEST = "Test 3\n1. Ayer yo ___ con Ana. a) hablé b) hablo\n2. Nakresli časovou osu.\n"
@@ -435,7 +444,7 @@ def test_a_scanned_pdf_is_read_by_ocr_before_transcribing(teacher, topic, models
 
     assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
     assert models.requests[0]["attachments"] == ["application/pdf"]
-    assert json.loads(models.requests[1]["prompt"])["source"]["text"] == TEST
+    assert json.loads(models.requests[1]["prompt"])["source"]["text"] == TEST.strip()
 
 
 def test_a_transcription_fails_when_its_source_changed_while_being_read(teacher, admin_settings):
@@ -477,3 +486,274 @@ def test_a_file_for_transcription_is_refused_as_any_upload(
 
     assert (refused.status_code, refused.json()["detail"]) == refusal
     assert teacher.get(sources_url(topic[0])).json() == []
+
+
+# Chosen pages of a PDF
+
+KEY_PAGE = ("Answer key: 1. a) hable, 2. b) fuimos, 3. a) comimos",)
+
+
+def pdf_source(client, course_id, *pages: tuple[str, ...], name="Příloha.pdf") -> int:
+    """A PDF source read from its file, one page per tuple of lines."""
+    uploaded = upload(client, course_id, pdf_with_pages(*pages), name, "application/pdf")
+    return uploaded.json()["source"]["id"]
+
+
+def sent_source(models, part="source") -> dict:
+    return json.loads(models.requests[-1]["prompt"])[part]
+
+
+def test_only_the_chosen_pages_are_transcribed_and_the_material_keeps_them(teacher, topic, models):
+    appendix = pdf_source(teacher, topic[0], TEST_A, TEST_B)
+
+    material = transcribed(teacher, topic, models, source_id=appendix, source_pages="2")
+
+    sent = sent_source(models)
+    assert sent["pages"] == [2]
+    assert "Test B" in sent["text"]
+    assert "Test A" not in sent["text"]
+    assert material["source_pages"] == [2]
+    assert material["key_pages"] is None
+
+
+def test_the_answer_key_may_be_other_pages_of_the_same_source(teacher, topic, models):
+    appendix = pdf_source(teacher, topic[0], TEST_A, KEY_PAGE, TEST_B)
+
+    material = transcribed(
+        teacher,
+        topic,
+        models,
+        source_id=appendix,
+        source_pages="1",
+        key_source_id=appendix,
+        key_pages="2",
+    )
+
+    test, key = sent_source(models), sent_source(models, "answer_key")
+    assert (test["pages"], key["pages"]) == ([1], [2])
+    assert "Test A" in test["text"]
+    assert "Answer key" not in test["text"]
+    assert key["text"] == KEY_PAGE[0]
+    assert (material["source_pages"], material["key_pages"]) == ([1], [2])
+
+
+@pytest.mark.parametrize(
+    ("pages", "refusal"),
+    [
+        ("0", "pages_outside"),
+        ("2-3", "pages_outside"),
+        ("2-1", "bad_pages"),
+        ("one", "bad_pages"),
+        ("1,,2", "bad_pages"),
+    ],
+)
+def test_pages_outside_the_document_or_badly_written_are_refused(teacher, topic, pages, refusal):
+    appendix = pdf_source(teacher, topic[0], TEST_A, TEST_B)
+
+    for body in ({"source_pages": pages}, {"key_source_id": appendix, "key_pages": pages}):
+        refused = transcribe(teacher, topic, source_id=appendix, **body)
+        assert (refused.status_code, refused.json()["detail"]) == (422, refusal)
+    assert teacher.get(materials_url(*topic)).json() == []
+
+
+def test_pages_are_written_as_the_teacher_likes_and_only_of_a_pdf(teacher, topic, models):
+    appendix = pdf_source(teacher, topic[0], TEST_A, (), TEST_B, KEY_PAGE)
+    models.script(TRANSCRIBED)
+
+    started = transcribe(teacher, topic, source_id=appendix, source_pages=" 4, 1–1,3 - 4 ")
+
+    assert started.json()["material"]["source_pages"] == [1, 3, 4]
+    refused = transcribe(teacher, topic, source_id=source(teacher, topic[0]), source_pages="1")
+    assert (refused.status_code, refused.json()["detail"]) == (422, "pages_not_pdf")
+
+
+def test_reworking_transcribes_the_same_pages_again(teacher, topic, models):
+    appendix = pdf_source(teacher, topic[0], TEST_A, KEY_PAGE, TEST_B)
+    material = transcribed(
+        teacher,
+        topic,
+        models,
+        source_id=appendix,
+        source_pages="3",
+        key_source_id=appendix,
+        key_pages="2",
+    )
+    models.script(TRANSCRIBED)
+
+    started = regenerate(teacher, topic, material["id"], "Group B.")
+
+    assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
+    assert sent_source(models)["pages"] == [3]
+    assert "Test B" in sent_source(models)["text"]
+    assert sent_source(models, "answer_key")["pages"] == [2]
+
+
+def test_chosen_pages_the_file_holds_no_text_for_are_read_by_ocr_first(teacher, topic, models):
+    appendix = pdf_source(teacher, topic[0], TEST_A, (), ())
+    models.script({"text": "Jana: 1. hable"}, TRANSCRIBED)
+
+    started = transcribe(teacher, topic, source_id=appendix, source_pages="2")
+
+    assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
+    # Only the chosen page without text is read by the assistant, the rest stays as read.
+    ocr, transcription = models.requests
+    assert json.loads(ocr["prompt"])["page"] == 2
+    assert json.loads(transcription["prompt"])["source"]["text"] == "Jana: 1. hable"
+    read = teacher.get(f"{sources_url(topic[0])}/{appendix}").json()
+    assert read["pages_without_text"] == [3]
+    # Read once: transcribing the page again reads it no more.
+    models.script(TRANSCRIBED)
+    again = transcribe(teacher, topic, source_id=appendix, source_pages="2")
+    assert job(teacher, again.json()["job"]["id"])["state"] == "succeeded"
+    assert len(models.requests) == 3
+
+
+def test_a_pdf_read_before_its_pages_were_kept_is_read_again_to_choose_pages(
+    teacher, topic, models, admin_settings
+):
+    appendix = pdf_source(teacher, topic[0], TEST_A, TEST_B)
+    with open_session(create_engine_for(admin_settings)) as db:
+        db.get_one(Source, appendix).pages = None
+        db.commit()
+    models.script(TRANSCRIBED)
+
+    started = transcribe(teacher, topic, source_id=appendix, source_pages="2")
+
+    assert started.json()["job"]["progress"] == "extracting"
+    assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
+    assert "Test A" not in sent_source(models)["text"]
+    assert teacher.get(f"{sources_url(topic[0])}/{appendix}").json()["page_count"] == 2
+
+
+def test_a_pdf_read_before_its_pages_were_kept_is_still_transcribed_whole(
+    teacher, topic, models, admin_settings
+):
+    appendix = pdf_source(teacher, topic[0], TEST_A, TEST_B)
+    with open_session(create_engine_for(admin_settings)) as db:
+        db.get_one(Source, appendix).pages = None
+        db.commit()
+    models.script(TRANSCRIBED)
+
+    started = transcribe(teacher, topic, source_id=appendix)
+
+    assert started.json()["job"]["progress"] != "extracting"
+    assert "Test A" in sent_source(models)["text"]
+    assert "Test B" in sent_source(models)["text"]
+
+
+def test_pages_of_a_file_stored_unread_are_checked_against_the_file_and_read(
+    teacher, topic, models
+):
+    content = pdf_with_pages(TEST_A, ())
+    stored = store(teacher, topic[0], content, "Příloha.pdf", "application/pdf").json()
+    appendix = stored["source"]["id"]
+
+    refused = transcribe(teacher, topic, source_id=appendix, source_pages="3")
+    models.script(TRANSCRIBED)
+    started = transcribe(teacher, topic, source_id=appendix, source_pages="1")
+
+    assert (refused.status_code, refused.json()["detail"]) == (422, "pages_outside")
+    assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
+    # The chosen page has text: the assistant only transcribes.
+    assert len(models.requests) == 1
+    assert "Test A" in sent_source(models)["text"]
+
+
+def test_chosen_pages_in_which_ocr_finds_nothing_fail_the_transcription(teacher, topic, models):
+    appendix = pdf_source(teacher, topic[0], TEST_A, ())
+    models.script({"text": " "})
+
+    started = transcribe(teacher, topic, source_id=appendix, source_pages="2")
+
+    failed = job(teacher, started.json()["job"]["id"])
+    assert (failed["state"], failed["error_kind"]) == ("failed", "nothing_read")
+    assert len(models.requests) == 1
+
+
+def test_a_fork_keeps_the_chosen_pages_and_the_pages_of_its_sources(teacher, sender, topic, models):
+    appendix = pdf_source(teacher, topic[0], TEST_A, KEY_PAGE, ())
+    transcribed(
+        teacher,
+        topic,
+        models,
+        source_id=appendix,
+        source_pages="1",
+        key_source_id=appendix,
+        key_pages="2",
+    )
+    invite_teachers(teacher, sender, COLLEAGUE)
+    grant(teacher, topic[0], COLLEAGUE, "fork")
+    as_teacher(teacher, COLLEAGUE)
+
+    fork = teacher.post(f"/api/courses/{topic[0]}/fork").json()["id"]
+
+    forked_topic = (fork, teacher.get(f"/api/courses/{fork}/topics").json()[0]["id"])
+    [material] = teacher.get(materials_url(*forked_topic)).json()
+    assert (material["source_pages"], material["key_pages"]) == ([1], [2])
+    [copied] = teacher.get(f"/api/courses/{fork}/sources").json()
+    assert (copied["page_count"], copied["pages_without_text"]) == (3, [3])
+
+
+def test_ocr_asked_for_reads_only_the_pages_still_without_text(teacher, topic, models):
+    appendix = pdf_source(teacher, topic[0], TEST_A, (), ())
+    models.script({"text": "Jana: 1. hable"}, TRANSCRIBED)
+    transcribe(teacher, topic, source_id=appendix, source_pages="2")
+    models.script({"text": "Petr: 1. jugaba"})
+
+    again = teacher.post(f"{sources_url(topic[0])}/{appendix}/extract", json={"ocr": True})
+
+    assert job(teacher, again.json()["job"]["id"])["state"] == "succeeded"
+    assert json.loads(models.requests[-1]["prompt"])["page"] == 3
+    assert len(models.requests) == 3
+    read = teacher.get(f"{sources_url(topic[0])}/{appendix}").json()
+    assert read["pages_without_text"] == []
+    assert "Jana: 1. hable" in read["text"]
+    assert "Petr: 1. jugaba" in read["text"]
+
+
+def test_a_test_and_its_key_on_pages_without_text_of_one_source_are_read_together(
+    teacher, topic, models
+):
+    appendix = pdf_source(teacher, topic[0], TEST_A, (), ())
+    models.script({"text": "1. Ayer yo ___ con Ana."}, {"text": "Klic: 1. hable"}, TRANSCRIBED)
+
+    started = transcribe(
+        teacher, topic, source_id=appendix, source_pages="2", key_source_id=appendix, key_pages="3"
+    )
+
+    assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
+    assert [json.loads(r["prompt"]).get("page") for r in models.requests[:2]] == [2, 3]
+    assert sent_source(models)["text"] == "1. Ayer yo ___ con Ana."
+    assert sent_source(models, "answer_key")["text"] == "Klic: 1. hable"
+
+
+def test_a_pdf_read_by_ocr_before_its_pages_were_kept_loses_none_of_its_text(
+    teacher, topic, models, admin_settings
+):
+    appendix = pdf_source(teacher, topic[0], TEST_A, (), ())
+    with open_session(create_engine_for(admin_settings)) as db:
+        read = db.get_one(Source, appendix)
+        read.pages, read.extracted_with = None, "ocr"
+        db.commit()
+    models.script({"text": "Jana: 1. hable"}, {"text": "Petr: 1. jugaba"}, TRANSCRIBED)
+
+    started = transcribe(teacher, topic, source_id=appendix, source_pages="2")
+
+    assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
+    # Every page without text is read again, not only the chosen one.
+    assert [json.loads(r["prompt"]).get("page") for r in models.requests[:2]] == [2, 3]
+    assert sent_source(models)["text"] == "Jana: 1. hable"
+    text = teacher.get(f"{sources_url(topic[0])}/{appendix}").json()["text"]
+    assert "Petr: 1. jugaba" in text
+
+
+def test_key_pages_in_which_ocr_finds_nothing_fail_the_transcription(teacher, topic, models):
+    appendix = pdf_source(teacher, topic[0], TEST_A, ())
+    models.script({"text": " "})
+
+    started = transcribe(
+        teacher, topic, source_id=appendix, source_pages="1", key_source_id=appendix, key_pages="2"
+    )
+
+    failed = job(teacher, started.json()["job"]["id"])
+    assert (failed["state"], failed["error_kind"]) == ("failed", "nothing_read")

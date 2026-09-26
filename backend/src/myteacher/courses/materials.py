@@ -37,7 +37,7 @@ from myteacher.courses.models import (
 from myteacher.courses.sources import sources_of
 from myteacher.courses.topic_interview import topic_inputs
 from myteacher.jobs.models import Job
-from myteacher.jobs.runner import JobContext, Work
+from myteacher.jobs.runner import JobContext, JobFailed, Work
 from myteacher.lesson.catalog import COMPONENT_CATALOG
 from myteacher.lesson.schema import (
     Exercise,
@@ -213,9 +213,12 @@ def start(
     instruction: str | None = None,
     source: Source | None = None,
     key_source: Source | None = None,
+    source_pages: list[int] | None = None,
+    key_pages: list[int] | None = None,
 ):
     """New material for the topic, its first version to follow `instruction` when given, or to
-    be transcribed from `source` with the answer key in `key_source`."""
+    be transcribed from `source` with the answer key in `key_source`, from the pages given of
+    each or else the whole file."""
     material = ClassroomMaterial(
         course_id=topic.course_id,
         topic_id=topic.id,
@@ -225,6 +228,8 @@ def start(
         transcribed=source is not None,
         source_id=source.id if source else None,
         key_source_id=key_source.id if key_source else None,
+        source_pages=source_pages,
+        key_pages=key_pages,
     )
     db.add(material)
     db.flush()
@@ -477,10 +482,16 @@ def _transcription_inputs(
             "instruction_language": course.instruction_language,
         },
     }
-    if source is not None:
-        inputs["source"] = source_input(source)
-    if key is not None:
-        inputs["answer_key"] = source_input(key)
+    for part, read, pages in (
+        ("source", source, material.source_pages),
+        ("answer_key", key, material.key_pages),
+    ):
+        if read is None:
+            continue
+        inputs[part] = source_input(read, pages=pages)
+        if pages is not None and not inputs[part]["text"].strip():
+            # The chosen pages were read, by OCR too, and hold no text.
+            raise JobFailed("nothing_read")
     if previous is not None:
         lesson = previous.lesson
         inputs["previous"] = {"title": lesson["title"], "blocks": lesson["blocks"]}

@@ -43,6 +43,11 @@ class SourceOut(BaseModel):
     fetched_at: datetime | None
     # How long the extracted text is; None before it was extracted.
     characters: int | None
+    # For a PDF read page by page, how many pages it has; None otherwise.
+    page_count: int | None
+    # The pages of such a PDF, numbered from 1, that its file holds no text for: scans or
+    # handwriting, which OCR would read.
+    pages_without_text: list[int]
     # The latest extraction.
     job: JobOut | None
 
@@ -135,6 +140,8 @@ def _out(db: InstanceSession, source: Source) -> dict:
         "url": source.url,
         "fetched_at": source.fetched_at,
         "characters": len(source.text) if source.text is not None else None,
+        "page_count": len(source.pages) if source.pages is not None else None,
+        "pages_without_text": sources.pages_without_text(source),
         "job": JobOut.of(job) if job else None,
     }
 

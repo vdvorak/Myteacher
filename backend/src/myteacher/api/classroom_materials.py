@@ -62,6 +62,9 @@ class MaterialOut(BaseModel):
     # The source it was transcribed from, and the one with its answer key.
     source_id: int | None
     key_source_id: int | None
+    # The pages of those PDFs it was transcribed from, numbered from 1; None for the whole file.
+    source_pages: list[int] | None
+    key_pages: list[int] | None
 
     @field_serializer("created_at")
     def _utc(self, at: datetime) -> str:
@@ -104,13 +107,21 @@ class MaterialIn(BaseModel):
     instruction: Instruction | None = None
 
 
+# Pages as the teacher writes them, such as "1-2" or "3, 5-7"; empty for the whole file.
+PagesWritten = Annotated[str, Field(max_length=200)]
+
+
 class Transcription(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source_id: int
-    # A source holding the answer key; without one the assistant proposes the answers.
+    # A source holding the answer key; without one the assistant proposes the answers. It may be
+    # the same PDF as the source, with other pages.
     key_source_id: int | None = None
     target_student_ids: list[int] = []
+    # Of a PDF, the pages to transcribe and those holding the answer key.
+    source_pages: PagesWritten | None = None
+    key_pages: PagesWritten | None = None
 
 
 class Regeneration(BaseModel):
@@ -152,6 +163,8 @@ def _summary(db: InstanceSession, material: ClassroomMaterial) -> dict:
         "target_student_ids": materials.targets_of(db, material),
         "source_id": material.source_id,
         "key_source_id": material.key_source_id,
+        "source_pages": material.source_pages,
+        "key_pages": material.key_pages,
     }
 
 
@@ -216,22 +229,54 @@ def _transcribable(db: InstanceSession, course: Course, source_id: int) -> Sourc
     return source
 
 
+def _pages(db: InstanceSession, source: Source, written: str | None) -> list[int] | None:
+    """The pages of a PDF source the teacher chose, or None for the whole file."""
+    if written is None or not written.strip():
+        return None
+    if source.kind != "pdf":
+        raise HTTPException(status_code=422, detail="pages_not_pdf")
+    try:
+        return sources.chosen_pages(written, sources.page_count(db, source))
+    except sources.BadPages:
+        raise HTTPException(status_code=422, detail="bad_pages") from None
+    except sources.PagesOutside:
+        raise HTTPException(status_code=422, detail="pages_outside") from None
+
+
 def _readings(
     db: InstanceSession, material: ClassroomMaterial, actor: Account, now: datetime
 ) -> list[tuple[int, runner.Work]]:
-    """A job reading each source of the transcribed material that has no text yet, as the
-    first step of its transcription: from the file, or by OCR for a scan or an image."""
-    readings: list[tuple[int, runner.Work]] = []
-    for source_id in dict.fromkeys((material.source_id, material.key_source_id)):
-        source = db.get(Source, source_id) if source_id else None
-        if source is None or source.text:
+    """A job reading each source of the transcribed material that lacks text it needs, as the
+    first step of its transcription: from the file, and by OCR only what the file holds no text
+    for, an image or the chosen pages of a PDF that are scans or handwriting."""
+    # The pages wanted of each source; None for all of them.
+    wanted: dict[int, list[int] | None] = {}
+    for source_id, pages in (
+        (material.source_id, material.source_pages),
+        (material.key_source_id, material.key_pages),
+    ):
+        if source_id is None:
             continue
+        if source_id in wanted:
+            earlier = wanted[source_id]
+            pages = None if earlier is None or pages is None else sorted({*earlier, *pages})
+        wanted[source_id] = pages
+    readings: list[tuple[int, runner.Work]] = []
+    for source_id, pages in wanted.items():
+        source = db.get(Source, source_id)
+        if source is None or not sources.lacks_text_for(source, pages):
+            continue
+        if source.pages is None and source.extracted_with == "ocr":
+            # Read by the assistant before its pages were kept: read wholly again, so that none
+            # of its text is lost.
+            pages = None
         job = runner.create_job(
             db, sources.TASK_KIND, starter=actor, course_id=material.course_id, now=now
         )
         if sources.being_read(db, source) or not sources.claim_extraction(db, source, job):
             raise HTTPException(status_code=409, detail="source_not_read")
-        readings.append((job.id, sources.extraction(source.id, ocr=False, ocr_if_no_text=True)))
+        work = sources.extraction(source.id, ocr=False, ocr_if_no_text=True, pages=pages)
+        readings.append((job.id, work))
     return readings
 
 
@@ -327,7 +372,10 @@ def generate_material(
     status_code=202,
     responses={
         409: {"description": "A source is being read, or no provider key"},
-        422: {"description": "A source or student is not the course's"},
+        422: {
+            "description": "A source or student is not the course's, or pages are badly "
+            "written, outside the document or chosen of a file other than a PDF"
+        },
     },
 )
 def transcribe_material(
@@ -346,9 +394,20 @@ def transcribe_material(
     topic = _topic(db, course, topic_id)
     source = _transcribable(db, course, body.source_id)
     key = _transcribable(db, course, body.key_source_id) if body.key_source_id else None
+    source_pages = _pages(db, source, body.source_pages)
+    key_pages = _pages(db, key, body.key_pages) if key else None
     if paying_credential(db, actor) is None:
         raise HTTPException(status_code=409, detail="no_provider_key")
-    material = materials.start(db, topic, actor, now=now, source=source, key_source=key)
+    material = materials.start(
+        db,
+        topic,
+        actor,
+        now=now,
+        source=source,
+        key_source=key,
+        source_pages=source_pages,
+        key_pages=key_pages,
+    )
     _targets(db, material, body.target_student_ids)
     return _schedule(request, background, db, material, actor, now)
 

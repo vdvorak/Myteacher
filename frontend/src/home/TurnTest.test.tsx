@@ -10,7 +10,7 @@ import type { Course } from '../courses/api'
 import { fakeCoursesApi, spanish, topicFixture } from '../courses/testing'
 import { fakeJobsApi } from '../jobs/testing'
 import { withI18n } from '../lesson/testing'
-import { fakeMaterialsApi } from '../materials/testing'
+import { fakeMaterialsApi, transcription } from '../materials/testing'
 import type { Credential } from '../settings/api'
 import { fakeSettingsApi } from '../settings/testing'
 import { fakeSourcesApi } from '../sources/testing'
@@ -79,7 +79,7 @@ describe('turning a test into classroom material from the home page', () => {
 
     await waitFor(() => expect(history.get()).toBe('/courses/1/topics/2?tab=materials'))
     expect(sources.store).toHaveBeenCalledWith(1, test)
-    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, 100, null, [])
+    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, transcription(100, null))
     expect(courses.create).not.toHaveBeenCalled()
     expect(courses.addTopic).not.toHaveBeenCalled()
   })
@@ -105,7 +105,26 @@ describe('turning a test into classroom material from the home page', () => {
     expect(courses.addTopic).toHaveBeenCalledWith(102, 'Pravěk')
     expect(sources.store).toHaveBeenCalledWith(102, test)
     expect(sources.store).toHaveBeenCalledWith(102, answers)
-    expect(materials.transcribe).toHaveBeenCalledWith(102, 1000, 100, 101, [])
+    expect(materials.transcribe).toHaveBeenCalledWith(102, 1000, transcription(100, 101))
+  })
+
+  it('transcribes chosen pages of a PDF, the answer key from other pages of the same file uploaded once', async () => {
+    const { sources, materials, user } = renderHome()
+    const dialog = await openDialog(user)
+    const appendix = new File(['%PDF-1.4'], 'Příloha.pdf', { type: 'application/pdf' })
+
+    await user.upload(await dialog.findByLabelText('Test file'), test)
+    expect(dialog.queryByRole('textbox', { name: 'Pages of the test' })).not.toBeInTheDocument()
+    await user.upload(dialog.getByLabelText('Test file'), appendix)
+    await user.type(dialog.getByRole('textbox', { name: 'Pages of the test' }), '1-2')
+    await user.upload(dialog.getByLabelText('Answer key file, if you have one'), appendix)
+    await user.type(dialog.getByRole('textbox', { name: 'Pages of the answer key' }), '3')
+    await user.click(dialog.getByRole('button', { name: 'Transcribe' }))
+
+    await waitFor(() =>
+      expect(materials.transcribe).toHaveBeenCalledWith(1, 2, transcription(100, 100, { source_pages: '1-2', key_pages: '3' })),
+    )
+    expect(sources.store).toHaveBeenCalledTimes(1)
   })
 
   it('offers only a new course to a teacher who may edit none', async () => {
@@ -163,6 +182,6 @@ describe('turning a test into classroom material from the home page', () => {
     expect(courses.create).toHaveBeenCalledTimes(1)
     expect(courses.addTopic).toHaveBeenCalledTimes(1)
     expect(sources.store).toHaveBeenCalledTimes(3)
-    expect(materials.transcribe).toHaveBeenCalledWith(102, 1000, 100, 101, [])
+    expect(materials.transcribe).toHaveBeenCalledWith(102, 1000, transcription(100, 101))
   })
 })
