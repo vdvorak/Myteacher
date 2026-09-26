@@ -65,8 +65,28 @@ A teacher's own copy of another teacher's course, made with the owner's permissi
 _Avoid_: copy, clone, duplicate, template
 
 **Course Run**:
-One delivery of a course by a teacher to enrolled students and classes, with its own pace, release policy and progress. Czech: běh kurzu.
+One delivery of a course by a teacher to enrolled students and classes, with its own pace, release policy and progress; or, as a link run, to the participants who joined through its join link. Czech: běh kurzu.
 _Avoid_: course instance, cohort, class, session
+
+**Link Run**:
+A course run open to anyone with its join link instead of enrolled students, up to a capacity the teacher sets. Czech: běh pro lidi s odkazem.
+_Avoid_: open run, public run, guest run
+
+**Participant**:
+A person in a link run without an account, known only by the name they entered and their personal link. Czech: účastník.
+_Avoid_: guest, anonymous student, player
+
+**Join Link**:
+The one link of a link run that anyone may open to enter its lobby with a name. Czech: odkaz pro připojení.
+_Avoid_: invite link, share link, code
+
+**Personal Link**:
+The link a participant gets on joining, which alone brings them back to their own work in the link run, on any device. Czech: osobní odkaz.
+_Avoid_: token, magic link, login link
+
+**Lobby**:
+Where the participants of a link run wait, and the teacher sees who has joined, until the teacher releases material to them all at once. Czech: čekárna.
+_Avoid_: waiting room, queue
 
 **Enrolment**:
 A student's membership in a course run, either direct or through a class.

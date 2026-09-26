@@ -10,7 +10,7 @@ Individual lessons (slice 4) are the core of the product and the largest slice, 
 ## Considered options
 
 - **An offline HTML file** the teacher exports and hands out, keeping progress in the browser and handing back a result file: rejected because the answer key would have to be inside the file, progress kept in a file opened from disk is unreliable across browsers, handing back a file is awkward for children, and a standalone bundle of the renderer plus importing results is more work than delivery in the app.
-- **A link or QR code to an online page without accounts**, identified by a name or code: rejected because it bypasses student accounts and the guardian consent that minors need (ADR 0007).
+- **A link or QR code to an online page without accounts**, identified by a name or code: rejected because it bypasses student accounts and the guardian consent that minors need (ADR 0007). Superseded on this point by ADR 0012, which lets a course run be open to anyone with its link.
 - **Releasing directly to a class, without a course run**: rejected because slice 4 needs the run anyway, and the run decides whose key pays for assessment (ADR 0008) and keeps the roster live.
 
 ## Consequences
