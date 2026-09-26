@@ -30,7 +30,7 @@ from myteacher.courses.models import (
 from myteacher.mail.store import stored_settings
 from myteacher.persistence import InstanceSession
 from myteacher.policy import can_edit_course, is_teacher
-from myteacher.runs import open_assessment, releases
+from myteacher.runs import open_assessment, participants, releases
 from myteacher.runs import service as runs
 from myteacher.runs.models import CourseRun, MaterialRelease, RunClass, RunStudent
 
@@ -173,7 +173,9 @@ def _checklist(
         sources=any(_sources_done(setups[c.id]) for c in editable),
         concept_map=bool(approved),
         material=bool(ready),
-        students=bool(db.scalar(select(exists().select_from(ClassMembership)))),
+        # Students in a class, or participants who joined one of the teacher's link runs.
+        students=bool(db.scalar(select(exists().select_from(ClassMembership))))
+        or any(participants.count(db, run) for run in taught if run.mode == "link"),
         run=bool(taught),
         course_id=latest.id if latest else None,
         topic_id=topic_id,

@@ -20,6 +20,27 @@ class CourseRun(InstanceOwned, Base):
     teacher_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
     name: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # "enrolled" for classes and students with accounts, or "link" for participants who join
+    # through the join link (ADR 0012). Chosen at the start and never changed.
+    mode: Mapped[str] = mapped_column(String(10), default="enrolled")
+    # How many participants a link run takes; None for an enrolled run.
+    capacity: Mapped[int | None]
+    # The secret part of a link run's join link; shown to its teacher, so kept readable.
+    join_token: Mapped[str | None] = mapped_column(String(64), unique=True)
+
+
+class Participant(InstanceOwned, Base):
+    """Someone who joined a link run through its join link, without an account (ADR 0012). Only
+    the name they typed is kept; their personal link alone brings them back."""
+
+    __tablename__ = "participant"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("course_run.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    # Of the token in the personal link, which is never stored.
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    joined_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
 
 class RunClass(InstanceOwned, Base):

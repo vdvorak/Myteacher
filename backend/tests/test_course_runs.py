@@ -78,6 +78,10 @@ def test_the_owner_starts_a_named_run_of_a_course(teacher, course, clock):
         "classes": [],
         "students": [],
         "roster": [],
+        "mode": "enrolled",
+        "capacity": None,
+        "join_token": None,
+        "participant_count": 0,
     }
     assert teacher.get(f"/api/runs/{body['id']}").json() == body
 
@@ -118,12 +122,12 @@ def test_the_course_lists_the_runs_its_teacher_started(teacher, colleagues, cour
     theirs = start_run(teacher, course["id"], "3.C").json()
 
     assert runs_of(teacher, course["id"]).json() == [
-        {"id": theirs["id"], "name": "3.C", "roster_size": 0}
+        {"id": theirs["id"], "name": "3.C", "roster_size": 0, "mode": "enrolled"}
     ]
     back_to_teacher(teacher)
     assert runs_of(teacher, course["id"]).json() == [
-        {"id": earlier["id"], "name": "2.A", "roster_size": 0},
-        {"id": mine["id"], "name": "2.B", "roster_size": 0},
+        {"id": earlier["id"], "name": "2.A", "roster_size": 0, "mode": "enrolled"},
+        {"id": mine["id"], "name": "2.B", "roster_size": 0, "mode": "enrolled"},
     ]
 
 

@@ -22,6 +22,8 @@ import { SessionProvider } from './auth/session'
 import { ForgotPasswordPage } from './auth/ForgotPasswordPage'
 import { InvitationPage, ResetPasswordPage } from './auth/PasswordLinkPage'
 import { SignInPage } from './auth/SignInPage'
+import { JoinPage } from './participants/JoinPage'
+import { ParticipantPage } from './participants/ParticipantPage'
 import { PreviewPage } from './preview/PreviewPage'
 import { ReleaseResultsPage } from './runs/ReleaseResultsPage'
 import { RunPage } from './runs/RunPage'
@@ -56,6 +58,8 @@ const routes = () => (
     <Route path="/forgot-password" component={ForgotPasswordPage} />
     <Route path="/reset-password" component={ResetPasswordPage} />
     <Route path="/preview/:lessonId" component={PreviewRoute} />
+    <Route path="/join" component={JoinPage} />
+    <Route path="/participant" component={ParticipantPage} />
     <Route path="/" component={Shell}>
       <Route path="/" component={HomePage} />
       <Route path="/preview/courses/:courseId/topics/:topicId/documents/:documentId" component={DocumentPreviewPage} />

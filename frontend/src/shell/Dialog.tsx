@@ -4,7 +4,7 @@ const focusable = 'a[href], button:not([disabled]), input:not([disabled]), selec
 
 /** A modal form opened on demand: the focus stays inside, Escape closes it, and the focus returns to
  * where it was once it closes. */
-export function Dialog(props: { title: string; onClose: () => void; children: JSX.Element }) {
+export function Dialog(props: { title: string; onClose: () => void; children: JSX.Element; class?: string }) {
   const id = createUniqueId()
   let dialog!: HTMLDivElement
   const returnTo = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -37,7 +37,7 @@ export function Dialog(props: { title: string; onClose: () => void; children: JS
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${id}-title`}
-        class="dialog dialog-form"
+        class={`dialog dialog-form ${props.class ?? ''}`}
         tabIndex={-1}
         onKeyDown={keepFocusInside}
       >

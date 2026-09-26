@@ -9,7 +9,9 @@ import type { Student } from '../students/api'
 export interface RunSummary {
   id: number
   name: string
+  /** Students, or participants for a link run. */
   roster_size: number
+  mode: RunMode
 }
 
 /** A run the teacher teaches, as listed across courses. */
@@ -17,7 +19,9 @@ export interface TaughtRun {
   id: number
   name: string
   course: { id: number; name: string }
+  /** Students, or participants for a link run. */
   roster_size: number
+  mode: RunMode
   /** The last release not retracted; null before the first. */
   latest_release: {
     id: number
@@ -50,9 +54,37 @@ export interface CourseRun {
   classes: ClassSummary[]
   /** The students enrolled directly, whatever the state of their account. */
   students: EnrolledStudent[]
-  /** Every student of the run now, without deactivated students or minors awaiting consent. */
+  /** Every student of the run now, without deactivated students or minors awaiting consent. Empty for a link run. */
   roster: RosterStudent[]
+  /** Enrolled students, or participants who join through the join link. Never changes. */
+  mode: RunMode
+  /** How many participants a link run takes, and the secret of its join link; null when enrolled. */
+  capacity: number | null
+  join_token: string | null
+  /** How many joined a link run so far; 0 when enrolled. */
+  participant_count: number
 }
+
+export type RunMode = 'enrolled' | 'link'
+
+export interface NewRun {
+  name: string
+  mode: RunMode
+  /** For a link run only. */
+  capacity?: number
+  /** A link run's teacher confirms they are responsible for the people they share the link with. */
+  responsible?: boolean
+}
+
+/** Who joined a link run so far. */
+export interface Lobby {
+  capacity: number
+  /** In the order they joined. */
+  participants: { id: number; name: string; joined_at: string }[]
+}
+
+/** Where the join link of a link run leads; the token is in the fragment, which the browser never sends. */
+export const joinUrl = (token: string) => `${window.location.origin}/join#${token}`
 
 export interface ReleasableMaterial {
   id: number
@@ -236,7 +268,9 @@ export interface RunsApi {
   list(courseId: number): Promise<RunSummary[]>
   /** Every run the teacher teaches, across courses. */
   taught(): Promise<TaughtRun[]>
-  start(courseId: number, name: string): Promise<CourseRun>
+  start(courseId: number, run: NewRun): Promise<CourseRun>
+  /** Who joined the link run so far. */
+  lobby(id: number): Promise<Lobby>
   get(id: number): Promise<CourseRun>
   rename(id: number, name: string): Promise<CourseRun>
   enrolClass(id: number, classId: number): Promise<CourseRun>
@@ -285,7 +319,8 @@ const studentUrl = (id: number, studentId: number) => `/api/runs/${id}/students/
 export const httpRunsApi: RunsApi = {
   list: async (courseId) => json(await fetch(`/api/courses/${courseId}/runs`)),
   taught: async () => json(await fetch('/api/runs')),
-  start: async (courseId, name) => json(await send('POST', `/api/courses/${courseId}/runs`, { name })),
+  start: async (courseId, run) => json(await send('POST', `/api/courses/${courseId}/runs`, run)),
+  lobby: async (id) => json(await fetch(`/api/runs/${id}/lobby`)),
   get: async (id) => json(await fetch(`/api/runs/${id}`)),
   rename: async (id, name) => json(await send('PATCH', `/api/runs/${id}`, { name })),
   enrolClass: async (id, classId) => json(await send('PUT', classUrl(id, classId))),

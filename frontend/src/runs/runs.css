@@ -219,3 +219,58 @@
   gap: var(--space-3);
   margin-bottom: var(--space-4);
 }
+
+/* Who a new run is for: enrolled students, or people with its link. */
+.run-mode {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+/* A link run's lobby: the join link, the count of who joined and their names. */
+.lobby {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.lobby-count {
+  margin: 0;
+  font-size: var(--font-size-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.lobby-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
+.lobby-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+/* The join link as a QR code to project in class: as large as the screen allows. */
+.qr-dialog {
+  max-width: none;
+  max-height: 100vh;
+  height: 100%;
+  justify-items: center;
+  align-content: center;
+}
+
+.qr-code {
+  width: min(100%, 75vh);
+  height: auto;
+}
+
+.qr-url {
+  overflow-wrap: anywhere;
+  text-align: center;
+}

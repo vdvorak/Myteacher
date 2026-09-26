@@ -17,9 +17,27 @@ describe('runs over HTTP', () => {
     const fetch = answer(201, {})
     vi.stubGlobal('fetch', fetch)
 
-    await httpRunsApi.start(3, 'Španělština 2.B')
+    await httpRunsApi.start(3, { name: 'Španělština 2.B', mode: 'enrolled' })
 
-    expect(sent(fetch)).toEqual({ url: '/api/courses/3/runs', method: 'POST', body: { name: 'Španělština 2.B' } })
+    expect(sent(fetch)).toEqual({
+      url: '/api/courses/3/runs',
+      method: 'POST',
+      body: { name: 'Španělština 2.B', mode: 'enrolled' },
+    })
+  })
+
+  it('starts a link run with its capacity and the teacher’s confirmation, and reads its lobby', async () => {
+    const run = { name: 'Den otevřených dveří', mode: 'link' as const, capacity: 24, responsible: true }
+    let fetch = answer(201, {})
+    vi.stubGlobal('fetch', fetch)
+    await httpRunsApi.start(3, run)
+    expect(sent(fetch)).toEqual({ url: '/api/courses/3/runs', method: 'POST', body: run })
+
+    const lobby = { capacity: 24, participants: [] }
+    fetch = answer(200, lobby)
+    vi.stubGlobal('fetch', fetch)
+    expect(await httpRunsApi.lobby(7)).toEqual(lobby)
+    expect(sent(fetch)).toMatchObject({ url: '/api/runs/7/lobby', method: 'GET' })
   })
 
   it('enrols and removes classes and students by id', async () => {

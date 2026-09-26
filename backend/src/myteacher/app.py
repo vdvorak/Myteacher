@@ -27,6 +27,7 @@ from myteacher.api import (
     jobs,
     lessons,
     open_assessment,
+    participants,
     providers,
     reference_documents,
     results,
@@ -100,6 +101,7 @@ def create_app(
     app.include_router(students.router, prefix="/api")
     app.include_router(classes.router, prefix="/api")
     app.include_router(runs.router, prefix="/api")
+    app.include_router(participants.router, prefix="/api")
     app.include_router(attempts.router, prefix="/api")
     app.include_router(results.router, prefix="/api")
     app.include_router(open_assessment.router, prefix="/api")

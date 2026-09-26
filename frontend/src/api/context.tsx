@@ -11,6 +11,7 @@ import { httpMaterialsApi, type MaterialsApi } from '../materials/api'
 import { httpAuthApi, type AuthApi } from '../auth/api'
 import { httpSettingsApi, type SettingsApi } from '../settings/api'
 import { httpSourcesApi, type SourcesApi } from '../sources/api'
+import { httpParticipantsApi, type ParticipantsApi } from '../participants/api'
 import { httpRunsApi, type RunsApi } from '../runs/api'
 import { httpStudentsApi, type StudentsApi } from '../students/api'
 
@@ -22,6 +23,7 @@ export interface Apis {
   students: StudentsApi
   classes: ClassesApi
   runs: RunsApi
+  participants: ParticipantsApi
   attempts: AttemptsApi
   courses: CoursesApi
   sources: SourcesApi
@@ -39,6 +41,7 @@ export const httpApis: Apis = {
   students: httpStudentsApi,
   classes: httpClassesApi,
   runs: httpRunsApi,
+  participants: httpParticipantsApi,
   attempts: httpAttemptsApi,
   courses: httpCoursesApi,
   sources: httpSourcesApi,

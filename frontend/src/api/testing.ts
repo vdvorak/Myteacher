@@ -8,6 +8,7 @@ import { fakeDocumentsApi } from '../documents/testing'
 import { fakeHomeApi } from '../home/testing'
 import { fakeJobsApi } from '../jobs/testing'
 import { fakeMaterialsApi } from '../materials/testing'
+import { fakeParticipantsApi } from '../participants/testing'
 import { fakeRunsApi } from '../runs/testing'
 import { fakeSettingsApi } from '../settings/testing'
 import { fakeSourcesApi } from '../sources/testing'
@@ -23,6 +24,7 @@ export function fakeApis(overrides: Partial<Apis> = {}): Apis {
     students: fakeStudentsApi(),
     classes: fakeClassesApi(),
     runs: fakeRunsApi(),
+    participants: fakeParticipantsApi(),
     attempts: fakeAttemptsApi(),
     courses: fakeCoursesApi(),
     sources: fakeSourcesApi(),

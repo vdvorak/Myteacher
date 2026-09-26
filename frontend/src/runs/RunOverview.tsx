@@ -9,7 +9,10 @@ import type { CourseRun, ListedRelease } from './api'
 export function RunOverview(props: { run: CourseRun; releases: ListedRelease[] | undefined; onRelease: () => void }) {
   const { t } = useI18n()
   const live = () => (props.releases ?? []).filter((r) => !r.retracted_at)
-  const started = () => props.run.roster.length > 0 && live().length > 0
+  const link = () => props.run.mode === 'link'
+  // Someone to release to: enrolled students, or participants who joined a link run.
+  const peopled = () => (link() ? props.run.participant_count : props.run.roster.length) > 0
+  const started = () => peopled() && live().length > 0
   const latest = () => live().slice(-3).reverse()
   // Each student with the releases they did not submit by the due date.
   const behind = () => {
@@ -32,15 +35,15 @@ export function RunOverview(props: { run: CourseRun; releases: ListedRelease[] |
           <ol class="checklist">
             <li>
               <A
-                href={`/runs/${props.run.id}?tab=students`}
+                href={`/runs/${props.run.id}?tab=${link() ? 'participants' : 'students'}`}
                 class="checklist-item"
-                data-state={props.run.roster.length > 0 ? 'done' : 'open'}
+                data-state={peopled() ? 'done' : 'open'}
               >
                 <span class="step-mark" aria-hidden="true">
-                  {props.run.roster.length > 0 ? '✓' : 1}
+                  {peopled() ? '✓' : 1}
                 </span>
-                <span>{t('runOverview.enrol')}</span>
-                <span class="visually-hidden">, {t(props.run.roster.length > 0 ? 'home.stepDone' : 'home.stepOpen')}</span>
+                <span>{t(link() ? 'runOverview.share' : 'runOverview.enrol')}</span>
+                <span class="visually-hidden">, {t(peopled() ? 'home.stepDone' : 'home.stepOpen')}</span>
               </A>
             </li>
             <li>

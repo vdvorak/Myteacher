@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from myteacher.accounts.models import Account
 from myteacher.classes.models import ClassMembership, SchoolClass
 from myteacher.persistence import InstanceSession
+from myteacher.runs import participants
 from myteacher.runs.models import CourseRun, RunClass, RunStudent
 
 
@@ -27,9 +28,24 @@ def get_run(db: InstanceSession, run_id: int) -> CourseRun | None:
 
 
 def start_run(
-    db: InstanceSession, course_id: int, teacher: Account, name: str, *, now: datetime
+    db: InstanceSession,
+    course_id: int,
+    teacher: Account,
+    name: str,
+    *,
+    now: datetime,
+    capacity: int | None = None,
 ) -> CourseRun:
-    run = CourseRun(course_id=course_id, teacher_id=teacher.id, name=name, created_at=now)
+    """An enrolled run, or a link run when it has a capacity (ADR 0012)."""
+    run = CourseRun(
+        course_id=course_id,
+        teacher_id=teacher.id,
+        name=name,
+        created_at=now,
+        mode="enrolled" if capacity is None else "link",
+        capacity=capacity,
+        join_token=None if capacity is None else participants.new_join_token(),
+    )
     db.add(run)
     db.flush()
     return run
@@ -113,8 +129,13 @@ def roster(db: InstanceSession, run: CourseRun) -> list[RosterEntry]:
     ]
 
 
+def roster_size(db: InstanceSession, run: CourseRun) -> int:
+    """How many students a run has, or participants for a link run."""
+    return participants.count(db, run) if run.mode == "link" else len(roster(db, run))
+
+
 def roster_sizes(db: InstanceSession, runs: list[CourseRun]) -> dict[int, int]:
-    return {run.id: len(roster(db, run)) for run in runs}
+    return {run.id: roster_size(db, run) for run in runs}
 
 
 def _add_once(db: InstanceSession, row: RunClass | RunStudent, key: dict[str, int]) -> None:

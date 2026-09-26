@@ -64,7 +64,11 @@ function TaughtRuns() {
                         <td>
                           <A href={`/courses/${run.course.id}`}>{run.course.name}</A>
                         </td>
-                        <td>{run.roster_size}</td>
+                        <td>
+                          {run.mode === 'link'
+                            ? t('runs.participantCount', { count: run.roster_size })
+                            : run.roster_size}
+                        </td>
                         <td>
                           <Show when={run.latest_release} fallback={<span class="settings-note">{t('runsPage.nothingReleased')}</span>}>
                             {(released) => (

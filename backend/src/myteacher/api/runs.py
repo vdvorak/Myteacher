@@ -28,7 +28,7 @@ from myteacher.courses.models import ClassroomMaterial, ClassroomMaterialVersion
 from myteacher.lesson.schema import FeedbackMode
 from myteacher.persistence import InstanceSession
 from myteacher.policy import can_teach_run, is_teacher
-from myteacher.runs import attempts, open_assessment, releases
+from myteacher.runs import attempts, open_assessment, participants, releases
 from myteacher.runs import service as runs
 from myteacher.runs.models import CourseRun, MaterialRelease
 
@@ -41,7 +41,9 @@ RunName = Annotated[str, AfterValidator(str.strip), Field(min_length=1, max_leng
 class RunSummary(BaseModel):
     id: int
     name: str
+    # Students, or participants for a link run.
     roster_size: int
+    mode: Literal["enrolled", "link"]
 
 
 class CourseRef(BaseModel):
@@ -66,7 +68,9 @@ class TaughtRun(BaseModel):
     id: int
     name: str
     course: CourseRef
+    # Students, or participants for a link run.
     roster_size: int
+    mode: Literal["enrolled", "link"]
     # The last release not retracted; None before the first.
     latest_release: LatestRelease | None
 
@@ -99,8 +103,15 @@ class RunOut(BaseModel):
     # The students enrolled directly, by name, whatever the state of their account.
     students: list[EnrolledStudent]
     # Every student of the run now: from the live class membership and the direct enrolments,
-    # without deactivated students or minors awaiting consent.
+    # without deactivated students or minors awaiting consent. Empty for a link run.
     roster: list[RosterStudent]
+    # "enrolled", or "link" for participants who join through the join link (ADR 0012).
+    mode: Literal["enrolled", "link"]
+    # How many participants a link run takes, and the secret of its join link; None when enrolled.
+    capacity: int | None
+    join_token: str | None
+    # How many joined a link run so far; 0 for an enrolled run.
+    participant_count: int
 
     @field_serializer("created_at")
     def _utc(self, at: datetime) -> str:
@@ -111,6 +122,23 @@ class RunIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: RunName
+
+
+class NewRunIn(RunIn):
+    mode: Literal["enrolled", "link"] = "enrolled"
+    # For a link run only.
+    capacity: Annotated[int, Field(ge=1, le=participants.MAX_CAPACITY)] | None = None
+    # A link run's teacher confirms they are responsible for the people they share the link with.
+    responsible: bool = False
+
+    @model_validator(mode="after")
+    def _link_run_settings(self) -> Self:
+        if self.mode == "enrolled":
+            if self.capacity is not None or self.responsible:
+                raise ValueError("capacity and responsible are for a link run only")
+        elif not self.responsible:
+            raise ValueError("a link run needs its teacher to confirm they are responsible")
+        return self
 
 
 class ReleasableMaterial(BaseModel):
@@ -220,6 +248,10 @@ def _out(db: InstanceSession, run: CourseRun) -> RunOut:
             )
             for entry in runs.roster(db, run)
         ],
+        mode=run.mode,  # type: ignore[arg-type]
+        capacity=run.capacity,
+        join_token=run.join_token,
+        participant_count=participants.count(db, run) if run.mode == "link" else 0,
     )
 
 
@@ -229,7 +261,10 @@ def list_runs(course_id: int, db: Db, actor: Teacher) -> list[RunSummary]:
     course = course_for(db, actor, course_id)
     found = runs.runs_of(db, course.id, actor)
     sizes = runs.roster_sizes(db, found)
-    return [RunSummary(id=run.id, name=run.name, roster_size=sizes[run.id]) for run in found]
+    return [
+        RunSummary(id=run.id, name=run.name, roster_size=sizes[run.id], mode=run.mode)  # type: ignore[arg-type]
+        for run in found
+    ]
 
 
 def runs_taught(db: InstanceSession, actor: Account) -> dict[CourseRun, Course]:
@@ -266,7 +301,8 @@ def list_taught_runs(db: Db, actor: Teacher) -> list[TaughtRun]:
             id=run.id,
             name=run.name,
             course=CourseRef(id=run.course_id, name=course_of[run.id].name),
-            roster_size=len(rosters[run.id]),
+            roster_size=runs.roster_size(db, run),
+            mode=run.mode,  # type: ignore[arg-type]
             latest_release=latest_of(run),
         )
         for run in found
@@ -275,10 +311,21 @@ def list_taught_runs(db: Db, actor: Teacher) -> list[TaughtRun]:
 
 
 @router.post("/courses/{course_id}/runs", status_code=201)
-def start_run(course_id: int, body: RunIn, db: Db, now: Now, actor: Teacher) -> RunOut:
+def start_run(course_id: int, body: NewRunIn, db: Db, now: Now, actor: Teacher) -> RunOut:
     """A new run of the course taught by the actor, who must be its owner or an editor."""
     course = editable_course(db, actor, course_id)
-    return _out(db, runs.start_run(db, course.id, actor, body.name, now=now))
+    capacity = None
+    if body.mode == "link":
+        capacity = body.capacity or participants.DEFAULT_CAPACITY
+    return _out(db, runs.start_run(db, course.id, actor, body.name, now=now, capacity=capacity))
+
+
+def enrolled_run(db: InstanceSession, actor: Account, run_id: int) -> CourseRun:
+    """The run, which must take enrolments: a link run's roster is its participants."""
+    run = taught_run(db, actor, run_id)
+    if run.mode == "link":
+        raise HTTPException(status_code=409, detail="link_run")
+    return run
 
 
 @router.get("/runs/{run_id}")
@@ -296,7 +343,7 @@ def rename_run(run_id: int, body: RunIn, db: Db, actor: Teacher) -> RunOut:
 @router.put("/runs/{run_id}/classes/{class_id}")
 def enrol_class(run_id: int, class_id: int, db: Db, actor: Teacher) -> RunOut:
     """Enrol a class; its students are the run's for as long as they are in it."""
-    run = taught_run(db, actor, run_id)
+    run = enrolled_run(db, actor, run_id)
     runs.enrol_class(db, run, class_or_404(db, class_id))
     return _out(db, run)
 
@@ -310,7 +357,7 @@ def unenrol_class(run_id: int, class_id: int, db: Db, actor: Teacher) -> RunOut:
 
 @router.put("/runs/{run_id}/students/{student_id}")
 def enrol_student(run_id: int, student_id: int, db: Db, actor: Teacher) -> RunOut:
-    run = taught_run(db, actor, run_id)
+    run = enrolled_run(db, actor, run_id)
     runs.enrol_student(db, run, student_or_404(db, student_id))
     return _out(db, run)
 

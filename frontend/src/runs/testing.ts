@@ -8,6 +8,8 @@ import {
   AssessmentRefused,
   ReleaseRefused,
   type CourseRun,
+  type Lobby,
+  type NewRun,
   type NewRelease,
   type ReleasableMaterial,
   type Release,
@@ -24,6 +26,8 @@ interface StoredRun {
   name: string
   classIds: number[]
   studentIds: number[]
+  /** A link run: how many it takes, the secret of its join link and who joined. */
+  link?: { capacity: number; joinToken: string; participants: Lobby['participants'] }
 }
 
 interface StoredClass {
@@ -111,18 +115,29 @@ export function fakeRunsApi(
         .sort(byName)
         .map(({ id, name, email, state }) => ({ id, name, email, state })),
       roster,
+      mode: stored.link ? 'link' : 'enrolled',
+      capacity: stored.link?.capacity ?? null,
+      join_token: stored.link?.joinToken ?? null,
+      participant_count: stored.link?.participants.length ?? 0,
     }
   }
   const store = (next: StoredRun) => {
     runs = [...runs.filter((r) => r.id !== next.id), next]
     return resolve(next)
   }
-  return {
+  const sizeOf = (stored: StoredRun) => stored.link?.participants.length ?? resolve(stored).roster.length
+  const enrolled = (id: number) => {
+    const stored = find(id)
+    // Like the backend: a link run's roster is its participants.
+    if (stored.link) throw new ApiError(409)
+    return stored
+  }
+  const api = {
     list: vi.fn(async (courseId: number) =>
       runs
         .filter((r) => r.courseId === courseId)
         .sort(byName)
-        .map((r) => ({ id: r.id, name: r.name, roster_size: resolve(r).roster.length })),
+        .map((r) => ({ id: r.id, name: r.name, roster_size: sizeOf(r), mode: resolve(r).mode })),
     ),
     taught: vi.fn(async () =>
       runs
@@ -133,7 +148,8 @@ export function fakeRunsApi(
             id: run.id,
             name: run.name,
             course: run.course,
-            roster_size: run.roster.length,
+            roster_size: sizeOf(r),
+            mode: run.mode,
             latest_release: latest
               ? {
                   id: latest.id,
@@ -148,13 +164,28 @@ export function fakeRunsApi(
         })
         .sort((a, b) => a.course.name.localeCompare(b.course.name) || a.name.localeCompare(b.name)),
     ),
-    start: vi.fn(async (courseId: number, name: string) =>
-      store({ id: 50 + runs.length, courseId, name: name.trim(), classIds: [], studentIds: [] }),
+    start: vi.fn(async (courseId: number, run: NewRun) =>
+      store({
+        id: 50 + runs.length,
+        courseId,
+        name: run.name.trim(),
+        classIds: [],
+        studentIds: [],
+        link:
+          run.mode === 'link'
+            ? { capacity: run.capacity ?? 30, joinToken: `join-${50 + runs.length}`, participants: [] }
+            : undefined,
+      }),
     ),
+    lobby: vi.fn(async (id: number): Promise<Lobby> => {
+      const link = find(id).link
+      if (!link) throw new ApiError(404)
+      return structuredClone({ capacity: link.capacity, participants: link.participants })
+    }),
     get: vi.fn(async (id: number) => resolve(find(id))),
     rename: vi.fn(async (id: number, name: string) => store({ ...find(id), name: name.trim() })),
     enrolClass: vi.fn(async (id: number, classId: number) => {
-      const stored = find(id)
+      const stored = enrolled(id)
       return store({ ...stored, classIds: [...new Set([...stored.classIds, classId])] })
     }),
     unenrolClass: vi.fn(async (id: number, classId: number) => {
@@ -162,7 +193,7 @@ export function fakeRunsApi(
       return store({ ...stored, classIds: stored.classIds.filter((c) => c !== classId) })
     }),
     enrolStudent: vi.fn(async (id: number, studentId: number) => {
-      const stored = find(id)
+      const stored = enrolled(id)
       return store({ ...stored, studentIds: [...new Set([...stored.studentIds, studentId])] })
     }),
     unenrolStudent: vi.fn(async (id: number, studentId: number) => {
@@ -293,4 +324,11 @@ export function fakeRunsApi(
       return count
     }),
   } satisfies RunsApi
+  return Object.assign(api, {
+    /** Someone joins the link run through its join link, as the join page would. */
+    join(id: number, name: string, joinedAt = '2026-09-25T08:05:00Z') {
+      const link = find(id).link!
+      link.participants.push({ id: 900 + link.participants.length, name, joined_at: joinedAt })
+    },
+  })
 }

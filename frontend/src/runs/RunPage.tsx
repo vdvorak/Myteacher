@@ -10,12 +10,13 @@ import { TeachersOnly } from '../students/StudentsPage'
 import type { CourseRun } from './api'
 import { ReleaseDialog } from './ReleaseDialog'
 import { RunOverview } from './RunOverview'
+import { RunLobby } from './RunLobby'
 import { RunReleases } from './ReleasesSection'
 import { RunStudents } from './RunStudents'
 import './runs.css'
 
-type TabId = 'overview' | 'releases' | 'students' | 'settings'
-const tabIds: TabId[] = ['overview', 'releases', 'students', 'settings']
+type TabId = 'overview' | 'releases' | 'students' | 'participants' | 'settings'
+const tabIds: TabId[] = ['overview', 'releases', 'students', 'participants', 'settings']
 
 /** One run, seen by its teacher: how it goes, its releases, its students and its settings. */
 export function RunPage() {
@@ -36,14 +37,19 @@ function RunDetail() {
   const [releases, { refetch: refetchReleases }] = createResource(runId, (id) => api.releases(id))
   const [releasing, setReleasing] = createSignal(false)
   const loaded = () => (run.error ? undefined : run())
-  const current = (): TabId => tabIds.find((id) => id === search.tab) ?? 'overview'
+  // A link run's roster is its participants, who join through its link instead of being enrolled.
+  const peopleTab = (): TabId => (loaded()?.mode === 'link' ? 'participants' : 'students')
+  const current = (): TabId => {
+    const asked = search.tab === 'students' || search.tab === 'participants' ? peopleTab() : search.tab
+    return tabIds.find((id) => id === asked) ?? 'overview'
+  }
 
   useBreadcrumbs(() => [{ label: t('nav.runs'), href: '/runs' }, { label: loaded()?.name ?? '…' }])
 
   const tabs = () => [
     { id: 'overview', label: t('runTabs.overview') },
     { id: 'releases', label: t('runTabs.releases') },
-    { id: 'students', label: t('runTabs.students') },
+    { id: peopleTab(), label: t(peopleTab() === 'participants' ? 'runTabs.participants' : 'runTabs.students') },
     { id: 'settings', label: t('runTabs.settings') },
   ]
 
@@ -97,6 +103,15 @@ function RunDetail() {
                     mutate(changed)
                     // Who has each release follows the roster.
                     void refetchReleases()
+                  }}
+                />
+              </Match>
+              <Match when={current() === 'participants'}>
+                <RunLobby
+                  run={shown()}
+                  onCount={(count) => {
+                    // The overview's first step follows who joined.
+                    if (count !== shown().participant_count) mutate({ ...shown(), participant_count: count })
                   }}
                 />
               </Match>

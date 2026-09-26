@@ -66,7 +66,7 @@ describe('runs of a course', () => {
     await user.click(screen.getByRole('button', { name: 'Start a run' }))
 
     expect(await screen.findByRole('heading', { name: 'Španělština 2.A 2026/27' })).toBeInTheDocument()
-    expect(runs.start).toHaveBeenCalledWith(spanish.id, 'Španělština 2.A 2026/27')
+    expect(runs.start).toHaveBeenCalledWith(spanish.id, { name: 'Španělština 2.A 2026/27', mode: 'enrolled' })
     expect(history.get()).toMatch(/^\/runs\/\d+$/)
   })
 
