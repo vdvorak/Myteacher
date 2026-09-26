@@ -314,3 +314,114 @@ describe('releasing to participants and their results', () => {
     expect(screen.getByRole('link', { name: 'Jan Novák (1)' })).toBeInTheDocument()
   })
 })
+
+describe('managing the lobby', () => {
+  const two = () =>
+    linkRun([
+      { id: 1, name: 'Eva Malá', joined_at: '2026-09-25T08:00:00Z' },
+      { id: 2, name: 'Jan Novák', joined_at: '2026-09-25T08:03:00Z' },
+    ])
+  const confirmDialog = () => within(screen.getByRole('alertdialog'))
+
+  it('closes joining and opens it again', async () => {
+    const { runs } = renderApp('/runs/7?tab=participants', { runs: [two()] })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Close joining' }))
+
+    expect(runs.setJoining).toHaveBeenCalledWith(7, false)
+    expect(await screen.findByText(/Joining is closed/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Open joining' }))
+    expect(runs.setJoining).toHaveBeenLastCalledWith(7, true)
+    await waitFor(() => expect(screen.queryByText(/Joining is closed/)).not.toBeInTheDocument())
+  })
+
+  it('replaces the join link after confirming', async () => {
+    const { runs } = renderApp('/runs/7?tab=participants', { runs: [two()] })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Replace the link' }))
+    expect(confirmDialog().getByText(/Those who joined keep their personal links/)).toBeInTheDocument()
+    await user.click(confirmDialog().getByRole('button', { name: 'Replace the link' }))
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Join link')).toHaveValue(`${window.location.origin}/join#join-7-new`),
+    )
+    expect(runs.replaceJoinLink).toHaveBeenCalledWith(7)
+  })
+
+  it('keeps the join link when replacing is cancelled', async () => {
+    const { runs } = renderApp('/runs/7?tab=participants', { runs: [two()] })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Replace the link' }))
+    await user.click(confirmDialog().getByRole('button', { name: 'Cancel' }))
+
+    expect(runs.replaceJoinLink).not.toHaveBeenCalled()
+  })
+
+  it('removes a participant after confirming', async () => {
+    const { runs } = renderApp('/runs/7?tab=participants', { runs: [two()] })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Remove Eva Malá' }))
+    expect(confirmDialog().getByText(/Their personal link stops working/)).toBeInTheDocument()
+    await user.click(confirmDialog().getByRole('button', { name: 'Remove' }))
+
+    await waitFor(() => expect(screen.queryByText('Eva Malá')).not.toBeInTheDocument())
+    expect(runs.removeParticipant).toHaveBeenCalledWith(7, 1)
+    expect(screen.getByText('1 / 30')).toBeInTheDocument()
+  })
+
+  it('says a participant was removed, and keeps the focus in the lobby', async () => {
+    renderApp('/runs/7?tab=participants', { runs: [two()] })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Remove Eva Malá' }))
+    expect(confirmDialog().getByText(/close joining or replace the link/)).toBeInTheDocument()
+    await user.click(confirmDialog().getByRole('button', { name: 'Remove' }))
+
+    expect(await screen.findByText('Eva Malá was removed.')).toBeInTheDocument()
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Participants' })))
+  })
+
+  it('says in the dialog when renaming failed', async () => {
+    const { runs } = renderApp('/runs/7?tab=participants', { runs: [two()] })
+    runs.renameParticipant.mockRejectedValueOnce(new Error('offline'))
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Rename Jan Novák' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Rename Jan Novák' }))
+    await user.click(dialog.getByRole('button', { name: 'Rename' }))
+
+    expect(await dialog.findByRole('alert')).toHaveTextContent('The change could not be made. Try again.')
+  })
+
+  it('renames a participant', async () => {
+    const { runs } = renderApp('/runs/7?tab=participants', { runs: [two()] })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Rename Jan Novák' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Rename Jan Novák' }))
+    const name = dialog.getByLabelText('New name')
+    expect(name).toHaveAttribute('maxLength', '60')
+    await user.clear(name)
+    await user.type(name, 'Jan Novák st.')
+    await user.click(dialog.getByRole('button', { name: 'Rename' }))
+
+    expect(await screen.findByText('Jan Novák st.')).toBeInTheDocument()
+    expect(runs.renameParticipant).toHaveBeenCalledWith(7, 2, 'Jan Novák st.')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps the focus on a participant’s button across a poll', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    renderApp('/runs/7?tab=participants', { runs: [two()] })
+    const remove = await screen.findByRole('button', { name: 'Remove Eva Malá' })
+    remove.focus()
+
+    await vi.advanceTimersByTimeAsync(5_000)
+
+    expect(document.activeElement).toBe(remove)
+  })
+})

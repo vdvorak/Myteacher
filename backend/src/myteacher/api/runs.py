@@ -112,8 +112,10 @@ class RunOut(BaseModel):
     join_token: str | None
     # How many joined a link run so far; 0 for an enrolled run.
     participant_count: int
-    # Who joined a link run, in the order they joined, with a name typed twice numbered.
+    # Who is in a link run, in the order they joined, with a name typed twice numbered.
     participants: list["StudentRef"]
+    # Whether a link run takes newcomers; always True for an enrolled run.
+    joining_open: bool
 
     @field_serializer("created_at")
     def _utc(self, at: datetime) -> str:
@@ -217,10 +219,12 @@ def taught_run(db: InstanceSession, actor: Account, run_id: int) -> CourseRun:
     return run
 
 
-def _out(db: InstanceSession, run: CourseRun) -> RunOut:
+def run_out(db: InstanceSession, run: CourseRun) -> RunOut:
+    """The whole run, as every change answers with it."""
     course = courses.get_course(db, run.course_id)
     assert course is not None, "a course with runs is never deleted"
     consents = consent.latest_consents(db)
+    in_run = {p.id for p in participants.participants_of(db, run)}
     return RunOut(
         id=run.id,
         name=run.name,
@@ -257,7 +261,9 @@ def _out(db: InstanceSession, run: CourseRun) -> RunOut:
         participants=[
             StudentRef(id=participant_id, name=name)
             for participant_id, name in participants.display_names(db, run).items()
+            if participant_id in in_run
         ],
+        joining_open=run.joining_open,
     )
 
 
@@ -323,7 +329,7 @@ def start_run(course_id: int, body: NewRunIn, db: Db, now: Now, actor: Teacher) 
     capacity = None
     if body.mode == "link":
         capacity = body.capacity or participants.DEFAULT_CAPACITY
-    return _out(db, runs.start_run(db, course.id, actor, body.name, now=now, capacity=capacity))
+    return run_out(db, runs.start_run(db, course.id, actor, body.name, now=now, capacity=capacity))
 
 
 def enrolled_run(db: InstanceSession, actor: Account, run_id: int) -> CourseRun:
@@ -336,14 +342,14 @@ def enrolled_run(db: InstanceSession, actor: Account, run_id: int) -> CourseRun:
 
 @router.get("/runs/{run_id}")
 def read_run(run_id: int, db: Db, actor: Teacher) -> RunOut:
-    return _out(db, taught_run(db, actor, run_id))
+    return run_out(db, taught_run(db, actor, run_id))
 
 
 @router.patch("/runs/{run_id}")
 def rename_run(run_id: int, body: RunIn, db: Db, actor: Teacher) -> RunOut:
     run = taught_run(db, actor, run_id)
     run.name = body.name
-    return _out(db, run)
+    return run_out(db, run)
 
 
 @router.put("/runs/{run_id}/classes/{class_id}")
@@ -351,28 +357,28 @@ def enrol_class(run_id: int, class_id: int, db: Db, actor: Teacher) -> RunOut:
     """Enrol a class; its students are the run's for as long as they are in it."""
     run = enrolled_run(db, actor, run_id)
     runs.enrol_class(db, run, class_or_404(db, class_id))
-    return _out(db, run)
+    return run_out(db, run)
 
 
 @router.delete("/runs/{run_id}/classes/{class_id}")
 def unenrol_class(run_id: int, class_id: int, db: Db, actor: Teacher) -> RunOut:
     run = taught_run(db, actor, run_id)
     runs.unenrol_class(db, run, class_or_404(db, class_id))
-    return _out(db, run)
+    return run_out(db, run)
 
 
 @router.put("/runs/{run_id}/students/{student_id}")
 def enrol_student(run_id: int, student_id: int, db: Db, actor: Teacher) -> RunOut:
     run = enrolled_run(db, actor, run_id)
     runs.enrol_student(db, run, student_or_404(db, student_id))
-    return _out(db, run)
+    return run_out(db, run)
 
 
 @router.delete("/runs/{run_id}/students/{student_id}")
 def unenrol_student(run_id: int, student_id: int, db: Db, actor: Teacher) -> RunOut:
     run = taught_run(db, actor, run_id)
     runs.unenrol_student(db, run, student_or_404(db, student_id))
-    return _out(db, run)
+    return run_out(db, run)
 
 
 def release_out(db: InstanceSession, released: MaterialRelease) -> ReleaseOut:

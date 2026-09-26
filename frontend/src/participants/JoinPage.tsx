@@ -4,6 +4,7 @@ import { useApi } from '../api/context'
 import { useI18n } from '../i18n/i18n'
 import { LanguageSwitch } from '../i18n/LanguageSwitch'
 import '../auth/auth.css'
+import type { JoinRefusal } from './api'
 import { forget, remember, rememberedFor } from './remembered'
 
 /** A page of someone without an account: the app's name and the language switch above it. */
@@ -44,7 +45,7 @@ export function JoinPage() {
   const [someoneElse, setSomeoneElse] = createSignal(false)
   const [name, setName] = createSignal('')
   const [busy, setBusy] = createSignal(false)
-  const [problem, setProblem] = createSignal<'run_full' | 'unknown_link' | 'failed' | null>(null)
+  const [problem, setProblem] = createSignal<JoinRefusal | 'failed' | null>(null)
 
   async function join(event: SubmitEvent) {
     event.preventDefault()
@@ -65,8 +66,13 @@ export function JoinPage() {
     }
   }
 
+  const closed = () => found()!.closed || problem() === 'joining_closed'
+  const full = () => found()!.full || problem() === 'run_full'
   const joinForm = () => (
-    <Show when={!found()!.full && problem() !== 'run_full'} fallback={<p role="alert">{t('join.full')}</p>}>
+    <Show
+      when={!closed() && !full()}
+      fallback={<p role="alert">{t(closed() ? 'join.closed' : 'join.full')}</p>}
+    >
       <form class="auth-form" onSubmit={join}>
         <label>
           {t('join.name')}

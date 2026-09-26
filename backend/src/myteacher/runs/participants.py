@@ -25,24 +25,51 @@ def run_by_join_token(db: InstanceSession, join_token: str) -> CourseRun | None:
 
 
 def participant_by_token(db: InstanceSession, token: str) -> Participant | None:
+    """The participant the personal link belongs to, unless the teacher removed them."""
     return db.scalars(
-        select(Participant).where(Participant.token_hash == token_hash(token))
+        select(Participant).where(
+            Participant.token_hash == token_hash(token), Participant.removed_at.is_(None)
+        )
     ).first()
 
 
-def participants_of(db: InstanceSession, run: CourseRun) -> list[Participant]:
-    """In the order they joined."""
-    return list(
-        db.scalars(
-            select(Participant)
-            .where(Participant.run_id == run.id)
-            .order_by(Participant.joined_at, Participant.id)
+def participant_of(db: InstanceSession, run: CourseRun, participant_id: int) -> Participant | None:
+    """A participant still in the run."""
+    return db.scalars(
+        select(Participant).where(
+            Participant.id == participant_id,
+            Participant.run_id == run.id,
+            Participant.removed_at.is_(None),
         )
-    )
+    ).first()
+
+
+def participants_of(
+    db: InstanceSession, run: CourseRun, *, removed_too: bool = False
+) -> list[Participant]:
+    """Those in the run, or also those the teacher removed, in the order they joined."""
+    found = select(Participant).where(Participant.run_id == run.id)
+    if not removed_too:
+        found = found.where(Participant.removed_at.is_(None))
+    return list(db.scalars(found.order_by(Participant.joined_at, Participant.id)))
+
+
+def _in_run(run: CourseRun):
+    return (Participant.run_id == run.id, Participant.removed_at.is_(None))
 
 
 def count(db: InstanceSession, run: CourseRun) -> int:
-    return db.scalar(select(func.count()).where(Participant.run_id == run.id)) or 0
+    """How many are in the run; a removed participant frees their place."""
+    return db.scalar(select(func.count()).where(*_in_run(run))) or 0
+
+
+def replace_join_link(run: CourseRun) -> None:
+    """The old join link stops working for newcomers; personal links keep working."""
+    run.join_token = new_join_token()
+
+
+def remove(participant: Participant, *, now: datetime) -> None:
+    participant.removed_at = now
 
 
 def join(
@@ -53,7 +80,7 @@ def join(
     take the last place both."""
     assert run.capacity is not None, "only a link run takes participants"
     token = secrets.token_urlsafe(32)
-    taken = select(func.count()).where(Participant.run_id == run.id).scalar_subquery()
+    taken = select(func.count()).where(*_in_run(run)).scalar_subquery()
     row = select(
         literal(db.instance_id),
         literal(run.id),
@@ -72,13 +99,15 @@ def join(
 
 def display_names(db: InstanceSession, run: CourseRun) -> dict[int, str]:
     """Each participant's name as the teacher sees it: a name typed by more than one participant
-    is numbered in the order they joined, "Jan Novák (2)"."""
+    in the run is numbered in the order they joined, "Jan Novák (2)". A removed participant keeps
+    the name they typed, as results mark them as no longer in the run, and does not number those
+    who stay."""
     found = participants_of(db, run)
+    named = {p.id: p.name for p in participants_of(db, run, removed_too=True)}
     counts: dict[str, int] = {}
     for participant in found:
         counts[participant.name] = counts.get(participant.name, 0) + 1
     seen: dict[str, int] = {}
-    named = {}
     for participant in found:
         if counts[participant.name] == 1:
             named[participant.id] = participant.name

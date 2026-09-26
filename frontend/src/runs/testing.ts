@@ -27,7 +27,7 @@ interface StoredRun {
   classIds: number[]
   studentIds: number[]
   /** A link run: how many it takes, the secret of its join link and who joined. */
-  link?: { capacity: number; joinToken: string; participants: Lobby['participants'] }
+  link?: { capacity: number; joinToken: string; participants: Lobby['participants']; closed?: boolean }
 }
 
 interface StoredClass {
@@ -120,11 +120,17 @@ export function fakeRunsApi(
       join_token: stored.link?.joinToken ?? null,
       participant_count: stored.link?.participants.length ?? 0,
       participants: (stored.link?.participants ?? []).map(({ id, name }) => ({ id, name })),
+      joining_open: !stored.link?.closed,
     }
   }
   const store = (next: StoredRun) => {
     runs = [...runs.filter((r) => r.id !== next.id), next]
     return resolve(next)
+  }
+  const linked = (id: number) => {
+    const stored = find(id)
+    if (!stored.link) throw new ApiError(404)
+    return stored
   }
   const sizeOf = (stored: StoredRun) => stored.link?.participants.length ?? resolve(stored).roster.length
   const enrolled = (id: number) => {
@@ -178,6 +184,25 @@ export function fakeRunsApi(
             : undefined,
       }),
     ),
+    setJoining: vi.fn(async (id: number, open: boolean) => {
+      const stored = linked(id)
+      return store({ ...stored, link: { ...stored.link!, closed: !open } })
+    }),
+    replaceJoinLink: vi.fn(async (id: number) => {
+      const stored = linked(id)
+      return store({ ...stored, link: { ...stored.link!, joinToken: `${stored.link!.joinToken}-new` } })
+    }),
+    renameParticipant: vi.fn(async (id: number, participantId: number, name: string) => {
+      const found = linked(id).link!.participants.find((p) => p.id === participantId)
+      if (!found) throw new ApiError(404)
+      found.name = name.trim()
+      return { ...found }
+    }),
+    removeParticipant: vi.fn(async (id: number, participantId: number) => {
+      const link = linked(id).link!
+      if (!link.participants.some((p) => p.id === participantId)) throw new ApiError(404)
+      link.participants = link.participants.filter((p) => p.id !== participantId)
+    }),
     lobby: vi.fn(async (id: number): Promise<Lobby> => {
       const link = find(id).link
       if (!link) throw new ApiError(404)

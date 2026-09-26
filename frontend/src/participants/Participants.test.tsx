@@ -86,6 +86,23 @@ describe('the join page', () => {
     expect(screen.queryByLabelText('Your name')).not.toBeInTheDocument()
   })
 
+  it('says so when joining is closed', async () => {
+    renderApp('/join#join-7', { participants: fakeParticipantsApi({ runs: [{ ...lobbyRun, closed: true }] }) })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Joining this run is closed. Ask your teacher.')
+    expect(screen.queryByLabelText('Your name')).not.toBeInTheDocument()
+  })
+
+  it('says so when joining was closed while typing the name', async () => {
+    const participants = fakeParticipantsApi()
+    participants.join.mockResolvedValueOnce('joining_closed')
+    renderApp('/join#join-7', { participants })
+
+    await joinAs('Jan Novák')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Joining this run is closed. Ask your teacher.')
+  })
+
   it('says so when the run filled up while typing the name', async () => {
     const participants = fakeParticipantsApi({ runs: [{ ...lobbyRun, capacity: 1 }] })
     renderApp('/join#join-7', { participants })

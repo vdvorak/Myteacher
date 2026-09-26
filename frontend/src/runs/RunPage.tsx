@@ -109,6 +109,7 @@ function RunDetail() {
               <Match when={current() === 'participants'}>
                 <RunLobby
                   run={shown()}
+                  onChanged={mutate}
                   onCount={(count) => {
                     // The overview's first step follows who joined.
                     if (count !== shown().participant_count) mutate({ ...shown(), participant_count: count })

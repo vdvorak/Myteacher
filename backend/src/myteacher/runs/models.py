@@ -27,6 +27,8 @@ class CourseRun(InstanceOwned, Base):
     capacity: Mapped[int | None]
     # The secret part of a link run's join link; shown to its teacher, so kept readable.
     join_token: Mapped[str | None] = mapped_column(String(64), unique=True)
+    # Whether a link run takes newcomers; the teacher closes it once everyone is in.
+    joining_open: Mapped[bool] = mapped_column(default=True)
 
 
 class Participant(InstanceOwned, Base):
@@ -41,6 +43,9 @@ class Participant(InstanceOwned, Base):
     # Of the token in the personal link, which is never stored.
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     joined_at: Mapped[datetime] = mapped_column(UTCDateTime)
+    # Set once the teacher removed them: their personal link stops working, and their answers
+    # stay with the teacher, as a student's who left the run.
+    removed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
 
 
 class RunClass(InstanceOwned, Base):

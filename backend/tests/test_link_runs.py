@@ -117,6 +117,7 @@ def test_the_join_link_names_the_run_and_its_course_without_signing_in(stranger,
         "run": RUN,
         "course": course["name"],
         "full": False,
+        "closed": False,
     }
 
 

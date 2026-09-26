@@ -253,7 +253,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  align-items: baseline;
+  align-items: center;
+}
+
+/* Rename and remove, side by side in every row: each large enough to tap on a phone. */
+.lobby-list li button {
+  min-width: var(--tap-target);
+  min-height: var(--tap-target);
+  padding: 0 var(--space-2);
 }
 
 /* The join link as a QR code to project in class: as large as the screen allows. */

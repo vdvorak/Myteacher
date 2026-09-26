@@ -40,6 +40,21 @@ describe('runs over HTTP', () => {
     expect(sent(fetch)).toMatchObject({ url: '/api/runs/7/lobby', method: 'GET' })
   })
 
+  it('closes joining, replaces the join link, and renames and removes participants', async () => {
+    const calls: [() => Promise<unknown>, string, string, unknown][] = [
+      [() => httpRunsApi.setJoining(7, false), '/api/runs/7/joining', 'PUT', { open: false }],
+      [() => httpRunsApi.replaceJoinLink(7), '/api/runs/7/join-link', 'POST', undefined],
+      [() => httpRunsApi.renameParticipant(7, 3, 'Jan'), '/api/runs/7/participants/3', 'PATCH', { name: 'Jan' }],
+      [() => httpRunsApi.removeParticipant(7, 3), '/api/runs/7/participants/3', 'DELETE', undefined],
+    ]
+    for (const [call, url, method, body] of calls) {
+      const fetch = answer(200, {})
+      vi.stubGlobal('fetch', fetch)
+      await call()
+      expect(sent(fetch)).toEqual({ url, method, body })
+    }
+  })
+
   it('enrols and removes classes and students by id', async () => {
     const calls: [() => Promise<unknown>, string, string][] = [
       [() => httpRunsApi.enrolClass(7, 1), '/api/runs/7/classes/1', 'PUT'],

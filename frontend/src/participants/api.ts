@@ -8,6 +8,8 @@ export interface JoinCheck {
   run: string
   course: string
   full: boolean
+  /** The teacher closed joining; those who joined still come back through their personal link. */
+  closed: boolean
 }
 
 /** Someone who joined a link run, without an account. */
@@ -20,7 +22,7 @@ export interface Participant {
   course: { id: number; name: string }
 }
 
-export type JoinRefusal = 'run_full' | 'unknown_link'
+export type JoinRefusal = 'run_full' | 'unknown_link' | 'joining_closed'
 
 export interface ParticipantsApi {
   /** Null for a join link that leads nowhere. */
@@ -42,7 +44,7 @@ const post = (url: string, body: unknown) =>
 async function refusal(response: Response): Promise<JoinRefusal | null> {
   if (response.status !== 404 && response.status !== 409) return null
   const { detail } = (await response.clone().json()) as { detail: unknown }
-  return detail === 'run_full' || detail === 'unknown_link' ? detail : null
+  return detail === 'run_full' || detail === 'unknown_link' || detail === 'joining_closed' ? detail : null
 }
 
 export const httpParticipantsApi: ParticipantsApi = {

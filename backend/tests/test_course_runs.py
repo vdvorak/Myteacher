@@ -83,6 +83,7 @@ def test_the_owner_starts_a_named_run_of_a_course(teacher, course, clock):
         "join_token": None,
         "participant_count": 0,
         "participants": [],
+        "joining_open": True,
     }
     assert teacher.get(f"/api/runs/{body['id']}").json() == body
 

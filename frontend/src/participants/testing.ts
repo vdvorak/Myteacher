@@ -9,6 +9,8 @@ interface FakeLinkRun {
   course: string
   joinToken: string
   capacity: number
+  /** The teacher closed joining. */
+  closed?: boolean
   /** Who joined so far, each with the token of their personal link. */
   participants?: { name: string; token: string }[]
 }
@@ -50,11 +52,18 @@ export function fakeParticipantsApi(options: { runs?: FakeLinkRun[]; attempts?: 
     check: vi.fn(async (joinToken: string): Promise<JoinCheck | null> => {
       const run = runs.find((r) => r.joinToken === joinToken)
       if (!run) return null
-      return { run_id: run.runId, run: run.run, course: run.course, full: run.participants.length >= run.capacity }
+      return {
+        run_id: run.runId,
+        run: run.run,
+        course: run.course,
+        full: run.participants.length >= run.capacity,
+        closed: Boolean(run.closed),
+      }
     }),
     join: vi.fn(async (joinToken: string, name: string) => {
       const run = runs.find((r) => r.joinToken === joinToken)
       if (!run) return 'unknown_link' as const
+      if (run.closed) return 'joining_closed' as const
       if (run.participants.length >= run.capacity) return 'run_full' as const
       const token = `personal-${run.runId}-${run.participants.length + 1}`
       run.participants.push({ name: name.trim(), token })

@@ -65,6 +65,8 @@ export interface CourseRun {
   participant_count: number
   /** Who joined a link run, in the order they joined, with a name typed twice numbered. */
   participants: { id: number; name: string }[]
+  /** Whether a link run takes newcomers; always true for an enrolled run. */
+  joining_open: boolean
 }
 
 export type RunMode = 'enrolled' | 'link'
@@ -273,6 +275,13 @@ export interface RunsApi {
   start(courseId: number, run: NewRun): Promise<CourseRun>
   /** Who joined the link run so far. */
   lobby(id: number): Promise<Lobby>
+  /** Closes joining once everyone is in, or opens it again. */
+  setJoining(id: number, open: boolean): Promise<CourseRun>
+  /** A new join link; the old one stops working for newcomers, personal links keep working. */
+  replaceJoinLink(id: number): Promise<CourseRun>
+  renameParticipant(id: number, participantId: number, name: string): Promise<Lobby['participants'][number]>
+  /** Their personal link stops working; their answers stay with the teacher. */
+  removeParticipant(id: number, participantId: number): Promise<void>
   get(id: number): Promise<CourseRun>
   rename(id: number, name: string): Promise<CourseRun>
   enrolClass(id: number, classId: number): Promise<CourseRun>
@@ -323,6 +332,14 @@ export const httpRunsApi: RunsApi = {
   taught: async () => json(await fetch('/api/runs')),
   start: async (courseId, run) => json(await send('POST', `/api/courses/${courseId}/runs`, run)),
   lobby: async (id) => json(await fetch(`/api/runs/${id}/lobby`)),
+  setJoining: async (id, open) => json(await send('PUT', `/api/runs/${id}/joining`, { open })),
+  replaceJoinLink: async (id) => json(await send('POST', `/api/runs/${id}/join-link`)),
+  renameParticipant: async (id, participantId, name) =>
+    json(await send('PATCH', `/api/runs/${id}/participants/${participantId}`, { name })),
+  removeParticipant: async (id, participantId) => {
+    const response = await send('DELETE', `/api/runs/${id}/participants/${participantId}`)
+    if (!response.ok) throw new ApiError(response.status)
+  },
   get: async (id) => json(await fetch(`/api/runs/${id}`)),
   rename: async (id, name) => json(await send('PATCH', `/api/runs/${id}`, { name })),
   enrolClass: async (id, classId) => json(await send('PUT', classUrl(id, classId))),
