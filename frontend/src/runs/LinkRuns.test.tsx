@@ -44,7 +44,7 @@ const teacher: Account = { ...invitedTeacher, language: null }
 afterEach(() => vi.useRealTimers())
 
 const linkRun = (
-  participants: { id: number; name: string; joined_at: string }[] = [],
+  participants: { id: number; name: string; joined_at: string; devices?: number }[] = [],
   state: { erasedAt?: string; closed?: boolean } = {},
 ) => ({
   id: 7,
@@ -230,6 +230,30 @@ describe('the lobby of a link run', () => {
       'Jan Novák',
     ])
     expect(list.getAllByRole('listitem')[0].querySelector('time')).toHaveAttribute('datetime', '2026-09-25T08:00:00Z')
+  })
+
+  it('says how many devices a participant opened their personal link on, when more than one', async () => {
+    renderApp('/runs/7?tab=participants', {
+      runs: [
+        linkRun([
+          { id: 1, name: 'Eva Malá', joined_at: '2026-09-25T08:00:00Z', devices: 2 },
+          { id: 2, name: 'Jan Novák', joined_at: '2026-09-25T08:03:00Z' },
+        ]),
+      ],
+    })
+
+    const [eva, jan] = within(await screen.findByRole('list', { name: 'Lobby' })).getAllByRole('listitem')
+    expect(within(eva).getByText('2 devices')).toBeInTheDocument()
+    expect(within(jan).queryByText(/device/)).not.toBeInTheDocument()
+  })
+
+  it('says how many devices in Czech', async () => {
+    renderApp('/runs/7?tab=participants', {
+      runs: [linkRun([{ id: 1, name: 'Eva Malá', joined_at: '2026-09-25T08:00:00Z', devices: 3 }])],
+      locale: 'cs',
+    })
+
+    expect(await screen.findByText('3 zařízení')).toBeInTheDocument()
   })
 
   it('says when nobody has joined yet', async () => {

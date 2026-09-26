@@ -21,6 +21,9 @@ router = APIRouter(tags=["link runs"])
 Teacher = Annotated[Account, requires(is_teacher)]
 # The header a participant's requests carry the token of their personal link in.
 PARTICIPANT_HEADER = "X-Participant-Token"
+# The header naming the device a participant's request comes from: an identifier the browser
+# made up, as their work is open on one device at a time.
+DEVICE_HEADER = "X-Participant-Device"
 
 ParticipantName = Annotated[str, AfterValidator(str.strip), Field(min_length=1, max_length=60)]
 
@@ -61,7 +64,7 @@ class RenameIn(BaseModel):
     name: ParticipantName
 
 
-class LobbyParticipant(BaseModel):
+class Named(BaseModel):
     id: int
     name: str
     joined_at: datetime
@@ -71,13 +74,18 @@ class LobbyParticipant(BaseModel):
         return _utc(at)
 
 
+class LobbyParticipant(Named):
+    # How many devices they opened their personal link on; more than one may be a link passed on.
+    devices: int
+
+
 class Lobby(BaseModel):
     capacity: int
     # In the order they joined.
     participants: list[LobbyParticipant]
 
 
-class ParticipantOut(LobbyParticipant):
+class ParticipantOut(Named):
     run_id: int
     run: str
     course: CourseRef
@@ -109,16 +117,31 @@ def _participant_out(db: InstanceSession, participant: Participant) -> Participa
     )
 
 
-def current_participant(
+Device = Annotated[str | None, Header(alias=DEVICE_HEADER, min_length=1, max_length=64)]
+
+
+def participant_by_link(
     db: Db, token: Annotated[str | None, Header(alias=PARTICIPANT_HEADER)] = None
 ) -> Participant:
+    """The participant by their personal link, on whichever device."""
     participant = participants.participant_by_token(db, token) if token else None
     if participant is None:
         raise HTTPException(status_code=401, detail="unknown_participant")
     return participant
 
 
-Me = Annotated[Participant, Depends(current_participant)]
+def current_participant(db: Db, token: str | None, device: str | None) -> Participant:
+    """The participant by their personal link, on the device their work is open on; another
+    device is refused, so what it did not save yet does not overwrite newer work."""
+    participant = participant_by_link(db, token)
+    if not participants.works_on(participant, device):
+        raise HTTPException(status_code=409, detail="other_device")
+    return participant
+
+
+# Who the personal link belongs to, for any device: it tells the device it was opened on
+# before whose work moved away.
+Me = Annotated[Participant, Depends(participant_by_link)]
 
 
 def current_learner(
@@ -126,11 +149,12 @@ def current_learner(
     db: Db,
     now: Now,
     token: Annotated[str | None, Header(alias=PARTICIPANT_HEADER)] = None,
+    device: Device = None,
 ) -> Learner:
     """Whoever works on releases: a participant by the token of their personal link, else the
     signed-in student."""
     if token is not None:
-        return current_participant(db, token)
+        return current_participant(db, token, device)
     actor = current_account(request, db, now)
     ensure(is_student(actor))
     return actor
@@ -157,13 +181,13 @@ def check_join_link(body: JoinTokenIn, db: Db) -> JoinCheck:
 @router.post(
     "/join", status_code=201, responses={409: {"description": "The run is full, or closed"}}
 )
-def join(body: JoinIn, db: Db, now: Now) -> Joined:
+def join(body: JoinIn, db: Db, now: Now, device: Device = None) -> Joined:
     """Join the run's lobby under a name, which need not be unique; the answer carries the
-    personal link's token."""
+    personal link's token, open on the device that joined."""
     run = _run_to_join(db, body.token)
     if not run.joining_open:
         raise HTTPException(status_code=409, detail="joining_closed")
-    joined = participants.join(db, run, body.name, now=now)
+    joined = participants.join(db, run, body.name, now=now, device=device)
     if joined is None:
         raise HTTPException(status_code=409, detail="run_full")
     participant, token = joined
@@ -172,8 +196,23 @@ def join(body: JoinIn, db: Db, now: Now) -> Joined:
 
 @router.get("/participant")
 def read_participant(db: Db, me: Me) -> ParticipantOut:
-    """The participant the personal link belongs to, with their run."""
+    """The participant the personal link belongs to, with their run, on any device; opening
+    the link moves the work to a device."""
     return _participant_out(db, me)
+
+
+@router.post("/participant/open")
+def open_personal_link(
+    db: Db,
+    now: Now,
+    device: Annotated[str, Header(alias=DEVICE_HEADER, min_length=1, max_length=64)],
+    token: Annotated[str | None, Header(alias=PARTICIPANT_HEADER)] = None,
+) -> ParticipantOut:
+    """Open the personal link on this device: the participant's work moves here, and the
+    device it was open on before is refused from its next request."""
+    participant = participant_by_link(db, token)
+    participants.open_on(db, participant, device, now=now)
+    return _participant_out(db, participant)
 
 
 def _link_run(db: InstanceSession, actor: Account, run_id: int) -> CourseRun:
@@ -186,7 +225,8 @@ def _link_run(db: InstanceSession, actor: Account, run_id: int) -> CourseRun:
 
 def _lobby_participant(db: InstanceSession, run: CourseRun, found: Participant) -> LobbyParticipant:
     name = participants.display_names(db, run).get(found.id, found.name)
-    return LobbyParticipant(id=found.id, name=name, joined_at=found.joined_at)
+    devices = participants.device_counts(db, run).get(found.id, 0)
+    return LobbyParticipant(id=found.id, name=name, joined_at=found.joined_at, devices=devices)
 
 
 @router.get("/runs/{run_id}/lobby")
@@ -195,10 +235,13 @@ def read_lobby(run_id: int, db: Db, actor: Teacher) -> Lobby:
     run = _link_run(db, actor, run_id)
     assert run.capacity is not None
     named = participants.display_names(db, run)
+    devices = participants.device_counts(db, run)
     return Lobby(
         capacity=run.capacity,
         participants=[
-            LobbyParticipant(id=p.id, name=named[p.id], joined_at=p.joined_at)
+            LobbyParticipant(
+                id=p.id, name=named[p.id], joined_at=p.joined_at, devices=devices.get(p.id, 0)
+            )
             for p in participants.participants_of(db, run)
         ],
     )

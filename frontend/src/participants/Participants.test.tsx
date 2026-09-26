@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import { fakeApis } from '../api/testing'
 import type { Locale } from '../i18n/messages'
+import { OtherDevice } from '../attempts/api'
 import { fakeAttemptsApi, releaseOf } from '../attempts/testing'
 import { ApiError } from '../lesson/api'
 import { withI18n } from '../lesson/testing'
@@ -136,10 +137,13 @@ describe('the join page', () => {
     await joinAs('Jan Novák')
     await screen.findByText('Hi, Jan Novák')
     document.body.innerHTML = ''
+    participants.open.mockClear()
     const again = renderApp('/join#join-7', { participants })
     const user = userEvent.setup()
 
     expect(await screen.findByText('On this device, you are in this run as Jan Novák.')).toBeInTheDocument()
+    // The join link only asks; the work stays on whichever device it is open on until they continue.
+    expect(participants.open).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Continue as Jan Novák' }))
 
     expect(await screen.findByText('Hi, Jan Novák')).toBeInTheDocument()
@@ -196,10 +200,12 @@ describe('the personal link', () => {
     fakeParticipantsApi({ runs: [{ ...lobbyRun, participants: [{ name: 'Eva Malá', token: 'personal-eva' }] }] })
 
   it('opens the lobby on any device, and is remembered there', async () => {
-    renderApp('/participant#personal-eva', { participants: joined() })
+    const { participants } = renderApp('/participant#personal-eva', { participants: joined() })
 
     expect(await screen.findByText('Hi, Eva Malá')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Wait until your teacher starts.')
+    // Landing here moves the work to this device.
+    expect(participants.open).toHaveBeenCalledWith('personal-eva')
+    expect(await screen.findByRole('status')).toHaveTextContent('Wait until your teacher starts.')
     await waitFor(() => expect(localStorage.getItem('myteacher.participant.7')).toBe('personal-eva'))
   })
 
@@ -218,7 +224,7 @@ describe('the personal link', () => {
   it('says so when the page could not be loaded, and keeps the link', async () => {
     localStorage.setItem('myteacher.participant.7', 'personal-eva')
     const participants = joined()
-    participants.me.mockRejectedValueOnce(new Error('offline'))
+    participants.open.mockRejectedValueOnce(new Error('offline'))
 
     renderApp('/participant#personal-eva', { participants })
 
@@ -231,7 +237,7 @@ describe('the personal link', () => {
     renderApp('/participant#personal-eva', { participants: joined(), locale: 'cs' })
 
     expect(await screen.findByText('Ahoj, Eva Malá')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('Počkej, až učitel začne.')
+    expect(await screen.findByRole('status')).toHaveTextContent('Počkej, až učitel začne.')
     const save = 'Ulož si tenhle odkaz, ať se můžeš vrátit, i z jiného zařízení.'
     expect(screen.getByText(save)).toBeInTheDocument()
   })
@@ -337,6 +343,79 @@ describe('a participant’s work', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'This link does not work. Ask your teacher for a new one.',
     )
+  })
+
+  it('gives way to a notice once the work moved to another device, and moves it back on request', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const attempts = fakeAttemptsApi({ releases: [releaseOf({ id: 1, title: 'Ser, or estar?' })] })
+    const participants = withWork(attempts)
+    renderApp('/participant#personal-eva', { participants })
+    await screen.findByRole('heading', { name: 'Ser, or estar?' })
+
+    attempts.releases.mockRejectedValueOnce(new OtherDevice())
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    const notice = await screen.findByRole('heading', { name: 'Your work continues on another device' })
+    await waitFor(() => expect(notice).toHaveFocus())
+    expect(screen.queryByRole('heading', { name: 'Ser, or estar?' })).not.toBeInTheDocument()
+    // The way back stays.
+    expect(screen.getByRole('button', { name: 'Copy the link' })).toBeInTheDocument()
+    participants.open.mockClear()
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Continue on this device' }))
+
+    expect(participants.open).toHaveBeenCalledWith('personal-eva')
+    expect(await screen.findByRole('heading', { name: 'Ser, or estar?' })).toBeInTheDocument()
+    expect(screen.queryByText('Your work continues on another device')).not.toBeInTheDocument()
+  })
+
+  it('keeps the notice and says so when the work could not be moved back', async () => {
+    const attempts = fakeAttemptsApi()
+    attempts.releases.mockRejectedValue(new OtherDevice())
+    const participants = withWork(attempts)
+    renderApp('/participant#personal-eva', { participants })
+    await screen.findByRole('heading', { name: 'Your work continues on another device' })
+    participants.open.mockRejectedValueOnce(new Error('offline'))
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Continue on this device' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Your page could not be loaded. Try again.')
+    expect(screen.getByRole('heading', { name: 'Your work continues on another device' })).toBeInTheDocument()
+  })
+
+  it('shows the notice when a piece of work opened here moved away', async () => {
+    const attempts = fakeAttemptsApi()
+    attempts.release.mockRejectedValue(new OtherDevice())
+    renderApp('/participant/work/1#personal-eva', { participants: withWork(attempts) })
+
+    expect(await screen.findByRole('heading', { name: 'Your work continues on another device' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to your work' })).toBeInTheDocument()
+  })
+
+  it('stops a piece of work whose draft was refused, so nothing more typed here is sent', async () => {
+    const attempts = fakeAttemptsApi({ releases: [releaseOf({ id: 1, title: 'Ser, or estar?' })] })
+    const { history } = renderApp('/participant#personal-eva', { participants: withWork(attempts) })
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('link', { name: 'Start' }))
+    await user.click(await screen.findByRole('button', { name: 'Start' }))
+    const choice = await screen.findByRole('radio', { name: 'está' })
+    attempts.saveDraft.mockRejectedValue(new OtherDevice())
+
+    await user.click(choice)
+
+    expect(await screen.findByRole('heading', { name: 'Your work continues on another device' })).toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'está' })).not.toBeInTheDocument()
+    expect(attempts.tryAnswer).not.toHaveBeenCalled()
+    expect(history.get()).toBe('/participant/work/1#personal-eva')
+  })
+
+  it('tells the student in Czech with ty that the work moved', async () => {
+    const attempts = fakeAttemptsApi()
+    attempts.releases.mockRejectedValue(new OtherDevice())
+    renderApp('/participant#personal-eva', { participants: withWork(attempts), locale: 'cs' })
+
+    expect(await screen.findByRole('heading', { name: 'Tvoje práce pokračuje na jiném zařízení' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pokračovat na tomhle zařízení' })).toBeInTheDocument()
   })
 
   it('opens a piece of work behind the personal link, and starts it', async () => {

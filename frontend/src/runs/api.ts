@@ -86,7 +86,13 @@ export interface NewRun {
 export interface Lobby {
   capacity: number
   /** In the order they joined. */
-  participants: { id: number; name: string; joined_at: string }[]
+  participants: {
+    id: number
+    name: string
+    joined_at: string
+    /** How many devices they opened their personal link on; more than one may be a link passed on. */
+    devices: number
+  }[]
 }
 
 /** Where the join link of a link run leads; the token is in the fragment, which the browser never sends. */

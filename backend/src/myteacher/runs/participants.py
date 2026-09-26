@@ -5,6 +5,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, func, insert, literal, select, update
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from myteacher.accounts.models import Account
 from myteacher.accounts.service import token_hash
@@ -18,6 +19,7 @@ from myteacher.runs.models import (
     CourseRun,
     MaterialRelease,
     Participant,
+    ParticipantDevice,
 )
 
 DEFAULT_CAPACITY = 30
@@ -83,11 +85,11 @@ def remove(participant: Participant, *, now: datetime) -> None:
 
 
 def join(
-    db: InstanceSession, run: CourseRun, name: str, *, now: datetime
+    db: InstanceSession, run: CourseRun, name: str, *, now: datetime, device: str | None = None
 ) -> tuple[Participant, str] | None:
-    """A new participant of the run with the token of their personal link, or None when the run
-    is full. The count and the insert are one statement, so two people joining at once never
-    take the last place both."""
+    """A new participant of the run with the token of their personal link, open on the device
+    they joined on, or None when the run is full. The count and the insert are one statement,
+    so two people joining at once never take the last place both."""
     assert run.capacity is not None, "only a link run takes participants"
     token = secrets.token_urlsafe(32)
     taken = select(func.count()).where(*_in_run(run)).scalar_subquery()
@@ -104,7 +106,50 @@ def join(
         return None
     participant = participant_by_token(db, token)
     assert participant is not None
+    if device is not None:
+        open_on(db, participant, device, now=now)
     return participant, token
+
+
+# More devices than this are not counted further, so a link opened over and over with made-up
+# devices keeps no more rows; the teacher sees enough to ask.
+MAX_DEVICES = 20
+
+
+def open_on(db: InstanceSession, participant: Participant, device: str, *, now: datetime) -> None:
+    """Move the participant's work to the device: from now on only it works on it (ADR 0012).
+    The device is counted once, however often the work moves back to it."""
+    participant.device = device
+    counted = (
+        select(func.count())
+        .where(ParticipantDevice.participant_id == participant.id)
+        .scalar_subquery()
+    )
+    row = select(
+        literal(db.instance_id),
+        literal(participant.id),
+        literal(device),
+        literal(now, ParticipantDevice.first_opened_at.type),
+    ).where(counted < MAX_DEVICES)
+    columns = ["instance_id", "participant_id", "device", "first_opened_at"]
+    db.execute(sqlite_insert(ParticipantDevice).from_select(columns, row).on_conflict_do_nothing())
+
+
+def works_on(participant: Participant, device: str | None) -> bool:
+    """Whether the device may work on the participant's work: the one it was last opened on, or
+    any while it was opened on none."""
+    return participant.device is None or participant.device == device
+
+
+def device_counts(db: InstanceSession, run: CourseRun) -> dict[int, int]:
+    """How many devices each participant of the run opened their personal link on."""
+    rows = db.execute(
+        select(ParticipantDevice.participant_id, func.count())
+        .join(Participant, Participant.id == ParticipantDevice.participant_id)
+        .where(Participant.run_id == run.id)
+        .group_by(ParticipantDevice.participant_id)
+    )
+    return {participant_id: count for participant_id, count in rows}
 
 
 def display_names(db: InstanceSession, run: CourseRun) -> dict[int, str]:
@@ -149,7 +194,10 @@ def erase(db: InstanceSession, run: CourseRun, *, now: datetime) -> None:
         participant.name = anonymous.format(number=number)
         # A hash no token has: the personal link leads nowhere.
         participant.token_hash = f"erased-{participant.id}"
+        participant.device = None
     ids = [participant.id for participant in everyone]
+    # One browser names itself alike in every run; its traces would tie anonymous rows together.
+    db.execute(delete(ParticipantDevice).where(ParticipantDevice.participant_id.in_(ids)))
     attempts = select(Attempt.id).where(Attempt.participant_id.in_(ids))
     db.execute(delete(AttemptDraft).where(AttemptDraft.attempt_id.in_(attempts)))
     for row in db.scalars(select(Assessment).where(Assessment.attempt_id.in_(attempts))):

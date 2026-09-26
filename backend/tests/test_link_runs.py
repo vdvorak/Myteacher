@@ -211,11 +211,13 @@ def test_the_run_teacher_sees_who_joined_in_order(teacher, clock, run):
                 "id": body["participants"][0]["id"],
                 "name": "Eva",
                 "joined_at": "2026-09-24T08:00:00Z",
+                "devices": 0,
             },
             {
                 "id": body["participants"][1]["id"],
                 "name": "Adam",
                 "joined_at": "2026-09-24T08:02:00Z",
+                "devices": 0,
             },
         ],
     }

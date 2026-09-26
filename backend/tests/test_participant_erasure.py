@@ -12,6 +12,7 @@ from myteacher.app import create_app
 from myteacher.assistant.generations import GenerationRecord
 from myteacher.persistence import open_session
 from myteacher.runs import participants
+from myteacher.runs.models import Participant
 from tests.helpers import as_student, back_to_teacher, create_engine_for
 from tests.test_course_access import COLLEAGUE, as_teacher, grant, invite_teachers
 from tests.test_link_runs import check, me, start_link_run
@@ -139,6 +140,18 @@ def test_a_run_that_released_nothing_goes_ninety_days_after_it_started(
 
     lobby = teacher.get(f"/api/runs/{run.id}/lobby").json()["participants"]
     assert [p["name"] for p in lobby] == ["Účastník 1", "Účastník 2", "Účastník 3"]
+
+
+def test_the_devices_they_used_are_forgotten(teacher, run, settings):
+    headers = {"X-Participant-Token": run.eva, "X-Participant-Device": "phone-5f1c"}
+    assert teacher.post("/api/participant/open", headers=headers).status_code == 200
+
+    erase_now(teacher, run.id)
+
+    lobby = teacher.get(f"/api/runs/{run.id}/lobby").json()["participants"]
+    assert [p["devices"] for p in lobby] == [0, 0, 0]
+    with open_session(create_engine_for(settings)) as db:
+        assert list(db.scalars(select(Participant.device))) == [None, None, None]
 
 
 def test_the_app_sweeps_when_it_starts(teacher, run, clock, admin_settings, sender, models):

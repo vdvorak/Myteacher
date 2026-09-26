@@ -114,11 +114,19 @@ export interface AttemptsApi {
   secondRound(attemptId: number): Promise<ServedRound>
 }
 
+/** A participant's work moved to another device, where their personal link was opened since. */
+export class OtherDevice extends Error {
+  constructor() {
+    super('other_device')
+  }
+}
+
 async function checked(response: Response): Promise<Response> {
   if (!response.ok) {
     if (response.status === 409) {
       const { detail } = (await response.clone().json()) as { detail: unknown }
       if (detail === 'no_more_attempts' || detail === 'past_due') throw new AttemptRefused(detail)
+      if (detail === 'other_device') throw new OtherDevice()
     }
     throw new ApiError(response.status)
   }

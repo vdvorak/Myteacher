@@ -49,6 +49,22 @@ class Participant(InstanceOwned, Base):
     # Set once the teacher removed them: their personal link stops working, and their answers
     # stay with the teacher, as a student's who left the run.
     removed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+    # The device the personal link was last opened on, which alone may work on it; None until
+    # it is opened on one.
+    device: Mapped[str | None] = mapped_column(String(64))
+
+
+class ParticipantDevice(InstanceOwned, Base):
+    """A device a participant opened their personal link on, so the teacher sees a link passed
+    on to someone else. The device is named by an identifier the browser made up."""
+
+    __tablename__ = "participant_device"
+
+    participant_id: Mapped[int] = mapped_column(
+        ForeignKey("participant.id", ondelete="CASCADE"), primary_key=True
+    )
+    device: Mapped[str] = mapped_column(String(64), primary_key=True)
+    first_opened_at: Mapped[datetime] = mapped_column(UTCDateTime)
 
 
 class RunClass(InstanceOwned, Base):

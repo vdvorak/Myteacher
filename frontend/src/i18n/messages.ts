@@ -906,6 +906,7 @@ const en = {
   'lobby.removeNote':
     'Their personal link stops working and their answers stay here. The join link still takes anyone: close joining or replace the link to stop that.',
   'lobby.removed': '{name} was removed.',
+  'lobby.devices': '{count} devices',
   'lobby.actionFailed': 'The change could not be made. Try again.',
   'participantData.heading': 'Participants’ names and answers',
   'participantData.kept':
@@ -941,6 +942,10 @@ const en = {
   'participant.save': 'Save this link to come back, even from another device.',
   'participant.link': 'Your personal link',
   'participant.back': 'Back to your work',
+  'participant.otherDevice': 'Your work continues on another device',
+  'participant.otherDeviceNote':
+    'Your personal link was opened on another device, so your work moved there. What you typed here since was not saved.',
+  'participant.continueHere': 'Continue on this device',
   'runReleases.released': 'Released',
   'runReleases.submitted': 'Submitted',
   'runReleases.toAssess': 'Waiting for assessment',
@@ -1919,6 +1924,7 @@ const cs: Record<MessageKey, string> = {
   'lobby.removeNote':
     'Osobní odkaz přestane fungovat a odpovědi tu zůstanou. Odkaz pro připojení ale dál přijme kohokoli: zabráníte tomu uzavřením připojování nebo výměnou odkazu.',
   'lobby.removed': 'Odebráno: {name}.',
+  'lobby.devices': '{count} zařízení',
   'lobby.actionFailed': 'Změnu se nepodařilo provést. Zkuste to znovu.',
   'participantData.heading': 'Jména a odpovědi účastníků',
   'participantData.kept':
@@ -1954,6 +1960,10 @@ const cs: Record<MessageKey, string> = {
   'participant.save': 'Ulož si tenhle odkaz, ať se můžeš vrátit, i z jiného zařízení.',
   'participant.link': 'Tvůj osobní odkaz',
   'participant.back': 'Zpět k tvé práci',
+  'participant.otherDevice': 'Tvoje práce pokračuje na jiném zařízení',
+  'participant.otherDeviceNote':
+    'Tvůj osobní odkaz se otevřel na jiném zařízení, a tak se tvoje práce přesunula tam. Co tu mezitím přibylo, se neuložilo.',
+  'participant.continueHere': 'Pokračovat na tomhle zařízení',
   'runReleases.released': 'Vydáno',
   'runReleases.submitted': 'Odevzdáno',
   'runReleases.toAssess': 'Čeká na hodnocení',

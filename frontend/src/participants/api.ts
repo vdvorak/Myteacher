@@ -1,5 +1,6 @@
 import { httpAttemptsApiWith, type AttemptsApi } from '../attempts/api'
 import { ApiError } from '../lesson/api'
+import { thisDevice } from './device'
 
 /** Where a join link leads, before anyone types a name. */
 export interface JoinCheck {
@@ -29,17 +30,37 @@ export interface ParticipantsApi {
   check(joinToken: string): Promise<JoinCheck | null>
   /** Joins the lobby under a name; the token is the personal link's, never shown again. */
   join(joinToken: string, name: string): Promise<{ token: string; participant: Participant } | JoinRefusal>
-  /** The participant the personal link belongs to; null for a link that does not work. */
+  /** The participant the personal link belongs to, whichever device their work is open on; null for a link that
+   * does not work. */
   me(token: string): Promise<Participant | null>
-  /** The participant's releases and attempts, reached through their personal link. */
+  /** Opens the personal link on this device: the participant's work moves here, and the device it was open on
+   * before hears so at its next request. Null for a link that does not work. */
+  open(token: string): Promise<Participant | null>
+  /** The participant's releases and attempts, reached through their personal link on this device; a request the
+   * work moved away from rejects with `OtherDevice`. */
   attempts(token: string): AttemptsApi
 }
 
 /** Where a participant's personal link leads; the token is in the fragment, which the browser never sends. */
 export const personalUrl = (token: string) => `${window.location.origin}/participant#${token}`
 
+const onThisDevice = (token?: string) => ({
+  ...(token === undefined ? {} : { 'X-Participant-Token': token }),
+  'X-Participant-Device': thisDevice(),
+})
+
 const post = (url: string, body: unknown) =>
-  fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  fetch(url, {
+    method: 'POST',
+    headers: { ...onThisDevice(), 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+async function participant(response: Response): Promise<Participant | null> {
+  if (response.status === 401) return null
+  if (!response.ok) throw new ApiError(response.status)
+  return (await response.json()) as Participant
+}
 
 async function refusal(response: Response): Promise<JoinRefusal | null> {
   if (response.status !== 404 && response.status !== 409) return null
@@ -61,11 +82,8 @@ export const httpParticipantsApi: ParticipantsApi = {
     if (!response.ok) throw new ApiError(response.status)
     return (await response.json()) as { token: string; participant: Participant }
   },
-  attempts: (token) => httpAttemptsApiWith({ 'X-Participant-Token': token }),
-  me: async (token) => {
-    const response = await fetch('/api/participant', { headers: { 'X-Participant-Token': token } })
-    if (response.status === 401) return null
-    if (!response.ok) throw new ApiError(response.status)
-    return (await response.json()) as Participant
-  },
+  attempts: (token) => httpAttemptsApiWith(onThisDevice(token)),
+  me: async (token) => participant(await fetch('/api/participant', { headers: { 'X-Participant-Token': token } })),
+  open: async (token) =>
+    participant(await fetch('/api/participant/open', { method: 'POST', headers: onThisDevice(token) })),
 }

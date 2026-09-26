@@ -149,6 +149,10 @@ export function RunLobby(props: {
                       <time class="settings-note" datetime={participant.joined_at}>
                         {time(participant.joined_at)}
                       </time>
+                      {/* A personal link opened on more than one device may have been passed on. */}
+                      <Show when={participant.devices > 1}>
+                        <span class="settings-note">{t('lobby.devices', { count: participant.devices })}</span>
+                      </Show>
                       <button
                         type="button"
                         class="link-button"

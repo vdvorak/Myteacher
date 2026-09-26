@@ -30,7 +30,8 @@ interface StoredRun {
   link?: {
     capacity: number
     joinToken: string
-    participants: Lobby['participants']
+    /** One device each, unless told otherwise. */
+    participants: (Omit<Lobby['participants'][number], 'devices'> & { devices?: number })[]
     closed?: boolean
     erasedAt?: string
   }
@@ -203,7 +204,7 @@ export function fakeRunsApi(
       const found = linked(id).link!.participants.find((p) => p.id === participantId)
       if (!found) throw new ApiError(404)
       found.name = name.trim()
-      return { ...found }
+      return { devices: 1, ...found }
     }),
     eraseParticipants: vi.fn(async (id: number) => {
       const stored = linked(id)
@@ -221,7 +222,8 @@ export function fakeRunsApi(
     lobby: vi.fn(async (id: number): Promise<Lobby> => {
       const link = find(id).link
       if (!link) throw new ApiError(404)
-      return structuredClone({ capacity: link.capacity, participants: link.participants })
+      const participants = link.participants.map((p) => ({ devices: 1, ...p }))
+      return structuredClone({ capacity: link.capacity, participants })
     }),
     get: vi.fn(async (id: number) => resolve(find(id))),
     rename: vi.fn(async (id: number, name: string) => store({ ...find(id), name: name.trim() })),

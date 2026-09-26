@@ -71,8 +71,10 @@ def my_release(client, token, release_id):
     return client.get(f"/api/my/releases/{release_id}", headers=as_participant(token))
 
 
-def started(client, token, release_id) -> dict:
-    response = client.post(f"/api/my/releases/{release_id}/attempts", headers=as_participant(token))
+def started(client, token, release_id, headers=None) -> dict:
+    response = client.post(
+        f"/api/my/releases/{release_id}/attempts", headers=headers or as_participant(token)
+    )
     assert response.status_code in (200, 201), response.json()
     return response.json()
 

@@ -70,6 +70,7 @@ export function fakeParticipantsApi(options: { runs?: FakeLinkRun[]; attempts?: 
       return { token, participant: find(token)! }
     }),
     me: vi.fn(async (token: string) => find(token)),
+    open: vi.fn(async (token: string) => find(token)),
     // The personal link decides whose work it is; the fake has one participant's.
     attempts: vi.fn((_token: string) => attempts),
   } satisfies ParticipantsApi
