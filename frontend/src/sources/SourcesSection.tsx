@@ -6,7 +6,14 @@ import { useI18n } from '../i18n/i18n'
 import type { MessageKey } from '../i18n/messages'
 import { finished } from '../jobs/api'
 import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
-import { SourceRefused, type Source, type SourceKind, type SourceRefusal, type SourceStarted } from './api'
+import {
+  SourceRefused,
+  sourceFileTypes,
+  type Source,
+  type SourceKind,
+  type SourceRefusal,
+  type SourceStarted,
+} from './api'
 import './sources.css'
 
 const kindNames: Record<SourceKind, MessageKey> = {
@@ -16,7 +23,8 @@ const kindNames: Record<SourceKind, MessageKey> = {
   url: 'sources.kind.url',
 }
 
-const refusals: Record<SourceRefusal, MessageKey> = {
+/** Why adding or reading a source was refused, in plain words. */
+export const sourceRefusals: Record<SourceRefusal, MessageKey> = {
   unsupported_type: 'sources.unsupportedType',
   too_large: 'sources.tooLarge',
   empty_file: 'sources.emptyFile',
@@ -28,7 +36,7 @@ const refusals: Record<SourceRefusal, MessageKey> = {
 type Problem = SourceRefusal | 'failed' | 'badUrl' | null
 
 const problemMessage = (problem: Exclude<Problem, null>): MessageKey =>
-  problem === 'failed' ? 'courses.saveFailed' : problem === 'badUrl' ? 'sources.badUrl' : refusals[problem]
+  problem === 'failed' ? 'courses.saveFailed' : problem === 'badUrl' ? 'sources.badUrl' : sourceRefusals[problem]
 
 // What the backend takes as a web page's address.
 const webAddress = /^https?:\/\/[^\s/?#]+/i
@@ -276,6 +284,10 @@ function SourceItem(props: {
           })}
         </p>
       </Show>
+      {/* Stored for a transcription, which reads it first. */}
+      <Show when={props.source.job === null && props.source.characters === null && !isPage()}>
+        <p>{t('sources.notRead')}</p>
+      </Show>
       <div class="settings-actions">
         <Show when={props.source.characters !== null}>
           <button type="button" disabled={busy()} onClick={() => void toggleText()}>
@@ -399,7 +411,7 @@ function UploadForm(props: { upload: (file: File, ocr: boolean) => Promise<boole
         <input
           ref={input}
           type="file"
-          accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp,application/pdf,text/plain,text/markdown,image/png,image/jpeg,image/webp"
+          accept={sourceFileTypes}
           onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)}
         />
       </label>

@@ -36,8 +36,10 @@ class JobOut(BaseModel):
     result: dict[str, Any] | None
     # Why it failed: a provider problem, "invalid_output", "too_long" (the answer was cut off at
     # the output limit), "no_key", "interrupted", "other", or
-    # for an extraction "no_text" or "unreadable_file", and for a web page also "unreachable",
-    # "page_error", "not_a_page", "too_large" or "blocked_address".
+    # for an extraction "no_text", "nothing_read" (OCR found no text) or "unreadable_file", and
+    # for a web page also "unreachable", "page_error", "not_a_page", "too_large" or
+    # "blocked_address"; for a transcription also its sources' reading's reason, or "superseded"
+    # when a source was removed or read again while it was read.
     error_kind: str | None
     # The model's answer when it did not validate.
     raw_output: str | None

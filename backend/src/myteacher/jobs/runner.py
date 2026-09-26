@@ -8,6 +8,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import anyio
@@ -105,6 +106,32 @@ async def run_together(ctx: JobContext, jobs: list[tuple[int, Work]]) -> None:
     async with anyio.create_task_group() as group:
         for job_id, work in jobs:
             group.start_soon(run, ctx, job_id, work)
+
+
+async def run_after(
+    ctx: JobContext, first: list[tuple[int, Work]], job_id: int, work: Work, *, first_progress: str
+) -> None:
+    """Run the jobs of `first` side by side, then the job that needs their results. When one of
+    them failed, the job fails for the same reason without running; when one was superseded and
+    so did not do its work, as "superseded". Never raises."""
+    async with anyio.create_task_group() as group:
+        for first_id, first_work in first:
+            group.start_soon(partial(run, ctx, first_id, first_work, progress=first_progress))
+    with open_session(ctx.engine, ctx.instance_id) as db:
+        done = [j for j in (get_job(db, first_id) for first_id, _ in first) if j is not None]
+        failed = next((j.error_kind for j in done if j.state == "failed"), None)
+        if failed is None and any((j.result or {}).get("superseded") for j in done):
+            failed = "superseded"
+        job = get_job(db, job_id)
+        if failed is not None and job is not None:
+            job.state = "failed"
+            job.error_kind = failed
+            job.progress = None
+            job.finished_at = ctx.assistant.clock()
+            db.commit()
+        if failed is not None:
+            return
+    await run(ctx, job_id, work)
 
 
 def fail_interrupted(db: InstanceSession, now: datetime) -> None:

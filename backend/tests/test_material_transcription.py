@@ -1,12 +1,17 @@
 """Classroom material transcribed faithfully from a teacher's source, such as a scanned test."""
 
 # ruff: noqa: F811
+import asyncio
 import json
 
 import pytest
 
+from myteacher.accounts.service import find_account_by_email
 from myteacher.assistant import prompts
-from tests.helpers import back_to_teacher, sign_in
+from myteacher.jobs.models import Job
+from myteacher.jobs.runner import create_job, run_after
+from myteacher.persistence import open_session
+from tests.helpers import TEACHER, back_to_teacher, create_engine_for, sign_in
 from tests.test_attempts import MATERIAL as EVERY_TYPE
 from tests.test_attempts import (  # noqa: F401 - `course` is a fixture
     RIGHT,
@@ -24,17 +29,18 @@ from tests.test_classroom_materials import (
     materials_url,
     regenerate,
 )
-from tests.test_course_access import COLLEAGUE, as_teacher, grant, invite_teachers
+from tests.test_course_access import COLLEAGUE, NOW, as_teacher, grant, invite_teachers
 from tests.test_courses import create_course
 from tests.test_interview import KEY, add_key, generations, job
 from tests.test_reference_documents import approve_map
 from tests.test_releases import edit
 from tests.test_results import EXERCISES, results
-from tests.test_sources import PNG, upload
+from tests.test_sources import PNG, pdf_with_text, sources_url, upload
 from tests.test_topics import add
 
 TEST = "Test 3\n1. Ayer yo ___ con Ana. a) hablé b) hablo\n2. Nakresli časovou osu.\n"
 KEY_SHEET = "Klíč: 1a\n"
+TEST_FILE = TEST.encode()
 TIMELINE = {
     "type": "paper_only",
     "id": "timeline",
@@ -134,15 +140,20 @@ def test_proposed_answers_must_name_exercises_of_the_material(teacher, topic, mo
     assert detail(teacher, topic, started.json()["material"]["id"])["proposed_answers"] == []
 
 
-def test_only_a_read_source_of_the_same_course_is_transcribed(teacher, topic, models):
+def test_only_a_source_of_the_same_course_not_being_read_is_transcribed(
+    teacher, topic, models, admin_settings
+):
     other = source(teacher, create_course(teacher).json()["id"])
-    unread = upload(teacher, topic[0], PNG, "board.png", "image/png").json()["source"]["id"]
+    reading = upload(teacher, topic[0], PNG, "board.png", "image/png").json()
+    with open_session(create_engine_for(admin_settings)) as db:
+        db.get_one(Job, reading["job"]["id"]).state = "running"
+        db.commit()
     test = source(teacher, topic[0])
 
     refused = [
         transcribe(teacher, topic, source_id=other),
         transcribe(teacher, topic, source_id=test, key_source_id=other),
-        transcribe(teacher, topic, source_id=unread),
+        transcribe(teacher, topic, source_id=reading["source"]["id"]),
     ]
 
     assert [(r.status_code, r.json()["detail"]) for r in refused] == [
@@ -315,3 +326,154 @@ def test_a_transcribed_material_stays_transcribed_when_its_sources_are_removed(
     sent = json.loads(models.requests[-1]["prompt"])
     assert "source" not in sent
     assert sent["previous"]["title"] == "Test 3"
+
+
+# A file uploaded in the form, read as the first step of its transcription
+
+
+def store(client, course_id, content=TEST_FILE, name="Test 3.txt", media_type="text/plain"):
+    """Upload a file as a source left unread, for its transcription to read."""
+    return client.post(
+        sources_url(course_id),
+        params={"name": name, "read": "false"},
+        content=content,
+        headers={"Content-Type": media_type},
+    )
+
+
+def test_a_file_is_stored_unread_for_its_transcription_to_read(teacher, topic, models):
+    stored = store(teacher, topic[0], PNG, "Test 3.png", "image/png")
+
+    assert stored.status_code == 201, stored.json()
+    body = stored.json()
+    assert body["job"] is None
+    assert (body["source"]["name"], body["source"]["characters"]) == ("Test 3.png", None)
+    assert body["source"]["job"] is None
+    assert [s["id"] for s in teacher.get(sources_url(topic[0])).json()] == [body["source"]["id"]]
+    assert models.calls == []
+
+
+def test_a_file_is_not_stored_for_transcription_without_a_provider_key(teacher):
+    cid = create_course(teacher).json()["id"]
+
+    refused = store(teacher, cid)
+
+    assert (refused.status_code, refused.json()) == (409, {"detail": "no_provider_key"})
+    assert teacher.get(sources_url(cid)).json() == []
+
+
+def test_an_unread_source_is_read_then_transcribed(teacher, topic, models):
+    test = store(teacher, topic[0]).json()["source"]["id"]
+    models.script(TRANSCRIBED)
+
+    started = transcribe(teacher, topic, source_id=test)
+
+    assert started.status_code == 202, started.json()
+    # The material says it waits for its source to be read.
+    assert started.json()["job"]["progress"] == "extracting"
+    assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
+    read = teacher.get(f"{sources_url(topic[0])}/{test}").json()
+    assert (read["text"], read["extracted_with"]) == (TEST, "file")
+    assert (read["job"]["kind"], read["job"]["state"]) == ("source_extraction", "succeeded")
+    sent = json.loads(models.requests[-1]["prompt"])
+    assert sent["source"] == {"id": test, "name": "Test 3.txt", "text": TEST}
+    assert detail(teacher, topic, started.json()["material"]["id"])["title"] == "Test 3"
+
+
+def test_a_scan_is_read_by_ocr_and_a_key_from_its_text_layer_before_transcribing(
+    teacher, topic, models
+):
+    scan = store(teacher, topic[0], PNG, "Test 3.png", "image/png").json()["source"]["id"]
+    key_line = "Klic spravnych odpovedi: 1a, 2b, 3c, 4a, 5b, 6c"
+    key_pdf = pdf_with_text(key_line)
+    sheet = store(teacher, topic[0], key_pdf, "Klic.pdf", "application/pdf").json()["source"]["id"]
+    models.script({"text": TEST}, TRANSCRIBED)
+
+    started = transcribe(teacher, topic, source_id=scan, key_source_id=sheet)
+
+    assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
+    ocr, transcription = models.requests
+    assert ocr["attachments"] == ["image/png"]
+    sent = json.loads(transcription["prompt"])
+    assert (sent["source"]["text"], sent["answer_key"]["text"]) == (TEST, key_line)
+    read = {s["id"]: s["extracted_with"] for s in teacher.get(sources_url(topic[0])).json()}
+    assert read == {scan: "ocr", sheet: "file"}
+
+
+def test_a_failed_reading_fails_the_transcription_and_a_retry_reads_again(teacher, topic, models):
+    scan = store(teacher, topic[0], PNG, "Test 3.png", "image/png").json()["source"]["id"]
+    models.script({"text": "   "})
+
+    started = transcribe(teacher, topic, source_id=scan).json()
+
+    failed = job(teacher, started["job"]["id"])
+    assert (failed["state"], failed["error_kind"]) == ("failed", "nothing_read")
+    assert len(models.requests) == 1
+    models.script({"text": TEST}, TRANSCRIBED)
+    retried = teacher.post(f"{materials_url(*topic)}/{started['material']['id']}/retry")
+    assert retried.status_code == 202, retried.json()
+    assert job(teacher, retried.json()["job"]["id"])["state"] == "succeeded"
+    assert detail(teacher, topic, started["material"]["id"])["title"] == "Test 3"
+
+
+def test_a_source_whose_reading_failed_is_read_by_ocr_to_be_transcribed(teacher, topic, models):
+    board = upload(teacher, topic[0], PNG, "board.png", "image/png").json()["source"]["id"]
+    models.script({"text": TEST}, TRANSCRIBED)
+
+    started = transcribe(teacher, topic, source_id=board)
+
+    assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
+    assert json.loads(models.requests[-1]["prompt"])["source"]["text"] == TEST
+
+
+@pytest.mark.parametrize("layer", [(), ("12",)], ids=["no text layer", "a page number only"])
+def test_a_scanned_pdf_is_read_by_ocr_before_transcribing(teacher, topic, models, layer):
+    scan = store(teacher, topic[0], pdf_with_text(*layer), "Test 3.pdf", "application/pdf")
+    models.script({"text": TEST}, TRANSCRIBED)
+
+    started = transcribe(teacher, topic, source_id=scan.json()["source"]["id"])
+
+    assert job(teacher, started.json()["job"]["id"])["state"] == "succeeded"
+    assert models.requests[0]["attachments"] == ["application/pdf"]
+    assert json.loads(models.requests[1]["prompt"])["source"]["text"] == TEST
+
+
+def test_a_transcription_fails_when_its_source_changed_while_being_read(teacher, admin_settings):
+    """A source removed, or read again, meanwhile: its reading did not do its work."""
+    with open_session(create_engine_for(admin_settings)) as db:
+        starter = find_account_by_email(db, TEACHER)
+        reading, waiting = (
+            create_job(db, kind, starter=starter, course_id=None, now=NOW).id
+            for kind in ("source_extraction", "classroom_material_transcription")
+        )
+        db.commit()
+
+    async def superseded(db, job, ctx):
+        return {"superseded": True}
+
+    async def transcription(db, job, ctx):
+        raise AssertionError("transcribed without its source")
+
+    work = [(reading, superseded)]
+    asyncio.run(
+        run_after(teacher.app.state.jobs, work, waiting, transcription, first_progress="extracting")
+    )
+
+    failed = job(teacher, waiting)
+    assert (failed["state"], failed["error_kind"]) == ("failed", "superseded")
+
+
+@pytest.mark.parametrize(
+    ("content", "media_type", "refusal"),
+    [
+        (b"", "text/plain", (422, "empty_file")),
+        (b"<svg/>", "image/svg+xml", (415, "unsupported_type")),
+    ],
+)
+def test_a_file_for_transcription_is_refused_as_any_upload(
+    teacher, topic, content, media_type, refusal
+):
+    refused = store(teacher, topic[0], content, "test.svg", media_type)
+
+    assert (refused.status_code, refused.json()["detail"]) == refusal
+    assert teacher.get(sources_url(topic[0])).json() == []

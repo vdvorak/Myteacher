@@ -86,6 +86,31 @@ export function fakeSourcesApi(
     return { source: summary(source), job }
   }
 
+  // A file added as a source, refused as the endpoint refuses it; `paid` when the assistant may read it.
+  const added = (courseId: number, file: File, paid: boolean): SourceDetail => {
+    if (file.size === 0) throw new SourceRefused('empty_file')
+    if (paid && options.hasKey === false) throw new SourceRefused('no_provider_key')
+    const kind = kinds[file.type]
+    if (!kind) throw new SourceRefused('unsupported_type')
+    const source: SourceDetail = {
+      id: nextId++,
+      name: file.name,
+      kind,
+      media_type: file.type,
+      size: file.size,
+      visible_to_students: false,
+      created_at: '2026-09-24T08:00:00Z',
+      extracted_with: null,
+      url: null,
+      fetched_at: null,
+      characters: null,
+      job: null,
+      text: null,
+    }
+    listOf(courseId).push(source)
+    return source
+  }
+
   // A web page is fetched by its own job: its snapshot, or why there is none.
   const snapshot = (source: SourceDetail, named: boolean) => {
     const job = jobs.start(
@@ -120,27 +145,12 @@ export function fakeSourcesApi(
     list: vi.fn(async (courseId: number) => listOf(courseId).map(summary)),
     get: vi.fn(async (courseId: number, sourceId: number) => structuredClone(find(courseId, sourceId))),
     upload: vi.fn(async (courseId: number, file: File, ocr: boolean) => {
-      const kind = kinds[file.type]
-      if (!kind) throw new SourceRefused('unsupported_type')
-      if (file.size === 0) throw new SourceRefused('empty_file')
-      if (ocr && options.hasKey === false) throw new SourceRefused('no_provider_key')
-      const source: SourceDetail = {
-        id: nextId++,
-        name: file.name,
-        kind,
-        media_type: file.type,
-        size: file.size,
-        visible_to_students: false,
-        created_at: '2026-09-24T08:00:00Z',
-        extracted_with: null,
-        url: null,
-        fetched_at: null,
-        characters: null,
-        job: null,
-        text: null,
-      }
-      listOf(courseId).push(source)
-      return extract(source, ocr, kind === 'text' ? await file.text() : null)
+      const source = added(courseId, file, ocr)
+      return extract(source, ocr, source.kind === 'text' ? await file.text() : null)
+    }),
+    store: vi.fn(async (courseId: number, file: File) => {
+      const source = added(courseId, file, true)
+      return { source: summary(source), job: null }
     }),
     change: vi.fn(async (courseId: number, sourceId: number, change) => {
       const source = find(courseId, sourceId)

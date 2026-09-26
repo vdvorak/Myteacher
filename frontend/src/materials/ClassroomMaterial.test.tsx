@@ -32,13 +32,21 @@ function renderApp(
     script?: ScriptedMaterial[]
     runs?: Parameters<typeof fakeRunsApi>[0]
     sources?: SourceDetail[]
+    hasKey?: boolean
   } = {},
 ) {
   const course = options.course ?? spanish
   const history = createMemoryHistory()
   history.set({ value: path })
   const jobs = fakeJobsApi()
-  const materials = fakeMaterialsApi({ materials: { 2: options.materials ?? [] }, script: options.script, jobs })
+  const sources = fakeSourcesApi({ sources: { [course.id]: options.sources ?? [] }, jobs, hasKey: options.hasKey })
+  const materials = fakeMaterialsApi({
+    materials: { 2: options.materials ?? [] },
+    script: options.script,
+    jobs,
+    sources,
+    hasKey: options.hasKey,
+  })
   const apis = fakeApis({
     auth: fakeAuthApi({ signedIn: teacher }),
     courses: fakeCoursesApi({
@@ -49,11 +57,11 @@ function renderApp(
     students: fakeStudentsApi(),
     materials,
     runs: fakeRunsApi(options.runs),
-    sources: fakeSourcesApi({ sources: { [course.id]: options.sources ?? [] }, jobs }),
+    sources,
     jobs,
   })
   render(withI18n(() => <App apis={apis} history={history} />, 'en'))
-  return { materials, runs: apis.runs }
+  return { materials, runs: apis.runs, sources, jobs }
 }
 
 const renderTopic = (options: Parameters<typeof renderApp>[1] = {}) => renderApp('/courses/1/topics/2?tab=materials', options)
@@ -327,6 +335,12 @@ describe('classroom material transcribed from a source', () => {
   const test3: SourceDetail = { ...textbook, id: 7, name: 'Test 3.pdf', extracted_with: 'ocr' }
   const keySheet: SourceDetail = { ...textbook, id: 8, name: 'Klíč.pdf' }
   const unread: SourceDetail = { ...textbook, id: 9, name: 'Scan.png', characters: null, text: null, extracted_with: null }
+  const reading: SourceDetail = {
+    ...unread,
+    id: 10,
+    name: 'Reading.png',
+    job: { id: 90, kind: 'source_extraction', state: 'running', progress: 'extracting', result: null, error_kind: null, raw_output: null },
+  }
   const proposed: ScriptedMaterial = {
     ...written,
     lesson: {
@@ -339,7 +353,7 @@ describe('classroom material transcribed from a source', () => {
   it('transcribes a read source of the course, with an optional answer key, even before the concept map is approved', async () => {
     const { materials } = renderTopic({
       map: preteritMap,
-      sources: [test3, keySheet, unread],
+      sources: [test3, keySheet, unread, reading],
       script: [proposed],
     })
     const user = userEvent.setup()
@@ -347,7 +361,13 @@ describe('classroom material transcribed from a source', () => {
 
     const form = within(await materialSection.findByRole('form', { name: 'Create from a source' }))
     const choice = form.getByRole('combobox', { name: 'Source to transcribe' })
-    expect(within(choice).queryByRole('option', { name: 'Scan.png' })).not.toBeInTheDocument()
+    // One not read yet is read first; one being read is not offered until it is read.
+    expect(within(choice).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Test 3.pdf',
+      'Klíč.pdf',
+      'Scan.png (not read yet)',
+      'Upload a new file…',
+    ])
     await user.selectOptions(choice, 'Test 3.pdf')
     await user.selectOptions(form.getByRole('combobox', { name: 'Answer key (optional)' }), 'Klíč.pdf')
     await user.click(form.getByRole('button', { name: 'Transcribe' }))
@@ -359,12 +379,64 @@ describe('classroom material transcribed from a source', () => {
     expect(material.getByText('Paper-only exercises: 1. They are printed but not done in the app.')).toBeInTheDocument()
   })
 
-  it('points to the sources to upload one when none is read yet', async () => {
-    renderTopic({ sources: [unread] })
+  it('uploads the test and its key right in the form, reads them, then transcribes', async () => {
+    const { materials, sources, jobs } = renderTopic({ script: [written] })
+    jobs.pollMs = 50
+    const user = userEvent.setup()
     const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
 
-    expect(form.getByText('Upload the test or worksheet as a source of the course first.')).toBeInTheDocument()
-    expect(form.getByRole('link', { name: 'Go to sources' })).toHaveAttribute('href', '/courses/1?tab=sources')
-    expect(form.queryByRole('button', { name: 'Transcribe' })).not.toBeInTheDocument()
+    expect(form.getByRole('combobox', { name: 'Source to transcribe' })).toHaveDisplayValue('Upload a new file…')
+    await user.upload(form.getByLabelText('Test file'), new File(['scan'], 'Test 3.png', { type: 'image/png' }))
+    await user.selectOptions(form.getByRole('combobox', { name: 'Answer key (optional)' }), 'Upload a new file…')
+    await user.upload(form.getByLabelText('Answer key file'), new File(['Klíč: 1a'], 'Klíč.txt', { type: 'text/plain' }))
+    await user.click(form.getByRole('button', { name: 'Transcribe' }))
+
+    expect(sources.store).toHaveBeenCalledTimes(2)
+    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, 100, 101, [])
+    expect(await (await section()).findByRole('status')).toHaveTextContent('Reading the text…')
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('The assistant is working…'))
+    const material = await item('Ser, or estar?')
+    expect(material.getByText('Transcribed from Test 3.png')).toBeInTheDocument()
+  })
+
+  it('uploads nothing and transcribes nothing without a provider key', async () => {
+    const { materials, sources } = renderTopic({ hasKey: false })
+    const user = userEvent.setup()
+    const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
+
+    expect(form.getByRole('button', { name: 'Transcribe' })).toBeDisabled()
+    await user.upload(form.getByLabelText('Test file'), new File(['scan'], 'Test 3.png', { type: 'image/png' }))
+    await user.click(form.getByRole('button', { name: 'Transcribe' }))
+
+    expect(await (await section()).findByRole('alert')).toHaveTextContent('Add an AI provider key in Settings first.')
+    expect(await sources.list(1)).toEqual([])
+    expect(materials.transcribe).not.toHaveBeenCalled()
+  })
+
+  it('says why a file was refused', async () => {
+    const { materials } = renderTopic()
+    const user = userEvent.setup()
+    const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
+
+    await user.upload(form.getByLabelText('Test file'), new File([], 'Test 3.pdf', { type: 'application/pdf' }))
+    await user.click(form.getByRole('button', { name: 'Transcribe' }))
+
+    expect(await (await section()).findByRole('alert')).toHaveTextContent('The file is empty.')
+    expect(materials.transcribe).not.toHaveBeenCalled()
+  })
+
+  it('says on the material why its source could not be read, and reads it again', async () => {
+    const { materials } = renderTopic({ sources: [unread], script: [{ fail: 'nothing_read' }, written] })
+    const user = userEvent.setup()
+    const form = within(await (await section()).findByRole('form', { name: 'Create from a source' }))
+
+    await user.click(form.getByRole('button', { name: 'Transcribe' }))
+
+    expect(materials.transcribe).toHaveBeenCalledWith(1, 2, 9, null, [])
+    const failed = await item('Classroom material')
+    const retry = await failed.findByRole('button', { name: 'Try again' })
+    expect(failed.getByText(/The assistant found no text in the file/)).toBeInTheDocument()
+    await user.click(retry)
+    expect(await item('Ser, or estar?')).toBeTruthy()
   })
 })

@@ -205,13 +205,34 @@ def _lesson(db: InstanceSession, material: ClassroomMaterial) -> LessonDocument:
     return materials.lesson_of(version)
 
 
-def _read_source(db: InstanceSession, course: Course, source_id: int) -> Source:
+def _transcribable(db: InstanceSession, course: Course, source_id: int) -> Source:
+    """A source of the course, read or to be read first by its transcription, but not while
+    another reading of it is still going."""
     source = sources.get_source(db, course, source_id)
     if source is None:
         raise HTTPException(status_code=422, detail="unknown_source")
-    if not source.text:
+    if not source.text and sources.being_read(db, source):
         raise HTTPException(status_code=409, detail="source_not_read")
     return source
+
+
+def _readings(
+    db: InstanceSession, material: ClassroomMaterial, actor: Account, now: datetime
+) -> list[tuple[int, runner.Work]]:
+    """A job reading each source of the transcribed material that has no text yet, as the
+    first step of its transcription: from the file, or by OCR for a scan or an image."""
+    readings: list[tuple[int, runner.Work]] = []
+    for source_id in dict.fromkeys((material.source_id, material.key_source_id)):
+        source = db.get(Source, source_id) if source_id else None
+        if source is None or source.text:
+            continue
+        job = runner.create_job(
+            db, sources.TASK_KIND, starter=actor, course_id=material.course_id, now=now
+        )
+        if sources.being_read(db, source) or not sources.claim_extraction(db, source, job):
+            raise HTTPException(status_code=409, detail="source_not_read")
+        readings.append((job.id, sources.extraction(source.id, ocr=False, ocr_if_no_text=True)))
+    return readings
 
 
 def _map_approved(db: InstanceSession, topic_id: int, course: Course) -> None:
@@ -244,13 +265,26 @@ def _schedule(
     if paying_credential(db, actor) is None:
         raise HTTPException(status_code=409, detail="no_provider_key")
     kind = materials.TRANSCRIPTION_KIND if material.transcribed else materials.TASK_KIND
+    readings = _readings(db, material, actor, now) if material.transcribed else []
     job = runner.create_job(db, kind, starter=actor, course_id=material.course_id, now=now)
     material.job_id = job.id
+    if readings:
+        # What the material waits for, until its sources are read.
+        job.progress = "extracting"
     db.flush()
+    generation = materials.generation(material.id, **work)
     # Runs after the response, once this request's transaction has committed.
-    background.add_task(
-        runner.run, request.app.state.jobs, job.id, materials.generation(material.id, **work)
-    )
+    if readings:
+        background.add_task(
+            runner.run_after,
+            request.app.state.jobs,
+            readings,
+            job.id,
+            generation,
+            first_progress="extracting",
+        )
+    else:
+        background.add_task(runner.run, request.app.state.jobs, job.id, generation)
     return Started(material=MaterialOut(**_summary(db, material)), job=JobOut.of(job))
 
 
@@ -292,7 +326,7 @@ def generate_material(
     "/from-source",
     status_code=202,
     responses={
-        409: {"description": "A source has no text read from it yet, or no provider key"},
+        409: {"description": "A source is being read, or no provider key"},
         422: {"description": "A source or student is not the course's"},
     },
 )
@@ -310,8 +344,8 @@ def transcribe_material(
     faithfully into material, with the answers from the key source or proposed."""
     course = editable_course(db, actor, course_id)
     topic = _topic(db, course, topic_id)
-    source = _read_source(db, course, body.source_id)
-    key = _read_source(db, course, body.key_source_id) if body.key_source_id else None
+    source = _transcribable(db, course, body.source_id)
+    key = _transcribable(db, course, body.key_source_id) if body.key_source_id else None
     if paying_credential(db, actor) is None:
         raise HTTPException(status_code=409, detail="no_provider_key")
     material = materials.start(db, topic, actor, now=now, source=source, key_source=key)
@@ -328,7 +362,9 @@ def read_material(
 
 
 @router.post(
-    "/{material_id}/retry", status_code=202, responses={409: {"description": "Nothing failed"}}
+    "/{material_id}/retry",
+    status_code=202,
+    responses={409: {"description": "Nothing failed, or a source is being read"}},
 )
 def retry_material(
     course_id: int,
@@ -353,7 +389,12 @@ def retry_material(
 @router.post(
     "/{material_id}/regeneration",
     status_code=202,
-    responses={409: {"description": "Running, a newer version was saved, or no provider key"}},
+    responses={
+        409: {
+            "description": "Running, a newer version was saved, a source is being read, or no "
+            "provider key"
+        }
+    },
 )
 def regenerate_material(
     course_id: int,

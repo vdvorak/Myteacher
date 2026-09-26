@@ -31,7 +31,8 @@ export interface SourceDetail extends Source {
 
 export interface SourceStarted {
   source: Source
-  job: Job
+  /** Null for a file stored unread, which its transcription reads. */
+  job: Job | null
 }
 
 export type SourceChange = Partial<Pick<Source, 'name' | 'visible_to_students'>>
@@ -61,6 +62,8 @@ export interface SourcesApi {
   get(courseId: number, sourceId: number): Promise<SourceDetail>
   /** Starts extracting the text; `ocr` lets the assistant read images and scans. */
   upload(courseId: number, file: File, ocr: boolean): Promise<SourceStarted>
+  /** Stores the file unread, for its transcription to read first; refused without a provider key. */
+  store(courseId: number, file: File): Promise<SourceStarted>
   change(courseId: number, sourceId: number, change: SourceChange): Promise<Source>
   /** Starts taking the snapshot of a web page; without a name, the page's title names it. */
   addPage(courseId: number, url: string, name: string | null): Promise<SourceStarted>
@@ -94,6 +97,10 @@ async function checked<T>(response: Response): Promise<T> {
   return (await response.json()) as T
 }
 
+/** What a file input offers to upload as a source. */
+export const sourceFileTypes =
+  '.pdf,.txt,.md,.png,.jpg,.jpeg,.webp,application/pdf,text/plain,text/markdown,image/png,image/jpeg,image/webp'
+
 // Browsers often give no type for these; the backend reads the kind from the content anyway.
 const typesByExtension: Record<string, string> = { md: 'text/markdown', txt: 'text/plain' }
 
@@ -110,6 +117,16 @@ export const httpSourcesApi: SourcesApi = {
   get: async (courseId, sourceId) => checked(await fetch(`${sourcesUrl(courseId)}/${sourceId}`)),
   upload: async (courseId, file, ocr) => {
     const query = new URLSearchParams({ name: file.name, ocr: String(ocr) })
+    return checked(
+      await fetch(`${sourcesUrl(courseId)}?${query}`, {
+        method: 'POST',
+        headers: { 'Content-Type': uploadType(file) },
+        body: file,
+      }),
+    )
+  },
+  store: async (courseId, file) => {
+    const query = new URLSearchParams({ name: file.name, read: 'false' })
     return checked(
       await fetch(`${sourcesUrl(courseId)}?${query}`, {
         method: 'POST',

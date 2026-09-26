@@ -14,7 +14,11 @@ export type JobFailure =
   | 'interrupted'
   /** An extraction found no text: a scan or an image read without OCR. */
   | 'no_text'
+  /** The assistant's OCR found no text either. */
+  | 'nothing_read'
   | 'unreadable_file'
+  /** A transcription's source was removed, or read again, while it was being read. */
+  | 'superseded'
   /** Taking a web page's snapshot: the site did not answer, answered with an error, sent no
    * page (a PDF, an image), sent too much, or is inside the network, which is never fetched. */
   | 'unreachable'

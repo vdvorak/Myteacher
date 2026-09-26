@@ -17,7 +17,9 @@ const failureMessages: Record<JobFailure, MessageKey> = {
   no_key: 'jobs.failed.no_key',
   interrupted: 'jobs.failed.interrupted',
   no_text: 'jobs.failed.no_text',
+  nothing_read: 'jobs.failed.nothing_read',
   unreadable_file: 'jobs.failed.unreadable_file',
+  superseded: 'jobs.failed.superseded',
   unreachable: 'jobs.failed.unreachable',
   page_error: 'jobs.failed.page_error',
   not_a_page: 'jobs.failed.not_a_page',
@@ -56,7 +58,7 @@ export function JobFailureMessage(props: { kind: JobFailure; rawOutput?: string 
 export function JobStatus(props: {
   job: Job
   onFinished: (job: Job) => void
-  /** What the job is said to do while it runs; by default, the assistant working. */
+  /** What the job is said to do while it runs; by default, reading the text or the assistant working. */
   working?: MessageKey
 }) {
   const { t } = useI18n()
@@ -97,7 +99,7 @@ export function JobStatus(props: {
       <Show when={!finished(job())}>
         <p class="job-status" role="status">
           <span class="job-spinner" aria-hidden="true" />
-          {t(props.working ?? 'jobs.working')}
+          {t(props.working ?? (job().progress === 'extracting' ? 'jobs.extracting' : 'jobs.working'))}
           <Show when={pollFailed()}> {t('jobs.pollFailed')}</Show>
         </p>
       </Show>

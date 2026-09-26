@@ -28,13 +28,19 @@ export function fakeJobsApi(options: { recent?: RecentJob[] } = {}) {
   } satisfies JobsApi
   return {
     ...api,
-    /** A queued job whose end `finish` decides, for the fakes of the endpoints that start jobs. */
-    start(kind: string, finish: () => Outcome, progress: Job['progress'] = 'asking_assistant'): Job {
+    /** A queued job whose end `finish` decides, for the fakes of the endpoints that start jobs; `queued` is
+     * what it says while it waits. */
+    start(
+      kind: string,
+      finish: () => Outcome,
+      progress: Job['progress'] = 'asking_assistant',
+      queued: Job['progress'] = 'waiting',
+    ): Job {
       const job: Job = {
         id: nextId++,
         kind,
         state: 'queued',
-        progress: 'waiting',
+        progress: queued,
         result: null,
         error_kind: null,
         raw_output: null,

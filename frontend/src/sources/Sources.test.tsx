@@ -104,6 +104,14 @@ describe('course sources', () => {
     expect(sources.getByRole('link', { name: 'Go to the course topics' })).toHaveAttribute('href', '/courses/1?tab=topics')
   })
 
+  it('says a source stored for a transcription is not read yet', async () => {
+    const stored: SourceDetail = { ...textbook, characters: null, text: null, extracted_with: null, job: null }
+    renderSources({ sources: [stored] })
+
+    const source = await item('Učebnice, kapitola 1.pdf')
+    expect(await source.findByText('Not read yet: it is read when it is transcribed.')).toBeInTheDocument()
+  })
+
   it('says when there are no sources yet', async () => {
     renderSources({ sources: [] })
 

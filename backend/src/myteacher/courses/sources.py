@@ -31,6 +31,9 @@ TASK_KIND = "source_extraction"
 # A textbook scan fits; a whole library does not.
 MAX_SIZE = 20 * 1024 * 1024
 MAX_NAME = 200
+# Fewer characters than this per page, on average, is a scan's text layer: a page number or a
+# scanner's stamp at best.
+SCAN_LAYER = 40
 
 
 class ReadText(BaseModel):
@@ -107,6 +110,12 @@ def get_source(db: InstanceSession, course: Course, source_id: int) -> Source | 
     return db.scalars(
         select(Source).where(Source.id == source_id, Source.course_id == course.id)
     ).first()
+
+
+def being_read(db: InstanceSession, source: Source) -> bool:
+    """Whether the source's latest extraction has yet to end."""
+    job = db.get(Job, source.job_id) if source.job_id else None
+    return job is not None and job.state in ("queued", "running")
 
 
 def file_of(db: InstanceSession, source: Source) -> bytes:
@@ -209,14 +218,14 @@ def claim_extraction(db: InstanceSession, source: Source, job: Job) -> bool:
     return True
 
 
-def pdf_text(content: bytes) -> str:
+def pdf_pages(content: bytes) -> list[str]:
     """The text layer of a PDF, page by page; raises `JobFailed` for a file pypdf cannot read."""
     from pypdf import PdfReader
     from pypdf.errors import PyPdfError
 
     try:
         reader = PdfReader(io.BytesIO(content))
-        return "\n\n".join((page.extract_text() or "").strip() for page in reader.pages).strip()
+        return [(page.extract_text() or "").strip() for page in reader.pages]
     except (PyPdfError, ValueError, KeyError, TypeError, OSError) as error:
         logger.info("unreadable PDF: %r", error)
         raise JobFailed("unreadable_file") from None
@@ -271,8 +280,9 @@ async def _snapshot(
     return {"source_id": source_id, "characters": len(page.text), "extracted_with": "page"}
 
 
-def extraction(source_id: int, *, ocr: bool) -> Work:
-    """The work of an extraction job for the source."""
+def extraction(source_id: int, *, ocr: bool, ocr_if_no_text: bool = False) -> Work:
+    """The work of an extraction job for the source: by OCR when `ocr`, else from the file, and
+    then by OCR when `ocr_if_no_text` and the file has no text, or a PDF only a scan's."""
 
     async def work(db: InstanceSession, job: Job, ctx: JobContext) -> dict[str, Any]:
         source = db.get(Source, source_id)
@@ -288,15 +298,18 @@ def extraction(source_id: int, *, ocr: bool) -> Work:
             text = _decoded(content)
         elif source.kind == "pdf" and not ocr:
             # CPU-bound and long for a whole textbook, so off the event loop.
-            text = await anyio.to_thread.run_sync(pdf_text, content)
+            pages = await anyio.to_thread.run_sync(pdf_pages, content)
+            text = "\n\n".join(pages).strip()
+            if ocr_if_no_text and len(text) < SCAN_LAYER * max(len(pages), 1):
+                text = None
         if not (text or "").strip():
             # A scan or an image. With OCR asked for, a PDF is read by the assistant even when
             # it has a text layer, which in a scan holds a page number or a stamp at best.
-            if not ocr:
+            if source.kind == "text" or not (ocr or ocr_if_no_text):
                 raise JobFailed("no_text")
             text, method = await _ocr(db, ctx, job, source, content), "ocr"
             if not text.strip():
-                raise JobFailed("no_text")
+                raise JobFailed("nothing_read")
         # Only if the job is still the source's current extraction, which the model call may
         # have changed.
         db.execute(

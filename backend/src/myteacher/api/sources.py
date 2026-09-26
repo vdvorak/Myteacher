@@ -58,7 +58,8 @@ class SourceDetail(SourceOut):
 
 class Started(BaseModel):
     source: SourceOut
-    job: JobOut
+    # None for a file left unread, which its transcription reads.
+    job: JobOut | None
 
 
 class SourceChange(BaseModel):
@@ -185,8 +186,9 @@ def _start(
     return Started(source=SourceOut(**_out(db, source)), job=JobOut.of(job))
 
 
-def _needs_key(db: InstanceSession, actor: Account, ocr: bool) -> None:
-    if ocr and paying_credential(db, actor) is None:
+def _needs_key(db: InstanceSession, actor: Account, paid: bool) -> None:
+    """Refuse work the assistant does on the actor's key when they have none."""
+    if paid and paying_credential(db, actor) is None:
         raise HTTPException(status_code=409, detail="no_provider_key")
 
 
@@ -201,7 +203,8 @@ def list_sources(course_id: int, db: Db, actor: Teacher) -> list[SourceOut]:
     "",
     status_code=202,
     responses={
-        409: {"description": "OCR asked for without a provider key"},
+        201: {"description": "Stored unread, for its transcription to read"},
+        409: {"description": "OCR or transcription asked for without a provider key"},
         413: {"description": "Larger than the limit"},
         415: {"description": "Not a PDF, a text file or an image"},
     },
@@ -209,6 +212,7 @@ def list_sources(course_id: int, db: Db, actor: Teacher) -> list[SourceOut]:
 def upload_source(
     course_id: int,
     request: Request,
+    response: Response,
     background: BackgroundTasks,
     db: Db,
     now: Now,
@@ -216,12 +220,15 @@ def upload_source(
     content: Annotated[bytes, Depends(_body)],
     name: Annotated[FileName, Query(max_length=1000)],
     ocr: bool = False,
+    read: bool = True,
 ) -> Started:
-    """Add the request body as a source and start extracting its text."""
+    """Add the request body as a source and start extracting its text. With `read` false the
+    source is left unread: it was uploaded to be transcribed, which reads it first on the actor's
+    key, so the key is asked for before anything is stored."""
     course = editable_course(db, actor, course_id)
     if not content:
         raise HTTPException(status_code=422, detail="empty_file")
-    _needs_key(db, actor, ocr)
+    _needs_key(db, actor, ocr or not read)
     try:
         source = sources.add_source(
             db,
@@ -234,6 +241,9 @@ def upload_source(
         )
     except sources.UnsupportedFile:
         raise HTTPException(status_code=415, detail="unsupported_type") from None
+    if not read:
+        response.status_code = 201
+        return Started(source=SourceOut(**_out(db, source)), job=None)
     return _start(request, background, db, source, ocr=ocr, actor=actor, now=now)
 
 
@@ -340,8 +350,7 @@ def extract_again(
             raise HTTPException(status_code=422, detail="ocr_not_for_pages")
         if source.text is not None:
             raise HTTPException(status_code=409, detail="snapshot_taken")
-    current = runner.get_job(db, source.job_id) if source.job_id else None
-    if current is not None and current.state in ("queued", "running"):
+    if sources.being_read(db, source):
         raise HTTPException(status_code=409, detail="extraction_running")
     _needs_key(db, actor, body.ocr)
     return _start(request, background, db, source, ocr=body.ocr, actor=actor, now=now)

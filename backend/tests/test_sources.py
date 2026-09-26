@@ -288,10 +288,10 @@ def test_reading_a_pdf_does_not_hold_up_other_requests(teacher, course, monkeypa
     import threading
 
     threads = []
-    real = sources.pdf_text
+    real = sources.pdf_pages
     monkeypatch.setattr(
         sources,
-        "pdf_text",
+        "pdf_pages",
         lambda content: threads.append(threading.current_thread()) or real(content),
     )
 
@@ -400,13 +400,13 @@ def test_ocr_is_recorded_without_the_file(teacher, course, models, admin_setting
     assert record.output == {"text": "Tabule"}
 
 
-def test_ocr_that_reads_nothing_fails_as_no_text(teacher, course, models):
+def test_ocr_that_reads_nothing_fails_as_nothing_read(teacher, course, models):
     add_key(teacher)
     models.script({"text": "   "})
 
     body = upload(teacher, course, PNG, "board.png", "image/png", ocr=True).json()
 
-    assert job(teacher, body["job"]["id"])["error_kind"] == "no_text"
+    assert job(teacher, body["job"]["id"])["error_kind"] == "nothing_read"
 
 
 def test_ocr_needs_a_provider_key(teacher, course):

@@ -4,6 +4,7 @@ import type { JobFailure } from '../jobs/api'
 import { fakeJobsApi, type FakeJobs } from '../jobs/testing'
 import { ApiError } from '../lesson/api'
 import { sampleLesson } from '../lesson/testing'
+import type { SourcesApi } from '../sources/api'
 import { MaterialRefused, type Material, type MaterialsApi } from './api'
 
 /** What the fake assistant writes: a lesson with its answer key, or why it failed. */
@@ -48,6 +49,8 @@ export function fakeMaterialsApi(
     hasKey?: boolean
     /** Topics whose concept map is not approved. */
     unapproved?: number[]
+    /** The course's sources: a transcription waits while the ones without text are read. */
+    sources?: Pick<SourcesApi, 'get'>
   } = {},
 ) {
   const jobs = options.jobs ?? fakeJobsApi()
@@ -80,38 +83,45 @@ export function fakeMaterialsApi(
     proposed_answers: [],
     versions: [],
   })
-  const schedule = (material: Material, instruction: string | null) => {
+  const schedule = (material: Material, instruction: string | null, reading = false) => {
     if (options.hasKey === false) throw new MaterialRefused('no_provider_key')
-    const job = jobs.start('classroom_material', () => {
-      const step = script.shift()
-      if (!step) throw new Error('the fake assistant was asked more often than scripted')
-      if ('fail' in step) {
-        material.job = { ...job, state: 'failed', error_kind: step.fail, progress: null }
-        return { state: 'failed', error_kind: step.fail, raw_output: null }
-      }
-      const number = (material.version ?? 0) + 1
-      Object.assign(material, {
-        title: step.lesson.title,
-        version: number,
-        lesson: step.lesson,
-        answer_key: step.answer_key,
-        proposed_answers: step.proposed_answers ?? [],
-        job: null,
-        // A new generated version is a draft again.
-        reviewed: false,
-      })
-      material.versions.push({
-        number,
-        instruction,
-        previous: number > 1 ? number - 1 : null,
-        generated: true,
-        created_at: '2026-09-24T09:00:00Z',
-      })
-      return { state: 'succeeded', error_kind: null, raw_output: null }
-    })
+    const job = jobs.start(
+      'classroom_material',
+      () => {
+        const step = script.shift()
+        if (!step) throw new Error('the fake assistant was asked more often than scripted')
+        if ('fail' in step) {
+          material.job = { ...job, state: 'failed', error_kind: step.fail, progress: null }
+          return { state: 'failed', error_kind: step.fail, raw_output: null }
+        }
+        const number = (material.version ?? 0) + 1
+        Object.assign(material, {
+          title: step.lesson.title,
+          version: number,
+          lesson: step.lesson,
+          answer_key: step.answer_key,
+          proposed_answers: step.proposed_answers ?? [],
+          job: null,
+          // A new generated version is a draft again.
+          reviewed: false,
+        })
+        material.versions.push({
+          number,
+          instruction,
+          previous: number > 1 ? number - 1 : null,
+          generated: true,
+          created_at: '2026-09-24T09:00:00Z',
+        })
+        return { state: 'succeeded', error_kind: null, raw_output: null }
+      },
+      'asking_assistant',
+      reading ? 'extracting' : 'waiting',
+    )
     material.job = job
     return { material: summary(material), job }
   }
+  const unread = async (courseId: number, sourceId: number | null) =>
+    sourceId !== null && options.sources !== undefined && (await options.sources.get(courseId, sourceId)).characters === null
 
   return {
     list: vi.fn(async (_courseId: number, topicId: number) => listOf(topicId).map(summary)),
@@ -131,7 +141,7 @@ export function fakeMaterialsApi(
     ),
     transcribe: vi.fn(
       async (
-        _courseId: number,
+        courseId: number,
         topicId: number,
         sourceId: number,
         keySourceId: number | null,
@@ -141,7 +151,8 @@ export function fakeMaterialsApi(
         const material = { ...fresh(targetStudentIds), source_id: sourceId, key_source_id: keySourceId }
         listOf(topicId).push(material)
         firstInstructions.set(material.id, null)
-        return schedule(material, null)
+        const reading = (await unread(courseId, sourceId)) || (await unread(courseId, keySourceId))
+        return schedule(material, null, reading)
       },
     ),
     retry: vi.fn(async (_courseId: number, topicId: number, materialId: number) => {

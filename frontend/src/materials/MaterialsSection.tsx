@@ -9,7 +9,8 @@ import type { MessageKey } from '../i18n/messages'
 import { finished } from '../jobs/api'
 import { JobFailureMessage, JobStatus } from '../jobs/JobStatus'
 import { ReleaseDialog } from '../runs/ReleaseDialog'
-import type { Source } from '../sources/api'
+import { SourceRefused, sourceFileTypes, type Source, type SourceRefusal } from '../sources/api'
+import { sourceRefusals } from '../sources/SourcesSection'
 import { MaterialRefused, type MaterialRefusal, type MaterialSummary } from './api'
 
 const refusals: Record<Exclude<MaterialRefusal, 'no_provider_key'>, MessageKey> = {
@@ -22,27 +23,38 @@ const refusals: Record<Exclude<MaterialRefusal, 'no_provider_key'>, MessageKey> 
   source_not_read: 'materials.sourceNotRead',
 }
 
-type Problem = { kind: 'refused'; reason: MaterialRefusal } | { kind: 'failed' } | null
+type Problem =
+  | { kind: 'refused'; reason: MaterialRefusal }
+  /** A file uploaded to be transcribed was refused. */
+  | { kind: 'source'; reason: SourceRefusal }
+  | { kind: 'failed' }
+  | null
 
 function ProblemMessage(props: { problem: Problem }) {
   const { t } = useI18n()
+  const message = (problem: Exclude<Problem, null>): MessageKey =>
+    problem.kind === 'refused'
+      ? refusals[problem.reason as keyof typeof refusals]
+      : problem.kind === 'source'
+        ? sourceRefusals[problem.reason]
+        : 'courses.saveFailed'
   return (
     <Show when={props.problem}>
       {(shown) => {
         const value = shown()
-        if (value.kind === 'refused' && value.reason === 'no_provider_key') return <JobFailureMessage kind="no_key" />
-        return (
-          <p role="alert">
-            {t(value.kind === 'refused' ? refusals[value.reason as keyof typeof refusals] : 'courses.saveFailed')}
-          </p>
-        )
+        if (value.kind !== 'failed' && value.reason === 'no_provider_key') return <JobFailureMessage kind="no_key" />
+        return <p role="alert">{t(message(value))}</p>
       }}
     </Show>
   )
 }
 
 const asProblem = (error: unknown): Problem =>
-  error instanceof MaterialRefused ? { kind: 'refused', reason: error.reason } : { kind: 'failed' }
+  error instanceof MaterialRefused
+    ? { kind: 'refused', reason: error.reason }
+    : error instanceof SourceRefused
+      ? { kind: 'source', reason: error.reason }
+      : { kind: 'failed' }
 
 /** The classroom material of a topic: exercises generated from its approved concept map, or transcribed
  * from one of the course's sources. */
@@ -72,7 +84,7 @@ export function MaterialsSection(props: {
   })
   const nameOf = (id: number) => students()?.find((s) => s.id === id)?.name ?? `#${id}`
   // The course's sources, to transcribe from and to name what material came from.
-  const [sources] = createResource(
+  const [sources, { refetch: refetchSources }] = createResource(
     () => props.courseId,
     async (courseId) => {
       try {
@@ -83,7 +95,6 @@ export function MaterialsSection(props: {
     },
   )
   const sourceName = (id: number) => sources()?.find((s) => s.id === id)?.name ?? `#${id}`
-  const readSources = () => (sources() ?? []).filter((s) => s.characters !== null)
 
   const [loaded] = createResource(
     () => [props.courseId, props.topicId] as const,
@@ -96,6 +107,8 @@ export function MaterialsSection(props: {
   async function reload() {
     try {
       setList(reconcile(await api.list(props.courseId, props.topicId), { key: 'id' }))
+      // A transcription reads its sources first: the form offers them as they are now.
+      void refetchSources()
       props.onChanged?.()
     } catch {
       setProblem({ kind: 'failed' })
@@ -152,7 +165,8 @@ export function MaterialsSection(props: {
         <TranscriptionForm
           courseId={props.courseId}
           topicId={props.topicId}
-          sources={readSources()}
+          sources={sources() ?? []}
+          onSourceAdded={() => void refetchSources()}
           onStarted={reload}
           onProblem={setProblem}
         />
@@ -213,32 +227,60 @@ export function MaterialsSection(props: {
   )
 }
 
-/** Material transcribed faithfully from a source the teacher uploaded, such as a scanned test. */
+/** A source, or a new file to upload as one. */
+type SourceChoice = number | 'upload'
+
+const choiceOf = (value: string): SourceChoice | null =>
+  value === '' ? null : value === 'upload' ? 'upload' : Number(value)
+
+/** Material transcribed faithfully from a source the teacher uploaded, such as a scanned test, or from a file
+ * uploaded here, which is read first. */
 function TranscriptionForm(props: {
   courseId: number
   topicId: number
-  /** The course's sources with text read from them. */
+  /** The course's sources. */
   sources: Source[]
+  /** A file uploaded here was added to the sources. */
+  onSourceAdded: () => void
   onStarted: () => Promise<void>
   onProblem: (problem: Problem) => void
 }) {
   const { t } = useI18n()
-  const api = useApi().materials
+  const apis = useApi()
   const headingId = createUniqueId()
-  const [sourceId, setSourceId] = createSignal<number | null>(null)
-  const [keyId, setKeyId] = createSignal<number | null>(null)
+  const [sourceChoice, setSourceChoice] = createSignal<SourceChoice | null>(null)
+  const [keyChoice, setKeyChoice] = createSignal<SourceChoice | null>(null)
+  const [testFile, setTestFile] = createSignal<File | null>(null)
+  const [keyFile, setKeyFile] = createSignal<File | null>(null)
   const [busy, setBusy] = createSignal(false)
-  const chosen = () => sourceId() ?? props.sources[0]?.id ?? null
+  // Read sources, and those whose transcription will read them first; not one being read now.
+  const offered = () =>
+    props.sources.filter((s) => s.characters !== null || (s.job?.state !== 'queued' && s.job?.state !== 'running'))
+  const testChoice = (): SourceChoice => sourceChoice() ?? offered()[0]?.id ?? 'upload'
+  const missingFile = () => (testChoice() === 'upload' && !testFile()) || (keyChoice() === 'upload' && !keyFile())
+
+  /** The chosen source, uploading the file first when a new one was chosen. */
+  async function sourceOf(choice: SourceChoice, file: File | null, choose: (id: number) => void): Promise<number> {
+    if (choice !== 'upload') return choice
+    const { source } = await apis.sources.store(props.courseId, file!)
+    // Chosen from now on, so trying again does not upload it twice.
+    choose(source.id)
+    props.onSourceAdded()
+    return source.id
+  }
 
   async function transcribe(event: SubmitEvent) {
     event.preventDefault()
-    const source = chosen()
-    if (source === null) return
     setBusy(true)
     props.onProblem(null)
     try {
-      await api.transcribe(props.courseId, props.topicId, source, keyId(), [])
-      setKeyId(null)
+      const source = await sourceOf(testChoice(), testFile(), setSourceChoice)
+      const key = keyChoice() === null ? null : await sourceOf(keyChoice()!, keyFile(), setKeyChoice)
+      await apis.materials.transcribe(props.courseId, props.topicId, source, key, [])
+      setSourceChoice(null)
+      setKeyChoice(null)
+      setTestFile(null)
+      setKeyFile(null)
       await props.onStarted()
     } catch (error) {
       props.onProblem(asProblem(error))
@@ -251,44 +293,77 @@ function TranscriptionForm(props: {
     <form class="document-editor" aria-labelledby={headingId} onSubmit={transcribe}>
       <h3 id={headingId}>{t('materials.fromSource')}</h3>
       <p class="settings-note">{t('materials.fromSourceNote')}</p>
-      <Show
-        when={props.sources.length > 0}
-        fallback={
-          <>
-            <p class="settings-note">{t('materials.noReadSource')}</p>
-            <p>
-              <A class="button-link" href={`/courses/${props.courseId}?tab=sources`}>
-                {t('materials.toSources')}
-              </A>
-            </p>
-          </>
-        }
-      >
-        <label>
-          {t('materials.sourceToTranscribe')}
-          <select value={chosen() ?? ''} onChange={(e) => setSourceId(Number(e.currentTarget.value))}>
-            <For each={props.sources}>{(source) => <option value={source.id}>{source.name}</option>}</For>
-          </select>
-        </label>
-        <label>
-          {t('materials.keySource')}
-          <select
-            value={keyId() ?? ''}
-            onChange={(e) => setKeyId(e.currentTarget.value === '' ? null : Number(e.currentTarget.value))}
-          >
-            <option value="">{t('materials.noKeySource')}</option>
-            <For each={props.sources.filter((s) => s.id !== chosen())}>
-              {(source) => <option value={source.id}>{source.name}</option>}
-            </For>
-          </select>
-        </label>
-        <div class="settings-actions">
-          <button type="submit" disabled={busy()}>
-            {t('materials.transcribe')}
-          </button>
-        </div>
+      <SourceField
+        label={t('materials.sourceToTranscribe')}
+        fileLabel={t('materials.testFile')}
+        sources={offered()}
+        choice={testChoice()}
+        onChoice={setSourceChoice}
+        onFile={setTestFile}
+      />
+      <SourceField
+        label={t('materials.keySource')}
+        fileLabel={t('materials.keyFile')}
+        none={t('materials.noKeySource')}
+        sources={offered().filter((s) => s.id !== testChoice())}
+        choice={keyChoice()}
+        onChoice={setKeyChoice}
+        onFile={setKeyFile}
+      />
+      <Show when={testChoice() === 'upload' || keyChoice() === 'upload'}>
+        <p class="settings-note">{t('materials.uploadNote')}</p>
       </Show>
+      <div class="settings-actions">
+        <button type="submit" disabled={busy() || missingFile()}>
+          {t('materials.transcribe')}
+        </button>
+      </div>
     </form>
+  )
+}
+
+/** A choice of source, or of a new file to upload as one, with the file input it then needs. */
+function SourceField(props: {
+  label: string
+  fileLabel: string
+  /** What choosing no source is called, when that may be chosen. */
+  none?: string
+  sources: Source[]
+  choice: SourceChoice | null
+  onChoice: (choice: SourceChoice | null) => void
+  onFile: (file: File | null) => void
+}) {
+  const { t } = useI18n()
+  const name = (source: Source) =>
+    source.characters === null ? t('materials.notReadYet', { name: source.name }) : source.name
+  return (
+    <>
+      <label>
+        {props.label}
+        <select
+          value={props.choice === null ? '' : String(props.choice)}
+          onChange={(e) => {
+            // A file chosen before is no longer shown, so it is not uploaded either.
+            props.onFile(null)
+            props.onChoice(choiceOf(e.currentTarget.value))
+          }}
+        >
+          <Show when={props.none}>{(none) => <option value="">{none()}</option>}</Show>
+          <For each={props.sources}>{(source) => <option value={source.id}>{name(source)}</option>}</For>
+          <option value="upload">{t('materials.uploadNew')}</option>
+        </select>
+      </label>
+      <Show when={props.choice === 'upload'}>
+        <label>
+          {props.fileLabel}
+          <input
+            type="file"
+            accept={sourceFileTypes}
+            onChange={(e) => props.onFile(e.currentTarget.files?.[0] ?? null)}
+          />
+        </label>
+      </Show>
+    </>
   )
 }
 
